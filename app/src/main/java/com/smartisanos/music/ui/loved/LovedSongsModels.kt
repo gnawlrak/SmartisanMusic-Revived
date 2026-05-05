@@ -2,7 +2,6 @@ package com.smartisanos.music.ui.loved
 
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
-import kotlin.random.Random
 
 enum class LovedSongsSortMode {
     Time,
@@ -77,15 +76,12 @@ internal fun buildLovedSongsPlayRequest(
     )
 }
 
-internal fun buildLovedSongsShuffleRequest(
-    entries: List<LovedSongEntry>,
-    random: Random = Random.Default,
-): LovedSongsPlaybackRequest? {
+internal fun buildLovedSongsShuffleRequest(entries: List<LovedSongEntry>): LovedSongsPlaybackRequest? {
     if (entries.isEmpty()) {
         return null
     }
     return LovedSongsPlaybackRequest(
-        mediaItems = entries.map(LovedSongEntry::mediaItem).shuffled(random),
+        mediaItems = entries.map(LovedSongEntry::mediaItem),
         startIndex = 0,
     )
 }

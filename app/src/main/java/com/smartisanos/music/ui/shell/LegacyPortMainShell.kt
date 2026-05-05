@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
@@ -58,6 +59,7 @@ import com.smartisanos.music.playback.LocalPlaybackController
 import com.smartisanos.music.playback.ProvidePlaybackController
 import com.smartisanos.music.playback.artworkRequestKey
 import com.smartisanos.music.playback.await
+import com.smartisanos.music.playback.deduplicateQueueCandidates
 import com.smartisanos.music.playback.invalidateLibrary
 import com.smartisanos.music.playback.refreshLibrary
 import com.smartisanos.music.playback.removeMediaItemsByMediaIds
@@ -137,6 +139,7 @@ private fun LegacyPortMainShellContent(
     val libraryExclusions by libraryExclusionsStore.exclusions.collectAsState(initial = LibraryExclusions())
     val playbackSettings by playbackSettingsStore.settings.collectAsState(initial = PlaybackSettings())
     val artistSettings by artistSettingsStore.settings.collectAsState(initial = ArtistSettings())
+    val unknownSongTitle = stringResource(R.string.unknown_song_title)
     val favoriteRecords by favoriteRepository.observeFavorites().collectAsState(initial = emptyList())
     val playlists by playlistRepository.playlists.collectAsState(initial = emptyList())
     var playbackVisible by remember { mutableStateOf(false) }
@@ -285,8 +288,11 @@ private fun LegacyPortMainShellContent(
         if (controller?.repeatMode == Player.REPEAT_MODE_ONE) {
             Toast.makeText(context, R.string.can_not_add_to_queue_single_repeat, Toast.LENGTH_SHORT).show()
         } else {
-            controller?.addMediaItems(items)
-            Toast.makeText(context, R.string.add_to_queue_success, Toast.LENGTH_SHORT).show()
+            val deduplicatedItems = controller?.deduplicateQueueCandidates(items).orEmpty()
+            if (deduplicatedItems.isNotEmpty()) {
+                controller?.addMediaItems(deduplicatedItems)
+                Toast.makeText(context, R.string.add_to_queue_success, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -459,7 +465,7 @@ private fun LegacyPortMainShellContent(
                 request.resolveExternalAudioMediaStoreIds(context.applicationContext)
         }
         val mediaItem = request.toExternalAudioMediaItem(
-            fallbackTitle = context.getString(R.string.unknown_song_title),
+            fallbackTitle = unknownSongTitle,
             artist = artist,
             mediaStoreId = mediaStoreIds.mediaStoreId,
             albumId = mediaStoreIds.albumId,

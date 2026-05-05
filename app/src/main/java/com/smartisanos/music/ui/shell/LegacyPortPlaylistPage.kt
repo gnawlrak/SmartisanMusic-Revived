@@ -71,6 +71,7 @@ import com.smartisanos.music.data.playlist.UserPlaylistSummary
 import com.smartisanos.music.playback.LocalAudioLibrary
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortSmartisanTitleBar
 import com.smartisanos.music.ui.widgets.CustomCheckBox
 import com.smartisanos.music.ui.widgets.EditableLayout
@@ -329,11 +330,7 @@ internal fun LegacyPortPlaylistPage(
                             if (detailTracks.isEmpty()) {
                                 return@LegacyPlaylistDetailPage
                             }
-                            val shuffled = detailTracks.shuffled()
-                            browser.replaceQueueAndPlay(
-                                mediaItems = shuffled,
-                                shuffleModeEnabled = true,
-                            )
+                            browser.replaceQueueAndPlayShuffled(detailTracks)
                         },
                         onDeletePlaylist = {
                             deleteRequest = LegacyPlaylistDeleteRequest.DetailPlaylist

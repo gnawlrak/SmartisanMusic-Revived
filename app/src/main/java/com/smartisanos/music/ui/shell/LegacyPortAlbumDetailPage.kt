@@ -37,6 +37,7 @@ import com.smartisanos.music.R
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.album.AlbumSummary
 import com.smartisanos.music.ui.album.displayTrackNumber
 import com.smartisanos.music.ui.artist.artistNormalizedKey
@@ -105,11 +106,7 @@ internal fun LegacyPortAlbumDetailPage(
                         browser.replaceQueueAndPlay(album.songs)
                     },
                     onShuffle = {
-                        val shuffledSongs = album.songs.shuffled()
-                        browser.replaceQueueAndPlay(
-                            mediaItems = shuffledSongs,
-                            shuffleModeEnabled = true,
-                        )
+                        browser.replaceQueueAndPlayShuffled(album.songs)
                     },
                     onAddToPlaylist = {
                         if (album.songs.isNotEmpty()) {

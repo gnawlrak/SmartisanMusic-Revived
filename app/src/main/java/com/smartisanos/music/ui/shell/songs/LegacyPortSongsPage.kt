@@ -22,12 +22,12 @@ import androidx.media3.common.Player
 import com.smartisanos.music.R
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.shell.LegacySlideSelectionStartArea
 import com.smartisanos.music.ui.shell.addLegacyPortListFooter
 import com.smartisanos.music.ui.shell.bindLegacyPortListFooter
 import com.smartisanos.music.ui.shell.legacyWrappedAdapter
 import com.smartisanos.music.ui.shell.legacySlideSelectionController
-import kotlin.random.Random
 import smartisanos.widget.ActionButtonGroup
 import smartisanos.widget.letters.QuickBarEx
 
@@ -106,12 +106,7 @@ internal fun LegacyPortSongsPage(
                     if (!playActionsEnabled || sortedSongs.isEmpty()) {
                         return@setOnClickListener
                     }
-                    val startIndex = Random.nextInt(sortedSongs.size)
-                    browser.replaceQueueAndPlay(
-                        mediaItems = sortedSongs,
-                        startIndex = startIndex,
-                        shuffleModeEnabled = true,
-                    )
+                    browser.replaceQueueAndPlayShuffled(sortedSongs)
                 }
             }
             val listView = root.findViewById<ListView>(R.id.list) ?: return@AndroidView

@@ -3,7 +3,6 @@ package com.smartisanos.music.ui.loved
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
-import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -80,19 +79,15 @@ class LovedSongsModelsTest {
     }
 
     @Test
-    fun buildLovedSongsShuffleRequestUsesShuffledOrder() {
+    fun buildLovedSongsShuffleRequestKeepsSourceOrder() {
         val sourceEntries = listOf(
             lovedSongEntry(id = "first", title = "A", likedAt = 30L),
             lovedSongEntry(id = "second", title = "B", likedAt = 20L),
             lovedSongEntry(id = "third", title = "C", likedAt = 10L),
         )
-        val request = buildLovedSongsShuffleRequest(
-            entries = sourceEntries,
-            random = Random(1234),
-        )
+        val request = buildLovedSongsShuffleRequest(entries = sourceEntries)
         val expectedOrder = sourceEntries
             .map(LovedSongEntry::mediaItem)
-            .shuffled(Random(1234))
             .map(MediaItem::mediaId)
 
         assertNotNull(request)

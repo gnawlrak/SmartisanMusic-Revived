@@ -50,6 +50,7 @@ import com.smartisanos.music.data.favorite.FavoriteSongRecord
 import com.smartisanos.music.playback.LocalAudioLibrary
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.loved.LovedSongEntry
 import com.smartisanos.music.ui.loved.LovedSongsSortMode
 import com.smartisanos.music.ui.loved.buildLovedSongEntries
@@ -65,7 +66,6 @@ import com.smartisanos.music.ui.shell.legacySlideSelectionController
 import com.smartisanos.music.ui.shell.songs.LegacyTitleNormalizer
 import com.smartisanos.music.ui.widgets.EditableLayout
 import com.smartisanos.music.ui.widgets.StretchTextView
-import kotlin.random.Random
 import smartisanos.app.MenuDialog
 
 @Composable
@@ -225,12 +225,8 @@ internal fun LegacyPortLovedSongsPage(
                             if (!isEnabled) {
                                 return@setOnClickListener
                             }
-                            buildLovedSongsShuffleRequest(sortedEntries, Random.Default)?.let { request ->
-                                browser.replaceQueueAndPlay(
-                                    mediaItems = request.mediaItems,
-                                    startIndex = request.startIndex,
-                                    shuffleModeEnabled = true,
-                                )
+                            buildLovedSongsShuffleRequest(sortedEntries)?.let { request ->
+                                browser.replaceQueueAndPlayShuffled(request.mediaItems)
                             }
                         }
                     }

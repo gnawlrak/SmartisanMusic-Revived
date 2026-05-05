@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -50,7 +51,6 @@ import com.smartisanos.music.ui.artist.ArtistSummary
 import com.smartisanos.music.ui.artist.buildArtistSummaries
 import java.text.Collator
 import java.util.Locale
-import kotlin.random.Random
 
 internal const val ArtistAlbumSwitchBaseDurationMillis = 150L
 internal const val ArtistAlbumSwitchStaggerMillis = 10L
@@ -126,11 +126,14 @@ internal fun LegacyPortArtistPage(
     val visibleSongs = remember(mediaItems, hiddenMediaIds) {
         mediaItems.filterNot { mediaItem -> mediaItem.mediaId in hiddenMediaIds }
     }
-    val artists = remember(visibleSongs, context, artistSettings) {
+    val unknownArtistTitle = stringResource(R.string.unknown_artist)
+    val unknownAlbumTitle = stringResource(R.string.unknown_album)
+    val allSongsTitle = stringResource(R.string.artist_all_songs)
+    val artists = remember(visibleSongs, unknownArtistTitle, unknownAlbumTitle, artistSettings) {
         buildArtistSummaries(
             mediaItems = visibleSongs,
-            unknownArtistTitle = context.getString(R.string.unknown_artist),
-            unknownAlbumTitle = context.getString(R.string.unknown_album),
+            unknownArtistTitle = unknownArtistTitle,
+            unknownAlbumTitle = unknownAlbumTitle,
             artistSettings = artistSettings,
         )
     }
@@ -182,7 +185,7 @@ internal fun LegacyPortArtistPage(
                             LegacyArtistTarget.AllSongs(
                                 artistId = artist.id,
                                 artistName = artist.name,
-                                title = context.getString(R.string.artist_all_songs),
+                                title = allSongsTitle,
                             )
                         } else {
                             LegacyArtistTarget.Album(

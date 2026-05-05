@@ -55,6 +55,7 @@ import com.smartisanos.music.data.library.LibraryExclusionsStore
 import com.smartisanos.music.playback.LocalAudioLibrary
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.components.hasAudioPermission
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortSmartisanTitleBar
 import com.smartisanos.music.ui.folder.DirectoryEntry
@@ -73,7 +74,6 @@ import smartisanos.widget.ListContentItemText
 import smartisanos.widget.TitleBar
 import java.text.Normalizer
 import java.util.Locale
-import kotlin.random.Random
 
 private const val FolderStorageLabel = "Phone Storage"
 private const val FolderHiddenAlpha = 0.3f
@@ -780,12 +780,7 @@ private fun LegacyFolderDetailPage(
                 },
                 onShuffle = {
                     if (tracks.isNotEmpty()) {
-                        val startIndex = Random.nextInt(tracks.size)
-                        browser.replaceQueueAndPlay(
-                            mediaItems = tracks,
-                            startIndex = startIndex,
-                            shuffleModeEnabled = true,
-                        )
+                        browser.replaceQueueAndPlayShuffled(tracks)
                     }
                 },
                 onTrackClick = { item, index ->

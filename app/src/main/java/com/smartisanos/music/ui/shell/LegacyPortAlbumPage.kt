@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -39,6 +40,7 @@ import com.smartisanos.music.R
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.album.AlbumSummary
 import com.smartisanos.music.ui.album.AlbumViewMode
 import com.smartisanos.music.ui.album.buildAlbumSummaries
@@ -91,11 +93,13 @@ internal fun LegacyPortAlbumPage(
     val visibleSongs = remember(mediaItems, hiddenMediaIds) {
         mediaItems.filterNot { mediaItem -> mediaItem.mediaId in hiddenMediaIds }
     }
-    val albums = remember(visibleSongs, context, artistSettings) {
+    val unknownAlbumTitle = stringResource(R.string.unknown_album)
+    val multipleArtistsTitle = stringResource(R.string.many_artist)
+    val albums = remember(visibleSongs, unknownAlbumTitle, multipleArtistsTitle, artistSettings) {
         buildAlbumSummaries(
             mediaItems = visibleSongs,
-            unknownAlbumTitle = context.getString(R.string.unknown_album),
-            multipleArtistsTitle = context.getString(R.string.many_artist),
+            unknownAlbumTitle = unknownAlbumTitle,
+            multipleArtistsTitle = multipleArtistsTitle,
             artistSettings = artistSettings,
         )
     }
@@ -182,10 +186,11 @@ private fun LegacyPortAlbumOverviewPage(
                     if (albumSongs.isEmpty()) {
                         return@play
                     }
-                    playbackBrowser.replaceQueueAndPlay(
-                        mediaItems = albumSongs,
-                        shuffleModeEnabled = shuffle,
-                    )
+                    if (shuffle) {
+                        playbackBrowser.replaceQueueAndPlayShuffled(albumSongs)
+                    } else {
+                        playbackBrowser.replaceQueueAndPlay(albumSongs)
+                    }
                 },
             )
 

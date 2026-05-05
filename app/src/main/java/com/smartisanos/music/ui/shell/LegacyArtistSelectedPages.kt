@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -36,13 +37,13 @@ import com.smartisanos.music.R
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.album.AlbumSummary
 import com.smartisanos.music.ui.album.AlbumViewMode
 import com.smartisanos.music.ui.album.buildAlbumSummaries
 import com.smartisanos.music.ui.artist.ArtistSummary
 import java.text.Collator
 import java.util.Locale
-import kotlin.random.Random
 
 @Composable
 internal fun LegacyPortSelectedArtistPage(
@@ -78,11 +79,12 @@ internal fun LegacyPortSelectedArtistPage(
     val nestedTarget = target?.takeIf { currentTarget ->
         currentTarget.artistId == artist.id && currentTarget !is LegacyArtistTarget.Albums
     }
-    val entries = remember(artist, albums, context) {
+    val allSongsTitle = stringResource(R.string.artist_all_songs)
+    val entries = remember(artist, albums, allSongsTitle) {
         buildArtistAlbumEntries(
             artist = artist,
             albums = albums,
-            allSongsTitle = context.getString(R.string.artist_all_songs),
+            allSongsTitle = allSongsTitle,
         )
     }
     LegacyPortPageStackTransition(
@@ -520,12 +522,7 @@ private fun LegacyPortArtistAllSongsPage(
                 enabled = sortedSongs.isNotEmpty(),
                 onShuffle = {
                     if (sortedSongs.isNotEmpty()) {
-                        val startIndex = Random.nextInt(sortedSongs.size)
-                        browser.replaceQueueAndPlay(
-                            mediaItems = sortedSongs,
-                            startIndex = startIndex,
-                            shuffleModeEnabled = true,
-                        )
+                        browser.replaceQueueAndPlayShuffled(sortedSongs)
                     }
                 },
             )

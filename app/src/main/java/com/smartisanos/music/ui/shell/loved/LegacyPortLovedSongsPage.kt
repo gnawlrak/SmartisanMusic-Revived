@@ -58,6 +58,8 @@ import com.smartisanos.music.ui.loved.buildLovedSongsPlayRequest
 import com.smartisanos.music.ui.loved.buildLovedSongsShuffleRequest
 import com.smartisanos.music.ui.loved.sortLovedSongEntries
 import com.smartisanos.music.ui.shell.LegacyAlbumArtworkLoader
+import com.smartisanos.music.ui.shell.LegacyPortPredictiveBackHandler
+import com.smartisanos.music.ui.shell.LegacyPortPredictiveBackState
 import com.smartisanos.music.ui.shell.LegacySlideSelectionStartArea
 import com.smartisanos.music.ui.shell.addLegacyPortListFooter
 import com.smartisanos.music.ui.shell.bindLegacyPortListFooter
@@ -76,6 +78,7 @@ internal fun LegacyPortLovedSongsPage(
     hiddenMediaIds: Set<String>,
     libraryLoaded: Boolean,
     onClose: () -> Unit,
+    closePredictiveBackState: LegacyPortPredictiveBackState? = null,
     onTrackMoreClick: (MediaItem) -> Unit,
     onRemoveFavoriteMediaIds: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
@@ -128,8 +131,16 @@ internal fun LegacyPortLovedSongsPage(
         editMode = false
         selectedMediaIds = emptySet()
     }
-    BackHandler(enabled = active && !editMode) {
-        onClose()
+    if (closePredictiveBackState != null) {
+        LegacyPortPredictiveBackHandler(
+            enabled = active && !editMode,
+            state = closePredictiveBackState,
+            onBack = onClose,
+        )
+    } else {
+        BackHandler(enabled = active && !editMode) {
+            onClose()
+        }
     }
 
     Column(

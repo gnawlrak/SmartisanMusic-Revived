@@ -166,6 +166,7 @@ internal fun LegacyPortTabContent(
                 onMediaIdsHidden = onMediaIdsHidden,
                 onRequestDeleteMediaIds = onRequestDeleteMediaIds,
                 onLovedSongsTrackMoreClick = onLovedSongsTrackMoreClick,
+                onFolderTrackMoreClick = onLibraryTrackMoreClick,
                 onRemoveFavoriteMediaIds = onRemoveFavoriteMediaIds,
                 onSettingsPageActiveChanged = onMoreSettingsPageActiveChanged,
                 onLibraryNeeded = onLibraryNeeded,

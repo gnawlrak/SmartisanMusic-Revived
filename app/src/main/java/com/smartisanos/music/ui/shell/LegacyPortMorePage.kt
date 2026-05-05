@@ -89,11 +89,11 @@ private enum class LegacyMoreRootEntry(
 ) {
     LovedSongs(
         labelRes = R.string.collect_music,
-        iconRes = R.drawable.tabbar_like_selector,
+        iconRes = R.drawable.tabbar_like,
     ),
     Folder(
         labelRes = R.string.tab_directory,
-        iconRes = R.drawable.tabbar_folder_selector,
+        iconRes = R.drawable.tabbar_folder,
     ),
 }
 
@@ -116,6 +116,7 @@ internal fun LegacyPortMorePage(
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
     onLovedSongsTrackMoreClick: (MediaItem) -> Unit,
+    onFolderTrackMoreClick: (MediaItem) -> Unit,
     onRemoveFavoriteMediaIds: (Set<String>) -> Unit,
     onSettingsPageActiveChanged: (Boolean) -> Unit,
     onLibraryNeeded: () -> Unit,
@@ -123,6 +124,7 @@ internal fun LegacyPortMorePage(
     modifier: Modifier = Modifier,
 ) {
     var secondaryTarget by remember { mutableStateOf<LegacyMoreSecondaryTarget?>(null) }
+    val secondaryPredictiveBackState = rememberLegacyPortPredictiveBackState()
 
     LaunchedEffect(active, secondaryTarget) {
         when {
@@ -155,9 +157,12 @@ internal fun LegacyPortMorePage(
                 LegacyMoreSecondaryTarget.Settings -> LegacyPortPageStackAxis.VerticalPush
             }
         },
+        predictiveBackProgress = secondaryPredictiveBackState.progress,
+        predictiveBackExitConsumed = secondaryPredictiveBackState.exitConsumed,
+        onPredictiveBackExitConsumedReset = secondaryPredictiveBackState::reset,
         primaryContent = {
             LegacyMoreRootPage(
-                active = active && secondaryTarget == null,
+                active = active,
                 onSettingsClick = {
                     onSettingsPageActiveChanged(true)
                     secondaryTarget = LegacyMoreSecondaryTarget.Settings
@@ -184,6 +189,7 @@ internal fun LegacyPortMorePage(
                     onClose = {
                         secondaryTarget = null
                     },
+                    closePredictiveBackState = secondaryPredictiveBackState,
                     onTrackMoreClick = onLovedSongsTrackMoreClick,
                     onRemoveFavoriteMediaIds = onRemoveFavoriteMediaIds,
                     modifier = Modifier.fillMaxSize(),
@@ -195,9 +201,11 @@ internal fun LegacyPortMorePage(
                     onClose = {
                         secondaryTarget = null
                     },
+                    closePredictiveBackState = secondaryPredictiveBackState,
                     onRefreshLibrary = onRefreshLibrary,
                     onMediaIdsHidden = onMediaIdsHidden,
                     onRequestDeleteMediaIds = onRequestDeleteMediaIds,
+                    onTrackMoreClick = onFolderTrackMoreClick,
                     modifier = Modifier.fillMaxSize(),
                 )
                 LegacyMoreSecondaryTarget.Settings -> LegacyPortSettingsPage(

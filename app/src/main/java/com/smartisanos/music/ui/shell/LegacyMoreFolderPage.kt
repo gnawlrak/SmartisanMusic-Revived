@@ -30,9 +30,12 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -94,9 +98,11 @@ internal fun LegacyPortFolderPage(
     libraryRefreshVersion: Int,
     libraryRefreshing: Boolean,
     onClose: () -> Unit,
+    closePredictiveBackState: LegacyPortPredictiveBackState? = null,
     onRefreshLibrary: () -> Unit,
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
+    onTrackMoreClick: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -117,6 +123,7 @@ internal fun LegacyPortFolderPage(
     var editMode by remember { mutableStateOf(false) }
     var selectedDirectoryKeys by remember { mutableStateOf(emptySet<String>()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val detailPredictiveBackState = rememberLegacyPortPredictiveBackState()
 
     LaunchedEffect(active, hasPermission, libraryRefreshVersion, audioLibrary) {
         if (!active || !hasPermission) {
@@ -136,15 +143,26 @@ internal fun LegacyPortFolderPage(
         )
     }
 
-    BackHandler(enabled = active && target != null) {
+    LegacyPortPredictiveBackHandler(
+        enabled = active && target != null,
+        state = detailPredictiveBackState,
+    ) {
         target = null
     }
     BackHandler(enabled = active && target == null && editMode) {
         editMode = false
         selectedDirectoryKeys = emptySet()
     }
-    BackHandler(enabled = active && target == null && !editMode) {
-        onClose()
+    if (closePredictiveBackState != null) {
+        LegacyPortPredictiveBackHandler(
+            enabled = active && target == null && !editMode,
+            state = closePredictiveBackState,
+            onBack = onClose,
+        )
+    } else {
+        BackHandler(enabled = active && target == null && !editMode) {
+            onClose()
+        }
     }
 
     Column(
@@ -152,37 +170,71 @@ internal fun LegacyPortFolderPage(
             .fillMaxSize()
             .background(ComposeColor.White),
     ) {
-        LegacyPortSmartisanTitleBar(
-            modifier = Modifier.fillMaxWidth(),
-            showShadow = true,
-        ) { titleBar ->
-            titleBar.setupLegacyFolderTitleBar(
-                target = target,
-                editMode = editMode,
-                selectedCount = selectedDirectoryKeys.size,
-                libraryRefreshing = libraryRefreshing,
-                onBack = {
-                    when {
-                        target != null -> target = null
-                        editMode -> {
-                            editMode = false
-                            selectedDirectoryKeys = emptySet()
-                        }
-                        else -> onClose()
-                    }
-                },
-                onEnterEdit = {
-                    editMode = true
+        val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+            dimensionResource(R.dimen.title_bar_height)
+        val handleBack = {
+            when {
+                target != null -> target = null
+                editMode -> {
+                    editMode = false
                     selectedDirectoryKeys = emptySet()
-                },
-                onDeleteSelected = {
-                    if (selectedDirectoryKeys.isNotEmpty()) {
-                        showDeleteConfirm = true
-                    }
-                },
-                onRefreshLibrary = onRefreshLibrary,
-            )
+                }
+                else -> onClose()
+            }
         }
+        val enterEdit = {
+            editMode = true
+            selectedDirectoryKeys = emptySet()
+        }
+        val deleteSelected = {
+            if (selectedDirectoryKeys.isNotEmpty()) {
+                showDeleteConfirm = true
+            }
+        }
+        LegacyPortPageStackTransition(
+            secondaryKey = target,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(titleAreaHeight),
+            label = "legacy folder title stack",
+            predictiveBackProgress = detailPredictiveBackState.progress,
+            predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
+            onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
+            primaryContent = {
+                LegacyPortSmartisanTitleBar(
+                    modifier = Modifier.fillMaxSize(),
+                    showShadow = true,
+                ) { titleBar ->
+                    titleBar.setupLegacyFolderTitleBar(
+                        title = context.getString(R.string.tab_directory),
+                        editMode = editMode,
+                        selectedCount = selectedDirectoryKeys.size,
+                        libraryRefreshing = libraryRefreshing,
+                        onBack = handleBack,
+                        onEnterEdit = enterEdit,
+                        onDeleteSelected = deleteSelected,
+                        onRefreshLibrary = onRefreshLibrary,
+                    )
+                }
+            },
+            secondaryContent = { folderTarget ->
+                LegacyPortSmartisanTitleBar(
+                    modifier = Modifier.fillMaxSize(),
+                    showShadow = true,
+                ) { titleBar ->
+                    titleBar.setupLegacyFolderTitleBar(
+                        title = folderTarget.title,
+                        editMode = false,
+                        selectedCount = 0,
+                        libraryRefreshing = libraryRefreshing,
+                        onBack = handleBack,
+                        onEnterEdit = enterEdit,
+                        onDeleteSelected = deleteSelected,
+                        onRefreshLibrary = onRefreshLibrary,
+                    )
+                }
+            },
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,9 +244,12 @@ internal fun LegacyPortFolderPage(
                 secondaryKey = target,
                 modifier = Modifier.fillMaxSize(),
                 label = "legacy folder detail stack",
+                predictiveBackProgress = detailPredictiveBackState.progress,
+                predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
+                onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
                 primaryContent = {
                     LegacyFolderRootPage(
-                        active = active && target == null,
+                        active = active,
                         directories = allDirectories,
                         editMode = editMode,
                         selectedDirectoryKeys = selectedDirectoryKeys,
@@ -231,15 +286,18 @@ internal fun LegacyPortFolderPage(
                     )
                 },
                 secondaryContent = { folderTarget ->
-                    val songs = filterMediaItemsForDirectory(
-                        mediaItems = mediaItems,
-                        directoryKey = folderTarget.key,
-                        exclusions = exclusions,
-                    ).sortedForFolder()
+                    val songs = remember(mediaItems, exclusions, folderTarget.key) {
+                        filterMediaItemsForDirectory(
+                            mediaItems = mediaItems,
+                            directoryKey = folderTarget.key,
+                            exclusions = exclusions,
+                        ).sortedForFolder()
+                    }
                     LegacyFolderDetailPage(
                         active = active && target == folderTarget,
                         tracks = songs,
                         browser = browser,
+                        onTrackMoreClick = onTrackMoreClick,
                         modifier = Modifier.fillMaxSize(),
                     )
                 },
@@ -270,7 +328,7 @@ internal fun LegacyPortFolderPage(
 }
 
 private fun TitleBar.setupLegacyFolderTitleBar(
-    target: LegacyFolderTarget?,
+    title: String,
     editMode: Boolean,
     selectedCount: Int,
     libraryRefreshing: Boolean,
@@ -282,16 +340,9 @@ private fun TitleBar.setupLegacyFolderTitleBar(
     removeAllLeftViews()
     removeAllRightViews()
     setShadowVisible(false)
-    setCenterText(target?.title ?: context.getString(R.string.tab_directory))
+    setCenterText(title)
 
     when {
-        target != null -> {
-            addLeftImageView(R.drawable.standard_icon_back_selector).apply {
-                setOnClickListener {
-                    onBack()
-                }
-            }
-        }
         editMode -> {
             addLeftImageView(R.drawable.standard_icon_cancel_selector).apply {
                 setOnClickListener {
@@ -364,7 +415,15 @@ private fun LegacyFolderRootPage(
 private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
     private val listView = ListView(context)
     private val directoryAdapter = LegacyFolderDirectoryAdapter()
+    private val slideSelectionController = listView.legacySlideSelectionController(
+        startArea = LegacySlideSelectionStartArea.Checkbox,
+    )
     private var boundEditMode: Boolean? = null
+    private var boundDirectories: List<DirectoryEntry>? = null
+    private var boundSelectedDirectoryKeys: Set<String> = emptySet()
+    private var onDirectoryClick: (DirectoryEntry) -> Unit = {}
+    private var onDirectorySelectionChange: (String, Boolean) -> Unit = { _, _ -> }
+    private var onDirectoryVisibilityChange: (DirectoryEntry, Boolean) -> Unit = { _, _ -> }
     private var hiddenRowsExpanded = false
     private var pendingHiddenRowsMode: Boolean? = null
     private var pendingHiddenRowsRunnable: Runnable? = null
@@ -385,6 +444,13 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
             isVerticalScrollBarEnabled = false
             addLegacyPortListFooter()
             adapter = directoryAdapter
+            setOnTouchListener { _, event ->
+                slideSelectionController.handleTouch(event)
+            }
+            setOnItemClickListener { _, _, position, _ ->
+                val entry = directoryAdapter.itemAt(position) ?: return@setOnItemClickListener
+                onDirectoryClick(entry)
+            }
         }
         addView(listView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(blankView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -398,6 +464,18 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
         onDirectorySelectionChange: (String, Boolean) -> Unit,
         onDirectoryVisibilityChange: (DirectoryEntry, Boolean) -> Unit,
     ) {
+        this.onDirectoryClick = onDirectoryClick
+        this.onDirectorySelectionChange = onDirectorySelectionChange
+        this.onDirectoryVisibilityChange = onDirectoryVisibilityChange
+        directoryAdapter.updateVisibilityChange(this.onDirectoryVisibilityChange)
+        if (
+            boundDirectories === directories &&
+            boundEditMode == editMode &&
+            boundSelectedDirectoryKeys == selectedDirectoryKeys
+        ) {
+            return
+        }
+
         val visibleDirectories = filterDirectoryEntriesForDisplay(directories, editMode = false)
         val previousEditMode = boundEditMode
         val firstBind = previousEditMode == null
@@ -417,12 +495,14 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
         } else if (!animateEditMode && pendingHiddenRowsMode == null) {
             hiddenRowsExpanded = editMode
         }
+        boundDirectories = directories
+        boundSelectedDirectoryKeys = selectedDirectoryKeys
         val contentChanged = directoryAdapter.updateItems(
             nextItems = displayDirectories,
             nextEditMode = editMode,
             nextHiddenRowsExpanded = hiddenRowsExpanded,
             nextSelectedDirectoryKeys = selectedDirectoryKeys,
-            nextVisibilityChange = onDirectoryVisibilityChange,
+            nextVisibilityChange = this.onDirectoryVisibilityChange,
         )
         directoryAdapter.updateVisibleRows(
             listView = listView,
@@ -432,9 +512,6 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
         if (animateEditMode) {
             scheduleHiddenRowsTransition(editMode)
         }
-        val slideSelectionController = listView.legacySlideSelectionController(
-            startArea = LegacySlideSelectionStartArea.Checkbox,
-        )
         slideSelectionController.update(
             enabled = editMode,
             selectedKeys = selectedDirectoryKeys,
@@ -442,16 +519,9 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
                 directoryAdapter.itemAt(position)?.key
             },
             onSelectionChange = { directoryKey, selected ->
-                onDirectorySelectionChange(directoryKey, selected)
+                this.onDirectorySelectionChange(directoryKey, selected)
             },
         )
-        listView.setOnTouchListener { _, event ->
-            slideSelectionController.handleTouch(event)
-        }
-        listView.setOnItemClickListener { _, _, position, _ ->
-            val entry = directoryAdapter.itemAt(position) ?: return@setOnItemClickListener
-            onDirectoryClick(entry)
-        }
     }
 
     private fun scheduleHiddenRowsTransition(expanded: Boolean) {
@@ -494,6 +564,10 @@ private class LegacyFolderDirectoryAdapter : BaseAdapter() {
     private var selectedDirectoryKeys: Set<String> = emptySet()
     private var onVisibilityChange: (DirectoryEntry, Boolean) -> Unit = { _, _ -> }
 
+    fun updateVisibilityChange(nextVisibilityChange: (DirectoryEntry, Boolean) -> Unit) {
+        onVisibilityChange = nextVisibilityChange
+    }
+
     fun updateItems(
         nextItems: List<DirectoryEntry>,
         nextEditMode: Boolean,
@@ -511,7 +585,7 @@ private class LegacyFolderDirectoryAdapter : BaseAdapter() {
             hiddenRowsExpanded != nextHiddenRowsExpanded ||
             selectedDirectoryKeys != nextSelectedDirectoryKeys ||
             items.map(DirectoryEntry::hidden) != nextItems.map(DirectoryEntry::hidden)
-        onVisibilityChange = nextVisibilityChange
+        updateVisibilityChange(nextVisibilityChange)
         if (!contentChanged && !stateChanged) {
             return false
         }
@@ -760,6 +834,7 @@ private fun LegacyFolderDetailPage(
     active: Boolean,
     tracks: List<MediaItem>,
     browser: Player?,
+    onTrackMoreClick: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AndroidView(
@@ -786,6 +861,7 @@ private fun LegacyFolderDetailPage(
                 onTrackClick = { item, index ->
                     browser.replaceQueueAndPlay(tracks, index)
                 },
+                onTrackMoreClick = onTrackMoreClick,
             )
             root.bindPlayback(browser)
         },
@@ -800,11 +876,24 @@ private class LegacyFolderDetailRootView(context: Context) : LinearLayout(contex
         primaryText = context.getString(R.string.no_song),
         secondaryText = context.getString(R.string.show_song),
     )
+    private var boundTracks: List<MediaItem>? = null
+    private var boundCurrentMediaId: String? = null
+    private var boundCurrentIsPlaying: Boolean = false
+    private var onPlayAll: () -> Unit = {}
+    private var onShuffle: () -> Unit = {}
+    private var onTrackClick: (MediaItem, Int) -> Unit = { _, _ -> }
+    private var onTrackMoreClick: (MediaItem) -> Unit = {}
 
     init {
         orientation = VERTICAL
         setBackgroundResource(R.drawable.account_background)
         LayoutInflater.from(context).inflate(R.layout.layout_play_container, this, true)
+        findViewById<View>(R.id.bt_play)?.setOnClickListener {
+            onPlayAll()
+        }
+        findViewById<View>(R.id.bt_shuffle)?.setOnClickListener {
+            onShuffle()
+        }
         addView(
             View(context).apply {
                 setBackgroundColor(context.getColor(R.color.listview_divider_color))
@@ -822,6 +911,11 @@ private class LegacyFolderDetailRootView(context: Context) : LinearLayout(contex
             isVerticalScrollBarEnabled = false
             layoutAnimation = AnimationUtils.loadLayoutAnimation(context, R.anim.list_anim_layout)
             addLegacyPortListFooter()
+            setOnItemClickListener { _, _, position, _ ->
+                val adapter = legacyWrappedAdapter<LegacyFolderTrackAdapter>() ?: return@setOnItemClickListener
+                val item = adapter.itemAt(position) ?: return@setOnItemClickListener
+                onTrackClick(item, position)
+            }
         }
         listFrame.addView(listView, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         listFrame.addView(blankView, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -834,14 +928,27 @@ private class LegacyFolderDetailRootView(context: Context) : LinearLayout(contex
         onPlayAll: () -> Unit,
         onShuffle: () -> Unit,
         onTrackClick: (MediaItem, Int) -> Unit,
+        onTrackMoreClick: (MediaItem) -> Unit,
     ) {
+        this.onPlayAll = onPlayAll
+        this.onShuffle = onShuffle
+        this.onTrackClick = onTrackClick
+        this.onTrackMoreClick = onTrackMoreClick
+        val sameTracks = boundTracks === tracks
+        val samePlayback = boundCurrentMediaId == currentMediaId &&
+            boundCurrentIsPlaying == currentIsPlaying
+        if (sameTracks && samePlayback) {
+            return
+        }
+        boundTracks = tracks
+        boundCurrentMediaId = currentMediaId
+        boundCurrentIsPlaying = currentIsPlaying
+
         findViewById<View>(R.id.bt_play)?.apply {
             isEnabled = tracks.isNotEmpty()
-            setOnClickListener { onPlayAll() }
         }
         findViewById<View>(R.id.bt_shuffle)?.apply {
             isEnabled = tracks.isNotEmpty()
-            setOnClickListener { onShuffle() }
         }
         blankView.visibility = if (tracks.isEmpty()) View.VISIBLE else View.GONE
         listView.visibility = if (tracks.isEmpty()) View.INVISIBLE else View.VISIBLE
@@ -853,6 +960,7 @@ private class LegacyFolderDetailRootView(context: Context) : LinearLayout(contex
             ?: LegacyFolderTrackAdapter().also { adapter ->
                 listView.adapter = adapter
             }
+        adapter.onMoreClick = this.onTrackMoreClick
         val changed = adapter.updateItems(
             nextItems = tracks,
             nextCurrentMediaId = currentMediaId,
@@ -862,10 +970,6 @@ private class LegacyFolderDetailRootView(context: Context) : LinearLayout(contex
             listView.scheduleLayoutAnimation()
         } else {
             adapter.updateVisiblePlaybackState(listView)
-        }
-        listView.setOnItemClickListener { _, _, position, _ ->
-            val item = adapter.itemAt(position) ?: return@setOnItemClickListener
-            onTrackClick(item, position)
         }
     }
 
@@ -908,6 +1012,7 @@ private class LegacyFolderTrackAdapter : BaseAdapter() {
     private var items: List<MediaItem> = emptyList()
     private var currentMediaId: String? = null
     private var currentIsPlaying: Boolean = false
+    var onMoreClick: (MediaItem) -> Unit = {}
 
     fun updateItems(
         nextItems: List<MediaItem>,
@@ -996,7 +1101,14 @@ private class LegacyFolderTrackAdapter : BaseAdapter() {
         }
         view.findViewById<CheckBox>(R.id.cb_del)?.visibility = View.GONE
         view.findViewById<ImageView>(R.id.iv_right)?.visibility = View.GONE
-        view.findViewById<ImageView>(R.id.img_action_more)?.visibility = View.VISIBLE
+        view.findViewById<ImageView>(R.id.img_action_more)?.apply {
+            visibility = View.VISIBLE
+            isClickable = true
+            isFocusable = false
+            setOnClickListener {
+                onMoreClick(item)
+            }
+        }
         return view
     }
 

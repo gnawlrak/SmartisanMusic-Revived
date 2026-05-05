@@ -347,7 +347,7 @@ private class LegacyArtistAlbumListAdapter(
         val view = convertView ?: LayoutInflater.from(parent.context)
             .inflate(R.layout.artist_listview_items, parent, false)
         val item = items[position]
-        view.setBackgroundColor(Color.WHITE)
+        view.setBackgroundResource(R.drawable.listview_selector)
         view.tag = item.stableId
         view.findViewById<ImageView>(R.id.listview_item_image)?.apply {
             setTag(R.string.add_track, position)

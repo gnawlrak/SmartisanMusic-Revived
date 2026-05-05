@@ -156,9 +156,12 @@ internal fun LegacyPortArtistPage(
     }
     val selectedArtistState = remember(selectedArtist, selectedArtistAlbums, selectedTarget) {
         if (selectedArtist != null && selectedTarget != null) {
+            val retainedTarget = selectedTarget.parentTarget()?.takeIf { parentTarget ->
+                parentTarget.artistId == selectedArtist.id
+            } ?: selectedTarget
             LegacySelectedArtistState(
                 artist = selectedArtist,
-                target = selectedTarget,
+                target = retainedTarget,
                 albums = selectedArtistAlbums,
             )
         } else {

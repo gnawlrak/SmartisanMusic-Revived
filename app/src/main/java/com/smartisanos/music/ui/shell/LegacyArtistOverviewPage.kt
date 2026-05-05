@@ -105,7 +105,7 @@ private class LegacyArtistOverviewAdapter : BaseAdapter() {
         val view = convertView ?: LayoutInflater.from(parent.context)
             .inflate(R.layout.artist_listview_items_text, parent, false)
         val artist = items[position]
-        view.setBackgroundColor(Color.WHITE)
+        view.setBackgroundResource(R.drawable.listview_selector)
         view.findViewById<TextView>(R.id.listview_item_line_one)?.apply {
             text = artist.name
             setTextColor(LegacyArtistPrimaryTextColor)

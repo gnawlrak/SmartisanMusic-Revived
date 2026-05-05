@@ -51,6 +51,8 @@ import com.smartisanos.music.data.playlist.PlaylistCreateResult
 import com.smartisanos.music.data.playlist.PlaylistRepository
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.data.settings.ArtistSettingsStore
+import com.smartisanos.music.data.settings.LibraryDisplaySettings
+import com.smartisanos.music.data.settings.LibraryDisplaySettingsStore
 import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
 import com.smartisanos.music.isExternalAudioLaunchItem
@@ -135,10 +137,16 @@ private fun LegacyPortMainShellContent(
     val artistSettingsStore = remember(context.applicationContext) {
         ArtistSettingsStore(context.applicationContext)
     }
+    val libraryDisplaySettingsStore = remember(context.applicationContext) {
+        LibraryDisplaySettingsStore(context.applicationContext)
+    }
     val favoriteIds by favoriteRepository.observeFavoriteIds().collectAsState(initial = emptySet())
     val libraryExclusions by libraryExclusionsStore.exclusions.collectAsState(initial = LibraryExclusions())
     val playbackSettings by playbackSettingsStore.settings.collectAsState(initial = PlaybackSettings())
     val artistSettings by artistSettingsStore.settings.collectAsState(initial = ArtistSettings())
+    val libraryDisplaySettings by libraryDisplaySettingsStore.settings.collectAsState(initial = LibraryDisplaySettings())
+    val albumViewMode = libraryDisplaySettings.albumViewMode
+    val artistAlbumViewMode = libraryDisplaySettings.artistAlbumViewMode
     val unknownSongTitle = stringResource(R.string.unknown_song_title)
     val favoriteRecords by favoriteRepository.observeFavorites().collectAsState(initial = emptyList())
     val playlists by playlistRepository.playlists.collectAsState(initial = emptyList())
@@ -151,12 +159,10 @@ private fun LegacyPortMainShellContent(
     var moreSettingsPageActive by remember { mutableStateOf(false) }
     var songsEditMode by remember { mutableStateOf(false) }
     var selectedSongIds by remember { mutableStateOf(emptySet<String>()) }
-    var albumViewMode by remember { mutableStateOf(AlbumViewMode.List) }
     var albumEditMode by remember { mutableStateOf(false) }
     var selectedAlbumIds by remember { mutableStateOf(emptySet<String>()) }
     var selectedAlbumId by remember { mutableStateOf<String?>(null) }
     var selectedAlbumTitle by remember { mutableStateOf<String?>(null) }
-    var artistAlbumViewMode by remember { mutableStateOf(AlbumViewMode.List) }
     var selectedArtistTarget by remember { mutableStateOf<LegacyArtistTarget?>(null) }
     var libraryRefreshVersion by remember { mutableStateOf(0) }
     var libraryRefreshing by remember { mutableStateOf(false) }
@@ -538,10 +544,13 @@ private fun LegacyPortMainShellContent(
                         selectedAlbumIds = emptySet()
                     },
                     onToggleAlbumViewMode = {
-                        albumViewMode = if (albumViewMode == AlbumViewMode.List) {
+                        val nextMode = if (albumViewMode == AlbumViewMode.List) {
                             AlbumViewMode.Tile
                         } else {
                             AlbumViewMode.List
+                        }
+                        scope.launch {
+                            libraryDisplaySettingsStore.setAlbumViewMode(nextMode)
                         }
                     },
                     onAlbumDetailBack = {
@@ -551,10 +560,13 @@ private fun LegacyPortMainShellContent(
                         closeArtistDetail()
                     },
                     onToggleArtistAlbumViewMode = {
-                        artistAlbumViewMode = if (artistAlbumViewMode == AlbumViewMode.List) {
+                        val nextMode = if (artistAlbumViewMode == AlbumViewMode.List) {
                             AlbumViewMode.Tile
                         } else {
                             AlbumViewMode.List
+                        }
+                        scope.launch {
+                            libraryDisplaySettingsStore.setArtistAlbumViewMode(nextMode)
                         }
                     },
                     onSearchClick = openSearchOverlay,

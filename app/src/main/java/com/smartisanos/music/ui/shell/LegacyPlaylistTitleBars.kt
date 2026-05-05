@@ -7,9 +7,11 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
@@ -79,25 +81,49 @@ internal fun LegacyPlaylistTitleArea(
             }
         }
     } else {
-        LegacyPortSmartisanTitleBar(
-            modifier = modifier,
-            showShadow = true,
-        ) { titleBar ->
-            titleBar.setupLegacyPlaylistTitleBar(
-                target = target,
-                detailTitle = detailTitle,
-                rootEditMode = rootEditMode,
-                rootSelectedCount = rootSelectedCount,
-                detailEditMode = detailEditMode,
-                onRootEnterEdit = onRootEnterEdit,
-                onRootExitEdit = onRootExitEdit,
-                onRootDeleteSelected = onRootDeleteSelected,
-                onDetailBack = onDetailBack,
-                onDetailEnterEdit = onDetailEnterEdit,
-                onDetailExitEdit = onDetailExitEdit,
-                onSearchClick = onSearchClick,
-            )
+        val titleTarget = target?.copy(title = detailTitle.ifBlank { target.title })
+        val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+            dimensionResource(R.dimen.title_bar_height)
+        val titleBarContent: @Composable (
+            LegacyPlaylistTarget?,
+            String,
+            Boolean,
+            Int,
+            Boolean,
+        ) -> Unit = { barTarget, barTitle, rootEditing, rootSelectionCount, detailEditing ->
+            LegacyPortSmartisanTitleBar(
+                modifier = Modifier.fillMaxSize(),
+                showShadow = true,
+            ) { titleBar ->
+                titleBar.setupLegacyPlaylistTitleBar(
+                    target = barTarget,
+                    detailTitle = barTitle,
+                    rootEditMode = rootEditing,
+                    rootSelectedCount = rootSelectionCount,
+                    detailEditMode = detailEditing,
+                    onRootEnterEdit = onRootEnterEdit,
+                    onRootExitEdit = onRootExitEdit,
+                    onRootDeleteSelected = onRootDeleteSelected,
+                    onDetailBack = onDetailBack,
+                    onDetailEnterEdit = onDetailEnterEdit,
+                    onDetailExitEdit = onDetailExitEdit,
+                    onSearchClick = onSearchClick,
+                )
+            }
         }
+        LegacyPortPageStackTransition(
+            secondaryKey = titleTarget,
+            modifier = modifier
+                .fillMaxWidth()
+                .height(titleAreaHeight),
+            label = "legacy playlist title transition",
+            primaryContent = {
+                titleBarContent(null, "", rootEditMode, rootSelectedCount, false)
+            },
+            secondaryContent = { playlistTarget ->
+                titleBarContent(playlistTarget, playlistTarget.title, false, 0, detailEditMode)
+            },
+        )
     }
 }
 

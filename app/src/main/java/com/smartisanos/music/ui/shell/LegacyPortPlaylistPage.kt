@@ -100,6 +100,14 @@ internal data class LegacyPlaylistTarget(
     val title: String,
 )
 
+private data class LegacyPlaylistDetailSnapshot(
+    val playlistId: String,
+    val playlist: UserPlaylistDetail?,
+    val title: String,
+    val tracks: List<MediaItem>,
+    val libraryLoading: Boolean,
+)
+
 internal sealed interface LegacyPlaylistNameDialogRequest {
     val initialName: String
 
@@ -174,6 +182,9 @@ internal fun LegacyPortPlaylistPage(
         val existingIds = activePlaylist?.mediaIds?.toSet().orEmpty()
         visibleSongs.filterNot { item -> item.mediaId in existingIds }
     }
+    var retainedDetailSnapshot by remember {
+        mutableStateOf<LegacyPlaylistDetailSnapshot?>(null)
+    }
 
     LaunchedEffect(activePlaylistId, activePlaylist, playlists) {
         if (activePlaylistId != null && activePlaylist == null && playlists.none { it.id == activePlaylistId }) {
@@ -183,6 +194,16 @@ internal fun LegacyPortPlaylistPage(
             selectedTrackIds = emptySet()
             selectedAddSongIds = emptySet()
         }
+    }
+    LaunchedEffect(activePlaylistId, activePlaylist, detailTitle, detailTracks, detailLibraryLoading) {
+        val playlistId = activePlaylistId ?: return@LaunchedEffect
+        retainedDetailSnapshot = LegacyPlaylistDetailSnapshot(
+            playlistId = playlistId,
+            playlist = activePlaylist,
+            title = detailTitle,
+            tracks = detailTracks,
+            libraryLoading = detailLibraryLoading,
+        )
     }
     LaunchedEffect(addMode, target) {
         onAddModeActiveChanged(addMode && target != null)
@@ -282,7 +303,7 @@ internal fun LegacyPortPlaylistPage(
                 label = "legacy playlist transition",
                 primaryContent = {
                     LegacyPlaylistRootPage(
-                        active = active && target == null,
+                        active = active,
                         playlists = playlists,
                         editMode = rootEditMode,
                         selectedPlaylistIds = selectedPlaylistIds,
@@ -317,20 +338,39 @@ internal fun LegacyPortPlaylistPage(
                     )
                 },
                 secondaryContent = { playlistTarget ->
+                    val detailSnapshot = if (playlistTarget == target) {
+                        LegacyPlaylistDetailSnapshot(
+                            playlistId = playlistTarget.playlistId,
+                            playlist = activePlaylist,
+                            title = detailTitle,
+                            tracks = detailTracks,
+                            libraryLoading = detailLibraryLoading,
+                        )
+                    } else {
+                        retainedDetailSnapshot?.takeIf { snapshot ->
+                            snapshot.playlistId == playlistTarget.playlistId
+                        } ?: LegacyPlaylistDetailSnapshot(
+                            playlistId = playlistTarget.playlistId,
+                            playlist = activePlaylist,
+                            title = playlistTarget.title,
+                            tracks = detailTracks,
+                            libraryLoading = detailLibraryLoading,
+                        )
+                    }
                     LegacyPlaylistDetailPage(
-                        active = active && playlistTarget == target && !addMode,
-                        playlist = activePlaylist,
-                        title = detailTitle,
-                        tracks = detailTracks,
-                        libraryLoading = detailLibraryLoading,
+                        active = active && !addMode,
+                        playlist = detailSnapshot.playlist,
+                        title = detailSnapshot.title,
+                        tracks = detailSnapshot.tracks,
+                        libraryLoading = detailSnapshot.libraryLoading,
                         editMode = detailEditMode,
                         selectedTrackIds = selectedTrackIds,
                         browser = browser,
                         onShuffle = {
-                            if (detailTracks.isEmpty()) {
+                            if (detailSnapshot.tracks.isEmpty()) {
                                 return@LegacyPlaylistDetailPage
                             }
-                            browser.replaceQueueAndPlayShuffled(detailTracks)
+                            browser.replaceQueueAndPlayShuffled(detailSnapshot.tracks)
                         },
                         onDeletePlaylist = {
                             deleteRequest = LegacyPlaylistDeleteRequest.DetailPlaylist
@@ -350,7 +390,7 @@ internal fun LegacyPortPlaylistPage(
                         },
                         onToggleAll = { checked ->
                             selectedTrackIds = if (checked) {
-                                detailTracks.map(MediaItem::mediaId).toSet()
+                                detailSnapshot.tracks.map(MediaItem::mediaId).toSet()
                             } else {
                                 emptySet()
                             }
@@ -369,7 +409,7 @@ internal fun LegacyPortPlaylistPage(
                                 selectedTrackIds = selectedTrackIds.togglePlaylistSelection(item.mediaId)
                                 return@LegacyPlaylistDetailPage
                             }
-                            browser.replaceQueueAndPlay(detailTracks, index)
+                            browser.replaceQueueAndPlay(detailSnapshot.tracks, index)
                         },
                         onTrackMoreClick = onTrackMoreClick,
                         modifier = Modifier.fillMaxSize(),

@@ -176,7 +176,7 @@ internal fun LegacyPortMorePage(
         secondaryContent = { target ->
             when (target) {
                 LegacyMoreSecondaryTarget.LovedSongs -> LegacyPortLovedSongsPage(
-                    active = active && secondaryTarget == LegacyMoreSecondaryTarget.LovedSongs,
+                    active = active,
                     mediaItems = mediaItems,
                     favoriteRecords = favoriteRecords,
                     hiddenMediaIds = hiddenMediaIds,

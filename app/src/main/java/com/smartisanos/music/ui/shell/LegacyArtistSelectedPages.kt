@@ -223,9 +223,9 @@ internal class LegacyArtistAlbumsRoot(context: Context) : FrameLayout(context) {
     var viewMode: AlbumViewMode? = null
 
     init {
-        setBackgroundResource(R.drawable.account_background)
+        setBackgroundColor(Color.WHITE)
         listHost = FrameLayout(context).apply {
-            setBackgroundResource(R.drawable.account_background)
+            setBackgroundColor(Color.WHITE)
             visibility = View.VISIBLE
         }
         addView(
@@ -242,7 +242,7 @@ internal class LegacyArtistAlbumsRoot(context: Context) : FrameLayout(context) {
             dividerHeight = resources.getDimensionPixelSize(R.dimen.listview_dividerHeight)
             selector = context.getDrawable(R.drawable.listview_selector)
             cacheColorHint = Color.TRANSPARENT
-            setBackgroundResource(R.drawable.account_background)
+            setBackgroundColor(Color.WHITE)
             setPadding(0, 0, 0, resources.legacyArtistScrollBottomPadding())
             clipToPadding = false
             layoutAnimation = AnimationUtils.loadLayoutAnimation(context, R.anim.list_anim_layout)
@@ -349,7 +349,7 @@ private class LegacyArtistAlbumListAdapter(
                 is LegacyArtistAlbumEntry.AllSongs -> {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setTag(R.id.legacy_album_artwork_request, null)
-                    setImageResource(R.drawable.noalbumcover_all_songs)
+                    setImageResource(R.drawable.noalbumcover_all_songs2)
                 }
                 is LegacyArtistAlbumEntry.Album -> bindLegacyAlbumArtwork(
                     album = item.album,

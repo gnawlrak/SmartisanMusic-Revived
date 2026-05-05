@@ -1,14 +1,13 @@
 package com.smartisanos.music.ui.shell
 
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.animateInt
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,7 +24,12 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.zIndex
+import java.util.concurrent.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.math.cos
+import kotlin.math.roundToInt
 
 private const val LegacyPageStackSlideMillis = 300
 private val LegacyPageStackEasing = Easing { fraction ->
@@ -40,6 +44,89 @@ internal enum class LegacyPortPageStackAxis {
     VerticalPush,
 }
 
+internal class LegacyPortPredictiveBackState internal constructor() {
+    var progress: Float? by mutableStateOf(null)
+        private set
+    var exitConsumed: Boolean by mutableStateOf(false)
+        private set
+
+    internal fun update(progress: Float?) {
+        exitConsumed = false
+        this.progress = progress?.coerceIn(0f, 1f)
+    }
+
+    internal fun consumeExit() {
+        progress = null
+        exitConsumed = true
+    }
+
+    internal fun reset() {
+        progress = null
+        exitConsumed = false
+    }
+}
+
+@Composable
+internal fun rememberLegacyPortPredictiveBackState(): LegacyPortPredictiveBackState {
+    return remember { LegacyPortPredictiveBackState() }
+}
+
+@Composable
+internal fun LegacyPortPredictiveBackHandler(
+    enabled: Boolean,
+    state: LegacyPortPredictiveBackState,
+    onBack: () -> Unit,
+) {
+    val animation = remember { Animatable(0f) }
+    PredictiveBackHandler(enabled = enabled) { progress ->
+        var hasGestureProgress = false
+        try {
+            animation.snapTo(0f)
+            state.reset()
+            progress.collect { backEvent ->
+                hasGestureProgress = true
+                animation.snapTo(backEvent.progress.coerceIn(0f, 1f))
+                state.update(animation.value)
+            }
+            if (hasGestureProgress) {
+                animation.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = ((1f - animation.value) * LegacyPageStackSlideMillis)
+                            .roundToInt()
+                            .coerceIn(80, LegacyPageStackSlideMillis),
+                        easing = LegacyPageStackEasing,
+                    ),
+                ) {
+                    state.update(value)
+                }
+                onBack()
+                animation.snapTo(0f)
+                state.consumeExit()
+            } else {
+                state.reset()
+                onBack()
+            }
+        } catch (e: CancellationException) {
+            if (hasGestureProgress || state.progress != null) {
+                withContext(NonCancellable) {
+                    animation.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(
+                            durationMillis = LegacyPageStackSlideMillis,
+                            easing = LegacyPageStackEasing,
+                        ),
+                    ) {
+                        state.update(value)
+                    }
+                }
+            }
+            state.reset()
+            throw e
+        }
+    }
+}
+
 @Composable
 internal fun <T : Any> LegacyPortPageStackTransition(
     secondaryKey: T?,
@@ -47,6 +134,9 @@ internal fun <T : Any> LegacyPortPageStackTransition(
     label: String = "legacy page stack transition",
     axis: LegacyPortPageStackAxis = LegacyPortPageStackAxis.Horizontal,
     axisForKey: (T) -> LegacyPortPageStackAxis = { axis },
+    predictiveBackProgress: Float? = null,
+    predictiveBackExitConsumed: Boolean = false,
+    onPredictiveBackExitConsumedReset: (() -> Unit)? = null,
     primaryContent: @Composable () -> Unit,
     secondaryContent: @Composable (T) -> Unit,
 ) {
@@ -55,6 +145,9 @@ internal fun <T : Any> LegacyPortPageStackTransition(
     }
     val hasSecondary = secondaryKey != null
     visibleState.targetState = hasSecondary
+    val horizontalProgress = remember {
+        Animatable(if (hasSecondary) 1f else 0f)
+    }
 
     var retainedSecondaryKey by remember {
         mutableStateOf<T?>(secondaryKey)
@@ -62,14 +155,42 @@ internal fun <T : Any> LegacyPortPageStackTransition(
     var retainedAxis by remember {
         mutableStateOf(axis)
     }
-    LaunchedEffect(secondaryKey) {
+    LaunchedEffect(secondaryKey, predictiveBackExitConsumed) {
+        val effectAxis = secondaryKey?.let(axisForKey) ?: retainedAxis
         if (secondaryKey != null) {
             retainedSecondaryKey = secondaryKey
             retainedAxis = axisForKey(secondaryKey)
+            onPredictiveBackExitConsumedReset?.invoke()
+            if (retainedAxis == LegacyPortPageStackAxis.Horizontal) {
+                horizontalProgress.snapTo(0f)
+                horizontalProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = LegacyPageStackSlideMillis,
+                        easing = LegacyPageStackEasing,
+                    ),
+                )
+            }
+        } else if (retainedSecondaryKey != null && effectAxis == LegacyPortPageStackAxis.Horizontal) {
+            if (predictiveBackExitConsumed) {
+                horizontalProgress.snapTo(0f)
+            } else {
+                horizontalProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = LegacyPageStackSlideMillis,
+                        easing = LegacyPageStackEasing,
+                    ),
+                )
+            }
+            retainedSecondaryKey = null
+        } else if (retainedSecondaryKey != null) {
+            delay(LegacyPageStackSlideMillis.toLong())
+            retainedSecondaryKey = null
         }
     }
-    LaunchedEffect(visibleState.isIdle, visibleState.currentState) {
-        if (visibleState.isIdle && !visibleState.currentState) {
+    LaunchedEffect(predictiveBackExitConsumed, hasSecondary) {
+        if (!hasSecondary && predictiveBackExitConsumed) {
             retainedSecondaryKey = null
         }
     }
@@ -77,20 +198,29 @@ internal fun <T : Any> LegacyPortPageStackTransition(
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
         val activeAxis = secondaryKey?.let(axisForKey) ?: retainedAxis
-        val transition = updateTransition(
-            targetState = hasSecondary,
-            label = label,
-        )
-        val primaryOffsetX by transition.animateInt(
-            transitionSpec = {
-                tween(
-                    durationMillis = LegacyPageStackSlideMillis,
-                    easing = LegacyPageStackEasing,
-                )
-            },
-            label = "$label primary offset",
-        ) { showingSecondary ->
-            if (activeAxis == LegacyPortPageStackAxis.Horizontal && showingSecondary) -widthPx else 0
+        val activeBackProgress = predictiveBackProgress
+            ?.takeIf { activeAxis == LegacyPortPageStackAxis.Horizontal }
+            ?.coerceIn(0f, 1f)
+        val predictiveExitConsumed = !hasSecondary && predictiveBackExitConsumed
+        val enteringNewSecondary = hasSecondary &&
+            secondaryKey != retainedSecondaryKey &&
+            activeAxis == LegacyPortPageStackAxis.Horizontal
+        val visibleProgress = when {
+            predictiveExitConsumed -> 0f
+            activeBackProgress != null -> 1f - activeBackProgress
+            enteringNewSecondary -> 0f
+            activeAxis == LegacyPortPageStackAxis.Horizontal -> horizontalProgress.value.coerceIn(0f, 1f)
+            else -> 0f
+        }
+        val primaryOffsetX = when {
+            predictiveExitConsumed -> 0
+            activeAxis == LegacyPortPageStackAxis.Horizontal -> (-widthPx * visibleProgress).roundToInt()
+            else -> 0
+        }
+        val secondaryOffsetX = when {
+            predictiveExitConsumed && activeAxis == LegacyPortPageStackAxis.Horizontal -> widthPx
+            activeAxis == LegacyPortPageStackAxis.Horizontal -> (widthPx * (1f - visibleProgress)).roundToInt()
+            else -> 0
         }
 
         Box(
@@ -101,49 +231,48 @@ internal fun <T : Any> LegacyPortPageStackTransition(
             primaryContent()
         }
 
-        val contentKey = secondaryKey ?: retainedSecondaryKey
+        val contentKey = if (predictiveExitConsumed && activeAxis == LegacyPortPageStackAxis.Horizontal) {
+            null
+        } else {
+            secondaryKey ?: retainedSecondaryKey
+        }
         if (contentKey != null) {
-            AnimatedVisibility(
-                visibleState = visibleState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(1f),
-                enter = if (activeAxis == LegacyPortPageStackAxis.VerticalPush) {
-                    slideInVertically(
+            if (activeAxis == LegacyPortPageStackAxis.Horizontal) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset(secondaryOffsetX, 0) }
+                        .zIndex(1f),
+                ) {
+                    secondaryContent(contentKey)
+                }
+            } else {
+                AnimatedVisibility(
+                    visibleState = visibleState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(1f),
+                    enter = slideInVertically(
                         animationSpec = tween(
                             durationMillis = LegacyPageStackSlideMillis,
                             easing = LegacyPageStackDecelerateEasing,
                         ),
                         initialOffsetY = { it },
-                    )
-                } else {
-                    slideInHorizontally(
-                        animationSpec = tween(
-                            durationMillis = LegacyPageStackSlideMillis,
-                            easing = LegacyPageStackEasing,
-                        ),
-                        initialOffsetX = { it },
-                    )
-                },
-                exit = if (activeAxis == LegacyPortPageStackAxis.VerticalPush) {
-                    slideOutVertically(
-                        animationSpec = tween(
-                            durationMillis = LegacyPageStackSlideMillis,
-                            easing = LegacyPageStackDecelerateEasing,
-                        ),
-                        targetOffsetY = { it },
-                    )
-                } else {
-                    slideOutHorizontally(
-                        animationSpec = tween(
-                            durationMillis = LegacyPageStackSlideMillis,
-                            easing = LegacyPageStackEasing,
-                        ),
-                        targetOffsetX = { it },
-                    )
-                },
-            ) {
-                secondaryContent(contentKey)
+                    ),
+                    exit = if (predictiveExitConsumed) {
+                        ExitTransition.None
+                    } else {
+                        slideOutVertically(
+                            animationSpec = tween(
+                                durationMillis = LegacyPageStackSlideMillis,
+                                easing = LegacyPageStackDecelerateEasing,
+                            ),
+                            targetOffsetY = { it },
+                        )
+                    },
+                ) {
+                    secondaryContent(contentKey)
+                }
             }
         }
     }

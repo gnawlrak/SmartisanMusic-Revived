@@ -33,6 +33,9 @@ internal fun LegacyPlaylistTitleArea(
     rootSelectedCount: Int,
     detailEditMode: Boolean,
     addMode: Boolean,
+    predictiveBackProgress: Float? = null,
+    predictiveBackExitConsumed: Boolean = false,
+    onPredictiveBackExitConsumedReset: (() -> Unit)? = null,
     onRootEnterEdit: () -> Unit,
     onRootExitEdit: () -> Unit,
     onRootDeleteSelected: () -> Unit,
@@ -117,6 +120,9 @@ internal fun LegacyPlaylistTitleArea(
                 .fillMaxWidth()
                 .height(titleAreaHeight),
             label = "legacy playlist title transition",
+            predictiveBackProgress = predictiveBackProgress,
+            predictiveBackExitConsumed = predictiveBackExitConsumed,
+            onPredictiveBackExitConsumedReset = onPredictiveBackExitConsumedReset,
             primaryContent = {
                 titleBarContent(null, "", rootEditMode, rootSelectedCount, false)
             },

@@ -15,6 +15,12 @@ internal data class LegacySelectedArtistState(
 @Composable
 internal fun LegacyPortArtistTitleStack(
     selectedTarget: LegacyArtistTarget?,
+    rootPredictiveBackProgress: Float? = null,
+    rootPredictiveBackExitConsumed: Boolean = false,
+    onRootPredictiveBackExitConsumedReset: (() -> Unit)? = null,
+    nestedPredictiveBackProgress: Float? = null,
+    nestedPredictiveBackExitConsumed: Boolean = false,
+    onNestedPredictiveBackExitConsumedReset: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable (LegacyArtistTarget?, Modifier) -> Unit,
 ) {
@@ -23,6 +29,9 @@ internal fun LegacyPortArtistTitleStack(
         secondaryKey = titleEntry,
         modifier = modifier,
         label = "legacy artist title transition",
+        predictiveBackProgress = rootPredictiveBackProgress,
+        predictiveBackExitConsumed = rootPredictiveBackExitConsumed,
+        onPredictiveBackExitConsumedReset = onRootPredictiveBackExitConsumedReset,
         primaryContent = {
             content(null, Modifier.fillMaxSize())
         },
@@ -39,6 +48,9 @@ internal fun LegacyPortArtistTitleStack(
                         secondaryKey = nestedTarget,
                         modifier = Modifier.fillMaxSize(),
                         label = "legacy artist nested title transition",
+                        predictiveBackProgress = nestedPredictiveBackProgress,
+                        predictiveBackExitConsumed = nestedPredictiveBackExitConsumed,
+                        onPredictiveBackExitConsumedReset = onNestedPredictiveBackExitConsumedReset,
                         primaryContent = {
                             content(
                                 LegacyArtistTarget.Albums(

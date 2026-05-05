@@ -7,7 +7,6 @@ import android.graphics.Bitmap
 import android.provider.MediaStore
 import android.view.View
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -202,6 +201,9 @@ private fun LegacyPortMainShellContent(
             loadLegacyArtworkBitmap(context.applicationContext, mediaItem)
         }
     }
+    val albumPredictiveBackState = rememberLegacyPortPredictiveBackState()
+    val artistRootPredictiveBackState = rememberLegacyPortPredictiveBackState()
+    val artistNestedPredictiveBackState = rememberLegacyPortPredictiveBackState()
     val playbackBarRequestedVisible = snapshot.mediaItem != null
     val playbackBarHeight = 67.dp
     var playbackBarComposed by remember { mutableStateOf(false) }
@@ -454,11 +456,28 @@ private fun LegacyPortMainShellContent(
         dismissTrackActions()
     }
 
-    BackHandler(enabled = currentDestination == MusicDestination.Album && selectedAlbumId != null) {
+    LegacyPortPredictiveBackHandler(
+        enabled = currentDestination == MusicDestination.Album && selectedAlbumId != null,
+        state = albumPredictiveBackState,
+    ) {
         closeAlbumDetail()
     }
 
-    BackHandler(enabled = currentDestination == MusicDestination.Artist && selectedArtistTarget != null) {
+    val selectedArtistParentTarget = selectedArtistTarget?.parentTarget()
+    LegacyPortPredictiveBackHandler(
+        enabled = currentDestination == MusicDestination.Artist &&
+            selectedArtistTarget != null &&
+            selectedArtistParentTarget == null,
+        state = artistRootPredictiveBackState,
+    ) {
+        closeArtistDetail()
+    }
+    LegacyPortPredictiveBackHandler(
+        enabled = currentDestination == MusicDestination.Artist &&
+            selectedArtistTarget != null &&
+            selectedArtistParentTarget != null,
+        state = artistNestedPredictiveBackState,
+    ) {
         closeArtistDetail()
     }
 
@@ -582,6 +601,9 @@ private fun LegacyPortMainShellContent(
                         .fillMaxWidth()
                         .height(titleAreaHeight),
                     label = "legacy album title transition",
+                    predictiveBackProgress = albumPredictiveBackState.progress,
+                    predictiveBackExitConsumed = albumPredictiveBackState.exitConsumed,
+                    onPredictiveBackExitConsumedReset = albumPredictiveBackState::reset,
                     primaryContent = {
                         titleBarContent(null, null, Modifier.fillMaxSize())
                     },
@@ -592,6 +614,12 @@ private fun LegacyPortMainShellContent(
             } else if (currentDestination == MusicDestination.Artist) {
                 LegacyPortArtistTitleStack(
                     selectedTarget = selectedArtistTarget,
+                    rootPredictiveBackProgress = artistRootPredictiveBackState.progress,
+                    rootPredictiveBackExitConsumed = artistRootPredictiveBackState.exitConsumed,
+                    onRootPredictiveBackExitConsumedReset = artistRootPredictiveBackState::reset,
+                    nestedPredictiveBackProgress = artistNestedPredictiveBackState.progress,
+                    nestedPredictiveBackExitConsumed = artistNestedPredictiveBackState.exitConsumed,
+                    onNestedPredictiveBackExitConsumedReset = artistNestedPredictiveBackState::reset,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(titleAreaHeight),
@@ -612,8 +640,17 @@ private fun LegacyPortMainShellContent(
                 albumEditMode = currentDestination == MusicDestination.Album && albumEditMode,
                 selectedAlbumId = selectedAlbumId,
                 selectedAlbumIds = selectedAlbumIds,
+                albumPredictiveBackProgress = albumPredictiveBackState.progress,
+                albumPredictiveBackExitConsumed = albumPredictiveBackState.exitConsumed,
+                onAlbumPredictiveBackExitConsumedReset = albumPredictiveBackState::reset,
                 artistAlbumViewMode = artistAlbumViewMode,
                 selectedArtistTarget = selectedArtistTarget,
+                artistRootPredictiveBackProgress = artistRootPredictiveBackState.progress,
+                artistRootPredictiveBackExitConsumed = artistRootPredictiveBackState.exitConsumed,
+                onArtistRootPredictiveBackExitConsumedReset = artistRootPredictiveBackState::reset,
+                artistNestedPredictiveBackProgress = artistNestedPredictiveBackState.progress,
+                artistNestedPredictiveBackExitConsumed = artistNestedPredictiveBackState.exitConsumed,
+                onArtistNestedPredictiveBackExitConsumedReset = artistNestedPredictiveBackState::reset,
                 hiddenMediaIds = libraryExclusions.hiddenMediaIds,
                 libraryRefreshVersion = libraryRefreshVersion,
                 libraryRefreshing = libraryRefreshing,

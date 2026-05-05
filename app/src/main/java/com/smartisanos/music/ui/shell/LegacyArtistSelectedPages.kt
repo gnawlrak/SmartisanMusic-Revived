@@ -52,6 +52,9 @@ internal fun LegacyPortSelectedArtistPage(
     target: LegacyArtistTarget?,
     browser: Player?,
     albumViewMode: AlbumViewMode,
+    predictiveBackProgress: Float? = null,
+    predictiveBackExitConsumed: Boolean = false,
+    onPredictiveBackExitConsumedReset: (() -> Unit)? = null,
     onTargetChanged: (LegacyArtistTarget?) -> Unit,
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit,
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
@@ -91,6 +94,9 @@ internal fun LegacyPortSelectedArtistPage(
         secondaryKey = nestedTarget,
         modifier = modifier,
         label = "legacy selected artist transition",
+        predictiveBackProgress = predictiveBackProgress,
+        predictiveBackExitConsumed = predictiveBackExitConsumed,
+        onPredictiveBackExitConsumedReset = onPredictiveBackExitConsumedReset,
         primaryContent = {
             LegacyPortArtistAlbumsPage(
                 artist = artist,

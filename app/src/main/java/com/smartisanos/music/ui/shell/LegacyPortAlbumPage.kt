@@ -82,6 +82,9 @@ internal fun LegacyPortAlbumPage(
     editMode: Boolean,
     selectedAlbumId: String?,
     selectedAlbumIds: Set<String>,
+    predictiveBackProgress: Float? = null,
+    predictiveBackExitConsumed: Boolean = false,
+    onPredictiveBackExitConsumedReset: (() -> Unit)? = null,
     hiddenMediaIds: Set<String>,
     onAlbumSelected: (String, String) -> Unit,
     onAlbumSelectionChange: (String, Boolean) -> Unit,
@@ -131,6 +134,9 @@ internal fun LegacyPortAlbumPage(
         secondaryKey = selectedAlbum,
         modifier = modifier,
         label = "legacy album detail transition",
+        predictiveBackProgress = predictiveBackProgress,
+        predictiveBackExitConsumed = predictiveBackExitConsumed,
+        onPredictiveBackExitConsumedReset = onPredictiveBackExitConsumedReset,
         primaryContent = {
             LegacyPortAlbumOverviewPage(
                 active = active,

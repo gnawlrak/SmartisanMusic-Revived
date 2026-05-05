@@ -162,6 +162,7 @@ internal fun LegacyPortPlaylistPage(
     var selectedAddSongIds by remember { mutableStateOf(emptySet<String>()) }
     var nameDialogRequest by remember { mutableStateOf<LegacyPlaylistNameDialogRequest?>(null) }
     var deleteRequest by remember { mutableStateOf<LegacyPlaylistDeleteRequest?>(null) }
+    val detailPredictiveBackState = rememberLegacyPortPredictiveBackState()
 
     val activePlaylistId = target?.playlistId
     val activePlaylistFlow = remember(activePlaylistId, playlistRepository) {
@@ -227,12 +228,15 @@ internal fun LegacyPortPlaylistPage(
         detailEditMode = false
         selectedTrackIds = emptySet()
     }
-    BackHandler(enabled = !addMode && !detailEditMode && target != null) {
-        target = null
-    }
     BackHandler(enabled = target == null && rootEditMode) {
         rootEditMode = false
         selectedPlaylistIds = emptySet()
+    }
+    LegacyPortPredictiveBackHandler(
+        enabled = !addMode && !detailEditMode && target != null,
+        state = detailPredictiveBackState,
+    ) {
+        target = null
     }
 
     Column(
@@ -247,6 +251,9 @@ internal fun LegacyPortPlaylistPage(
             rootSelectedCount = selectedPlaylistIds.size,
             detailEditMode = detailEditMode,
             addMode = addMode,
+            predictiveBackProgress = detailPredictiveBackState.progress,
+            predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
+            onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
             onRootEnterEdit = {
                 rootEditMode = true
                 selectedPlaylistIds = emptySet()
@@ -301,6 +308,9 @@ internal fun LegacyPortPlaylistPage(
                 secondaryKey = target,
                 modifier = Modifier.fillMaxSize(),
                 label = "legacy playlist transition",
+                predictiveBackProgress = detailPredictiveBackState.progress,
+                predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
+                onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
                 primaryContent = {
                     LegacyPlaylistRootPage(
                         active = active,

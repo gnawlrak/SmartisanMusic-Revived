@@ -85,8 +85,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val PlaybackBarInitialShowDelayMs = 500L
-
 private enum class LegacyTrackActionSource {
     Library,
     Loved,
@@ -159,6 +157,7 @@ private fun LegacyPortMainShellContent(
     var selectedArtistTarget by remember { mutableStateOf<LegacyArtistTarget?>(null) }
     var libraryRefreshVersion by remember { mutableStateOf(0) }
     var libraryRefreshing by remember { mutableStateOf(false) }
+    var libraryLoadRequested by remember { mutableStateOf(false) }
     var showSongDeleteConfirm by remember { mutableStateOf(false) }
     var pendingSongDeleteMediaIds by remember { mutableStateOf(emptySet<String>()) }
     var pendingSongDeleteDismissAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -179,7 +178,10 @@ private fun LegacyPortMainShellContent(
     var playbackBarContentSnapshot by remember(controller) {
         mutableStateOf(snapshot)
     }
-    val legacyLibrary = rememberLegacyLibraryMediaState(libraryRefreshVersion)
+    val legacyLibrary = rememberLegacyLibraryMediaState(
+        loadRequested = libraryLoadRequested,
+        libraryRefreshVersion = libraryRefreshVersion,
+    )
     val pendingTrackActionItem = remember(pendingTrackActionMediaId, legacyLibrary.items) {
         pendingTrackActionMediaId?.let { mediaId ->
             legacyLibrary.items.firstOrNull { item -> item.mediaId == mediaId }
@@ -194,8 +196,8 @@ private fun LegacyPortMainShellContent(
     val playbackBarRequestedVisible = snapshot.mediaItem != null
     val playbackBarHeight = 67.dp
     var playbackBarComposed by remember { mutableStateOf(false) }
-    var playbackBarShowRequestedOnce by remember { mutableStateOf(false) }
     val openSearchOverlay = {
+        libraryLoadRequested = true
         searchQuery = ""
         searchDrilldownTarget = null
         searchVisible = true
@@ -247,10 +249,6 @@ private fun LegacyPortMainShellContent(
 
     LaunchedEffect(playbackBarRequestedVisible) {
         if (playbackBarRequestedVisible) {
-            if (!playbackBarShowRequestedOnce) {
-                delay(PlaybackBarInitialShowDelayMs)
-            }
-            playbackBarShowRequestedOnce = true
             playbackBarComposed = true
         }
     }
@@ -420,6 +418,9 @@ private fun LegacyPortMainShellContent(
     }
 
     LaunchedEffect(currentDestination) {
+        if (currentDestination.requiresFullLibraryItems()) {
+            libraryLoadRequested = true
+        }
         if (currentDestination != MusicDestination.Songs) {
             songsEditMode = false
             selectedSongIds = emptySet()
@@ -660,6 +661,9 @@ private fun LegacyPortMainShellContent(
                 },
                 onPlaylistAddModeActiveChanged = { active ->
                     playlistAddModeActive = active
+                },
+                onLibraryNeeded = {
+                    libraryLoadRequested = true
                 },
                 onSearchClick = openSearchOverlay,
                 modifier = Modifier
@@ -949,4 +953,16 @@ private fun String.toLegacyMediaStoreDeleteUri(): Uri? {
         MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
         mediaStoreId,
     )
+}
+
+private fun MusicDestination.requiresFullLibraryItems(): Boolean {
+    return when (this) {
+        MusicDestination.Songs,
+        MusicDestination.Album,
+        MusicDestination.Artist,
+        -> true
+        MusicDestination.Playlist,
+        MusicDestination.More,
+        -> false
+    }
 }

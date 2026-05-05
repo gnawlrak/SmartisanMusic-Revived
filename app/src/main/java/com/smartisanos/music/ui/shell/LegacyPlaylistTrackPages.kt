@@ -91,6 +91,7 @@ internal fun LegacyPlaylistDetailPage(
     playlist: UserPlaylistDetail?,
     title: String,
     tracks: List<MediaItem>,
+    libraryLoading: Boolean,
     editMode: Boolean,
     selectedTrackIds: Set<String>,
     browser: Player?,
@@ -115,6 +116,7 @@ internal fun LegacyPlaylistDetailPage(
             root.bind(
                 title = title,
                 tracks = tracks,
+                libraryLoading = libraryLoading,
                 editMode = editMode,
                 selectedTrackIds = selectedTrackIds,
                 currentMediaId = browser?.currentMediaItem?.mediaId,
@@ -130,7 +132,7 @@ internal fun LegacyPlaylistDetailPage(
                 onTrackMoreClick = onTrackMoreClick,
             )
             root.bindPlayback(browser)
-            if (playlist == null && tracks.isEmpty()) {
+            if (!libraryLoading && playlist == null && tracks.isEmpty()) {
                 root.setEmptyVisible(true)
             }
         },
@@ -141,6 +143,7 @@ internal fun LegacyPlaylistDetailPage(
 internal fun LegacyPlaylistAddSongsPage(
     active: Boolean,
     songs: List<MediaItem>,
+    libraryLoading: Boolean,
     selectedSongIds: Set<String>,
     browser: Player?,
     onSongSelectionChange: (String, Boolean) -> Unit,
@@ -159,6 +162,7 @@ internal fun LegacyPlaylistAddSongsPage(
             root.visibility = if (active) View.VISIBLE else View.INVISIBLE
             root.bind(
                 songs = sortedSongs,
+                libraryLoading = libraryLoading,
                 selectedSongIds = selectedSongIds,
                 currentMediaId = browser?.currentMediaItem?.mediaId,
                 currentIsPlaying = browser?.isPlaying == true,
@@ -230,6 +234,7 @@ private class LegacyPlaylistDetailRootView(context: Context) : LinearLayout(cont
     fun bind(
         title: String,
         tracks: List<MediaItem>,
+        libraryLoading: Boolean,
         editMode: Boolean,
         selectedTrackIds: Set<String>,
         currentMediaId: String?,
@@ -260,7 +265,11 @@ private class LegacyPlaylistDetailRootView(context: Context) : LinearLayout(cont
             onAddOrRemoveClick = onAddOrRemoveClick,
             onToggleAll = onToggleAll,
         )
-        setEmptyVisible(tracks.isEmpty())
+        if (libraryLoading) {
+            setLoadingVisible(true)
+        } else {
+            setEmptyVisible(tracks.isEmpty())
+        }
         listView.bindLegacyPortListFooter(
             textRes = R.string.track_count,
             count = tracks.size,
@@ -325,6 +334,13 @@ private class LegacyPlaylistDetailRootView(context: Context) : LinearLayout(cont
     fun setEmptyVisible(visible: Boolean) {
         blankView.visibility = if (visible) View.VISIBLE else View.GONE
         listView.visibility = if (visible) View.INVISIBLE else View.VISIBLE
+    }
+
+    fun setLoadingVisible(visible: Boolean) {
+        if (visible) {
+            blankView.visibility = View.GONE
+            listView.visibility = View.INVISIBLE
+        }
     }
 
     override fun onDetachedFromWindow() {
@@ -395,6 +411,7 @@ private class LegacyPlaylistAddSongsRootView(context: Context) : LinearLayout(co
 
     fun bind(
         songs: List<MediaItem>,
+        libraryLoading: Boolean,
         selectedSongIds: Set<String>,
         currentMediaId: String?,
         currentIsPlaying: Boolean,
@@ -403,9 +420,13 @@ private class LegacyPlaylistAddSongsRootView(context: Context) : LinearLayout(co
         onSongSelectionChange: (String, Boolean) -> Unit,
     ) {
         sortHeader.setupPlaylistAddSongsSortHeader(selectedSortIndex, onSortSelected)
-        blankView.visibility = if (songs.isEmpty()) View.VISIBLE else View.GONE
-        listView.visibility = if (songs.isEmpty()) View.INVISIBLE else View.VISIBLE
-        quickBar.visibility = if (songs.isEmpty() || selectedSortIndex != 0) View.GONE else View.VISIBLE
+        blankView.visibility = if (!libraryLoading && songs.isEmpty()) View.VISIBLE else View.GONE
+        listView.visibility = if (libraryLoading || songs.isEmpty()) View.INVISIBLE else View.VISIBLE
+        quickBar.visibility = if (libraryLoading || songs.isEmpty() || selectedSortIndex != 0) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
         listView.bindLegacyPortListFooter(
             textRes = R.string.track_count,
             count = songs.size,

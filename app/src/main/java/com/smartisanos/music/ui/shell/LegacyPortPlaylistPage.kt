@@ -121,10 +121,12 @@ internal enum class LegacyPlaylistDeleteRequest {
 @Composable
 internal fun LegacyPortPlaylistPage(
     mediaItems: List<MediaItem>,
+    libraryLoaded: Boolean,
     active: Boolean,
     hiddenMediaIds: Set<String>,
     onTrackMoreClick: (MediaItem) -> Unit,
     onAddModeActiveChanged: (Boolean) -> Unit,
+    onLibraryNeeded: () -> Unit,
     onSearchClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -164,6 +166,9 @@ internal fun LegacyPortPlaylistPage(
     val detailTracks = remember(activePlaylist, songsById) {
         activePlaylist?.mediaIds?.mapNotNull(songsById::get).orEmpty()
     }
+    val detailPlaylistHasKnownTracks = activePlaylist?.mediaIds?.isNotEmpty() == true ||
+        (activePlaylist == null && (activeSummary?.songCount ?: 0) > 0)
+    val detailLibraryLoading = target != null && !libraryLoaded && detailPlaylistHasKnownTracks
     val addableSongs = remember(activePlaylist, visibleSongs) {
         val existingIds = activePlaylist?.mediaIds?.toSet().orEmpty()
         visibleSongs.filterNot { item -> item.mediaId in existingIds }
@@ -180,6 +185,11 @@ internal fun LegacyPortPlaylistPage(
     }
     LaunchedEffect(addMode, target) {
         onAddModeActiveChanged(addMode && target != null)
+    }
+    LaunchedEffect(active, target, addMode) {
+        if (active && (target != null || addMode)) {
+            onLibraryNeeded()
+        }
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -292,6 +302,7 @@ internal fun LegacyPortPlaylistPage(
                             if (rootEditMode) {
                                 selectedPlaylistIds = selectedPlaylistIds.togglePlaylistSelection(playlist.id)
                             } else {
+                                onLibraryNeeded()
                                 target = LegacyPlaylistTarget(
                                     playlistId = playlist.id,
                                     title = playlist.name,
@@ -310,6 +321,7 @@ internal fun LegacyPortPlaylistPage(
                         playlist = activePlaylist,
                         title = detailTitle,
                         tracks = detailTracks,
+                        libraryLoading = detailLibraryLoading,
                         editMode = detailEditMode,
                         selectedTrackIds = selectedTrackIds,
                         browser = browser,
@@ -332,6 +344,7 @@ internal fun LegacyPortPlaylistPage(
                         },
                         onAddOrRemoveClick = {
                             if (selectedTrackIds.isEmpty()) {
+                                onLibraryNeeded()
                                 addMode = true
                                 selectedAddSongIds = emptySet()
                             } else {
@@ -387,6 +400,7 @@ internal fun LegacyPortPlaylistPage(
                 LegacyPlaylistAddSongsPage(
                     active = active && addMode,
                     songs = addableSongs,
+                    libraryLoading = !libraryLoaded,
                     selectedSongIds = selectedAddSongIds,
                     browser = browser,
                     onSongSelectionChange = { mediaId, selected ->
@@ -416,7 +430,8 @@ internal fun LegacyPortPlaylistPage(
                                 )
                                 detailEditMode = false
                                 selectedTrackIds = emptySet()
-                                if (visibleSongs.isNotEmpty()) {
+                                if (visibleSongs.isNotEmpty() || !libraryLoaded) {
+                                    onLibraryNeeded()
                                     addMode = true
                                     selectedAddSongIds = emptySet()
                                 }

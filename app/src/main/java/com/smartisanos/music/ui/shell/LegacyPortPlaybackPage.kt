@@ -171,6 +171,8 @@ internal fun LegacyPortPlaybackPage(
                         ?: 0
                     if (playbackController != null) {
                         pendingRatingRequests = pendingRatingRequests + (mediaId to score)
+                        ratingOverrides = ratingOverrides + (mediaId to score)
+                        queueSnapshot = queueSnapshot.withCurrentRating(mediaId, score)
                         scope.launch {
                             val successful = runCatching {
                                 playbackController
@@ -182,9 +184,10 @@ internal fun LegacyPortPlaybackPage(
                                 return@launch
                             }
                             pendingRatingRequests = pendingRatingRequests - mediaId
-                            val settledScore = if (successful) score else previousScore
-                            ratingOverrides = ratingOverrides + (mediaId to settledScore)
-                            queueSnapshot = queueSnapshot.withCurrentRating(mediaId, settledScore)
+                            if (!successful) {
+                                ratingOverrides = ratingOverrides + (mediaId to previousScore)
+                                queueSnapshot = queueSnapshot.withCurrentRating(mediaId, previousScore)
+                            }
                         }
                     }
                 }

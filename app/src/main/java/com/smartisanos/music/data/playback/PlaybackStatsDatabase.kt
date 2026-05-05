@@ -33,6 +33,9 @@ internal interface PlaybackStatsDao {
     @Query("SELECT mediaId, playCount, score FROM playback_stats")
     fun getStats(): List<PlaybackStatsRow>
 
+    @Query("SELECT mediaId, playCount, score FROM playback_stats WHERE mediaId IN (:mediaIds)")
+    fun getStats(mediaIds: List<String>): List<PlaybackStatsRow>
+
     @Query("SELECT playCount FROM playback_stats WHERE mediaId = :mediaId")
     suspend fun getPlayCount(mediaId: String): Long?
 

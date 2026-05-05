@@ -51,6 +51,7 @@ class PlaybackService : MediaLibraryService() {
     private var playbackSessionStateCoordinator: PlaybackSessionStateCoordinator? = null
     private var playbackPlayCountTracker: PlaybackPlayCountTracker? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
+    private var pendingRatingLibraryRefreshJob: Job? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     @Volatile private var exclusionsSnapshot: LibraryExclusions = LibraryExclusions()
     private val exclusionsReady = CompletableDeferred<LibraryExclusions>()
@@ -62,6 +63,7 @@ class PlaybackService : MediaLibraryService() {
         localAudioLibrary = LocalAudioLibrary(
             context = this,
             playbackStatsProvider = playbackStatsRepository::getStats,
+            playbackStatsByIdsProvider = playbackStatsRepository::getStats,
         )
         libraryExclusionsStore = LibraryExclusionsStore(this)
         playbackSessionStateStore = PlaybackSessionStateStore(this)
@@ -104,7 +106,7 @@ class PlaybackService : MediaLibraryService() {
             stateStore = playbackSessionStateStore,
             scope = serviceScope,
             canLoadLibraryItems = { hasAudioPermission() },
-            loadLibraryItems = { getAudioItems() },
+            loadLibraryItemsByIds = { mediaIds -> getAudioItemsByIds(mediaIds) },
         ).also { coordinator ->
             coordinator.start()
         }
@@ -150,6 +152,8 @@ class PlaybackService : MediaLibraryService() {
         playbackPlayCountTracker = null
         pendingStatsLibraryRefreshJob?.cancel()
         pendingStatsLibraryRefreshJob = null
+        pendingRatingLibraryRefreshJob?.cancel()
+        pendingRatingLibraryRefreshJob = null
         serviceScope.cancel()
         PlaybackSleepTimer.cancel()
         mediaLibrarySession?.release()
@@ -182,6 +186,25 @@ class PlaybackService : MediaLibraryService() {
             runBlocking { exclusionsReady.await() }
         }
         return localAudioLibrary.getAudioItems(forceRefresh = forceRefresh)
+            .asSequence()
+            .filter { item ->
+                val relativePath = item.mediaMetadata.extras
+                    ?.getString(LocalAudioLibrary.RelativePathExtraKey)
+                !exclusions.isMediaHidden(item.mediaId, relativePath)
+            }
+            .toList()
+    }
+
+    private fun getAudioItemsByIds(mediaIds: List<String>): List<MediaItem> {
+        if (!hasAudioPermission() || mediaIds.isEmpty()) {
+            return emptyList()
+        }
+        val exclusions = if (exclusionsReady.isCompleted) {
+            exclusionsSnapshot
+        } else {
+            runBlocking { exclusionsReady.await() }
+        }
+        return localAudioLibrary.getAudioItemsByIds(mediaIds)
             .asSequence()
             .filter { item ->
                 val relativePath = item.mediaMetadata.extras
@@ -295,7 +318,7 @@ class PlaybackService : MediaLibraryService() {
                 val item = if (mediaId == LocalAudioLibrary.ROOT_ID) {
                     localAudioLibrary.getRootItem()
                 } else {
-                    getAudioItems().firstOrNull { it.mediaId == mediaId }
+                    getAudioItemsByIds(listOf(mediaId)).firstOrNull()
                 }
                 if (item == null) {
                     LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
@@ -311,7 +334,8 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
             return libraryExecutor.submit<MutableList<MediaItem>> {
-                val itemsById = getAudioItems().associateBy { it.mediaId }
+                val itemsById = getAudioItemsByIds(mediaItems.map { item -> item.mediaId })
+                    .associateBy { it.mediaId }
                 mediaItems.mapNotNullTo(mutableListOf()) { item ->
                     itemsById[item.mediaId] ?: item.takeIf { it.isExternalAudioLaunchItem() }
                 }
@@ -405,7 +429,9 @@ class PlaybackService : MediaLibraryService() {
                     runBlocking {
                         playbackStatsRepository.setScore(mediaId, score)
                     } ?: return@submit SessionResult(SessionResult.RESULT_ERROR_UNKNOWN)
-                    scheduleStatsLibraryRefresh()
+                    serviceScope.launch(Dispatchers.Main.immediate) {
+                        scheduleRatingLibraryRefresh()
+                    }
                     SessionResult(SessionResult.RESULT_SUCCESS)
                 }
             }
@@ -418,18 +444,33 @@ class PlaybackService : MediaLibraryService() {
             pendingStatsLibraryRefreshJob?.cancel()
             pendingStatsLibraryRefreshJob = serviceScope.launch(Dispatchers.Main.immediate) {
                 delay(StatsLibraryRefreshDebounceMs)
-                localAudioLibrary.invalidateAudioItems()
-                mediaLibrarySession?.notifyChildrenChanged(
-                    LocalAudioLibrary.ROOT_ID,
-                    Int.MAX_VALUE,
-                    null,
-                )
+                refreshStatsLibrary()
             }
         }
+    }
+
+    private fun scheduleRatingLibraryRefresh() {
+        pendingRatingLibraryRefreshJob?.cancel()
+        pendingRatingLibraryRefreshJob = serviceScope.launch(Dispatchers.Main.immediate) {
+            delay(RatingLibraryRefreshDebounceMs)
+            pendingStatsLibraryRefreshJob?.cancel()
+            pendingStatsLibraryRefreshJob = null
+            refreshStatsLibrary()
+        }
+    }
+
+    private fun refreshStatsLibrary() {
+        localAudioLibrary.invalidateAudioItems()
+        mediaLibrarySession?.notifyChildrenChanged(
+            LocalAudioLibrary.ROOT_ID,
+            Int.MAX_VALUE,
+            null,
+        )
     }
 
     private companion object {
         private const val PlaybackSessionActivityRequestCode = 1001
         private const val StatsLibraryRefreshDebounceMs = 600L
+        private const val RatingLibraryRefreshDebounceMs = 250L
     }
 }

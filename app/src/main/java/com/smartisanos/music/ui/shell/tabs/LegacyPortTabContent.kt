@@ -61,6 +61,7 @@ internal fun LegacyPortTabContent(
     onAlbumSelected: (String, String) -> Unit,
     onArtistTargetChanged: (LegacyArtistTarget?) -> Unit,
     onPlaylistAddModeActiveChanged: (Boolean) -> Unit,
+    onLibraryNeeded: () -> Unit,
     onSearchClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -120,10 +121,12 @@ internal fun LegacyPortTabContent(
             )
             MusicDestination.Playlist -> LegacyPortPlaylistPage(
                 mediaItems = mediaItems,
+                libraryLoaded = libraryLoaded,
                 active = true,
                 hiddenMediaIds = hiddenMediaIds,
                 onTrackMoreClick = onPlaylistTrackMoreClick,
                 onAddModeActiveChanged = onPlaylistAddModeActiveChanged,
+                onLibraryNeeded = onLibraryNeeded,
                 onSearchClick = onSearchClick,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -147,6 +150,7 @@ internal fun LegacyPortTabContent(
                 onLovedSongsTrackMoreClick = onLovedSongsTrackMoreClick,
                 onRemoveFavoriteMediaIds = onRemoveFavoriteMediaIds,
                 onSettingsPageActiveChanged = onMoreSettingsPageActiveChanged,
+                onLibraryNeeded = onLibraryNeeded,
                 onSearchClick = onSearchClick,
                 modifier = Modifier.fillMaxSize(),
             )

@@ -16,7 +16,7 @@ internal class PlaybackSessionStateCoordinator(
     private val stateStore: PlaybackSessionStateStore,
     private val scope: CoroutineScope,
     private val canLoadLibraryItems: () -> Boolean,
-    private val loadLibraryItems: suspend () -> List<MediaItem>,
+    private val loadLibraryItemsByIds: suspend (List<String>) -> List<MediaItem>,
 ) {
 
     private var persistJob: Job? = null
@@ -125,7 +125,7 @@ internal class PlaybackSessionStateCoordinator(
 
     private suspend fun restoreItems(snapshot: PlaybackSessionSnapshot): List<MediaItem> {
         val items = withContext(Dispatchers.IO) {
-            loadLibraryItems()
+            loadLibraryItemsByIds(snapshot.mediaIds)
         }
         val itemsById = items.associateBy { it.mediaId }
         return snapshot.mediaIds.mapNotNull(itemsById::get)

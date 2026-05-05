@@ -119,6 +119,7 @@ internal fun LegacyPortMorePage(
     onLovedSongsTrackMoreClick: (MediaItem) -> Unit,
     onRemoveFavoriteMediaIds: (Set<String>) -> Unit,
     onSettingsPageActiveChanged: (Boolean) -> Unit,
+    onLibraryNeeded: () -> Unit,
     onSearchClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -126,6 +127,10 @@ internal fun LegacyPortMorePage(
 
     LaunchedEffect(active, secondaryTarget) {
         when {
+            active && secondaryTarget == LegacyMoreSecondaryTarget.LovedSongs -> {
+                onLibraryNeeded()
+                onSettingsPageActiveChanged(false)
+            }
             active && secondaryTarget == LegacyMoreSecondaryTarget.Settings -> onSettingsPageActiveChanged(true)
             secondaryTarget == null -> {
                 delay(300L)
@@ -162,6 +167,7 @@ internal fun LegacyPortMorePage(
                     secondaryTarget = LegacyMoreSecondaryTarget.Folder
                 },
                 onLovedSongsClick = {
+                    onLibraryNeeded()
                     secondaryTarget = LegacyMoreSecondaryTarget.LovedSongs
                 },
                 onSearchClick = onSearchClick,

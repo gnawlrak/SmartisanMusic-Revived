@@ -15,6 +15,7 @@ import com.smartisanos.music.ui.components.hasAudioPermission
 
 @Composable
 internal fun rememberLegacyLibraryMediaState(
+    loadRequested: Boolean,
     libraryRefreshVersion: Int = 0,
 ): LegacyLibraryMediaState {
     val context = LocalContext.current
@@ -23,7 +24,10 @@ internal fun rememberLegacyLibraryMediaState(
     val hasPermission = hasAudioPermission(context)
     var state by remember(browser) { mutableStateOf(LegacyLibraryMediaState()) }
 
-    LaunchedEffect(browser, hasPermission, libraryRefreshVersion, libraryChildrenVersion) {
+    LaunchedEffect(browser, hasPermission, loadRequested, libraryRefreshVersion, libraryChildrenVersion) {
+        if (!loadRequested) {
+            return@LaunchedEffect
+        }
         val playbackBrowser = browser ?: run {
             state = LegacyLibraryMediaState(loaded = true)
             return@LaunchedEffect

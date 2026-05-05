@@ -28,8 +28,12 @@ import java.util.concurrent.atomic.AtomicInteger
 class LocalAudioLibrary(
     private val context: Context,
     private val playbackStatsProvider: () -> Map<String, PlaybackStatsRecord> = { emptyMap() },
+    private val playbackStatsByIdsProvider: (Set<String>) -> Map<String, PlaybackStatsRecord> = { mediaIds ->
+        playbackStatsProvider().filterKeys(mediaIds::contains)
+    },
 ) {
 
+    private val audioCacheLock = Any()
     @Volatile private var audioCache = AudioCache()
 
     fun getRootItem(): MediaItem {
@@ -45,24 +49,111 @@ class LocalAudioLibrary(
             .build()
     }
 
-    fun getAudioItems(forceRefresh: Boolean = false): List<MediaItem> {
+    fun getAudioItems(forceRefresh: Boolean = false): List<MediaItem> = synchronized(audioCacheLock) {
         val currentSnapshot = currentMediaStoreSnapshot()
         val cache = audioCache
         // generation 负责日常增量变化，version 负责更大范围的媒体库重建。
         if (!forceRefresh && cache.snapshot == currentSnapshot && cache.items.isNotEmpty()) {
-            return cache.items
+            return@synchronized cache.items
         }
 
+        val items = queryAudioItems(
+            selection = audioSelection(),
+            selectionArgs = null,
+            sortOrder = audioSortOrder(),
+        )
+
+        audioCache = AudioCache(
+            snapshot = currentSnapshot,
+            items = items,
+        )
+        items
+    }
+
+    fun getAudioItemsByIds(mediaIds: List<String>): List<MediaItem> {
+        val requestedIds = mediaIds
+            .asSequence()
+            .mapNotNull { mediaId -> mediaId.trim().toLongOrNull()?.takeIf { it > 0L } }
+            .distinct()
+            .toList()
+        if (requestedIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val requestedIdStrings = requestedIds.map(Long::toString)
+        val cachedItemsById = getValidCachedItemsById(requestedIdStrings.toSet())
+        val missingIds = requestedIds.filter { id -> id.toString() !in cachedItemsById }
+        if (missingIds.isEmpty()) {
+            return requestedIdStrings.mapNotNull(cachedItemsById::get)
+        }
+
+        val missingIdStrings = missingIds.map(Long::toString)
+        val playbackStats = playbackStatsForIds(missingIdStrings.toSet())
+        val queriedItemsById = missingIds
+            .chunked(MediaStoreIdSelectionChunkSize)
+            .flatMap { ids ->
+                queryAudioItems(
+                    selection = buildString {
+                        append(audioSelection())
+                        append(" AND ${MediaStore.Audio.Media._ID} IN (")
+                        append(ids.joinToString(separator = ",") { "?" })
+                        append(")")
+                    },
+                    selectionArgs = ids.map(Long::toString).toTypedArray(),
+                    sortOrder = null,
+                    playbackStats = playbackStats,
+                )
+            }
+            .associateBy(MediaItem::mediaId)
+        val itemsById = cachedItemsById + queriedItemsById
+
+        return requestedIdStrings.mapNotNull(itemsById::get)
+    }
+
+    fun invalidateAudioItems() {
+        synchronized(audioCacheLock) {
+            audioCache = AudioCache()
+        }
+    }
+
+    fun refreshAudioItems(): RefreshResult {
+        val indexedSnapshot = queryIndexedAudioSnapshot()
+        val pendingAudioPaths = discoverUnindexedAudioPaths(indexedSnapshot)
+        val scanResult = scanAudioFiles(pendingAudioPaths)
+        val mediaStoreRefreshSucceeded = requestMediaStoreRefresh()
+        val items = getAudioItems(forceRefresh = true)
+        return RefreshResult(
+            items = items,
+            scannedFileCount = scanResult.scannedFileCount,
+            failedScanCount = scanResult.failedScanCount,
+            scanTimedOut = scanResult.timedOut,
+            mediaStoreRefreshSucceeded = mediaStoreRefreshSucceeded,
+        )
+    }
+
+    fun getItem(mediaId: String): MediaItem? {
+        if (mediaId == ROOT_ID) {
+            return getRootItem()
+        }
+        return getAudioItemsByIds(listOf(mediaId)).firstOrNull()
+    }
+
+    private fun queryAudioItems(
+        selection: String,
+        selectionArgs: Array<String>?,
+        sortOrder: String?,
+        playbackStats: Map<String, PlaybackStatsRecord>? = null,
+    ): List<MediaItem> {
         val items = mutableListOf<MediaItem>()
-        val playbackStats = runCatching(playbackStatsProvider)
-            .getOrDefault(emptyMap())
+        val resolvedPlaybackStats = playbackStats
+            ?: runCatching(playbackStatsProvider).getOrDefault(emptyMap())
         try {
             context.contentResolver.query(
                 audioCollection(),
                 audioItemProjection(),
-                audioSelection(),
-                null,
-                audioSortOrder(),
+                selection,
+                selectionArgs,
+                sortOrder,
             )?.use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
@@ -108,7 +199,7 @@ class LocalAudioLibrary(
                     val titleSortKey = LegacyLibraryTitleNormalizer.normalize(title)
                     val titleSection = titleSortKey.legacyLibraryTitleSection()
                     val mediaUri = ContentUris.withAppendedId(audioCollection(), id)
-                    val stats = playbackStats[id.toString()]
+                    val stats = resolvedPlaybackStats[id.toString()]
                     val playCount = stats?.playCount?.takeIf { it > 0L }
                     val score = stats?.score?.takeIf { it > 0 }
 
@@ -156,7 +247,6 @@ class LocalAudioLibrary(
                     }
 
                     metadataBuilder.setExtras(extras)
-
                     metadataBuilder.setArtworkUri(trackArtworkUri(id))
 
                     if (trackNumber != null) {
@@ -178,37 +268,32 @@ class LocalAudioLibrary(
             return emptyList()
         }
 
-        audioCache = AudioCache(
-            snapshot = currentSnapshot,
-            items = items,
-        )
         return items
     }
 
-    fun invalidateAudioItems() {
-        audioCache = AudioCache()
-    }
-
-    fun refreshAudioItems(): RefreshResult {
-        val indexedSnapshot = queryIndexedAudioSnapshot()
-        val pendingAudioPaths = discoverUnindexedAudioPaths(indexedSnapshot)
-        val scanResult = scanAudioFiles(pendingAudioPaths)
-        val mediaStoreRefreshSucceeded = requestMediaStoreRefresh()
-        val items = getAudioItems(forceRefresh = true)
-        return RefreshResult(
-            items = items,
-            scannedFileCount = scanResult.scannedFileCount,
-            failedScanCount = scanResult.failedScanCount,
-            scanTimedOut = scanResult.timedOut,
-            mediaStoreRefreshSucceeded = mediaStoreRefreshSucceeded,
-        )
-    }
-
-    fun getItem(mediaId: String): MediaItem? {
-        if (mediaId == ROOT_ID) {
-            return getRootItem()
+    private fun getValidCachedItemsById(mediaIds: Set<String>): Map<String, MediaItem> {
+        if (mediaIds.isEmpty()) {
+            return emptyMap()
         }
-        return getAudioItems().firstOrNull { it.mediaId == mediaId }
+        return synchronized(audioCacheLock) {
+            val cache = audioCache
+            if (cache.items.isEmpty() || cache.snapshot != currentMediaStoreSnapshot()) {
+                return@synchronized emptyMap()
+            }
+            cache.items
+                .asSequence()
+                .filter { item -> item.mediaId in mediaIds }
+                .associateBy(MediaItem::mediaId)
+        }
+    }
+
+    private fun playbackStatsForIds(mediaIds: Set<String>): Map<String, PlaybackStatsRecord> {
+        if (mediaIds.isEmpty()) {
+            return emptyMap()
+        }
+        return runCatching {
+            playbackStatsByIdsProvider(mediaIds)
+        }.getOrDefault(emptyMap())
     }
 
     companion object {
@@ -229,6 +314,7 @@ class LocalAudioLibrary(
         const val AudioQualityBadgeAlac = "alac"
         const val AudioQualityBadgeCue = "cue"
         private const val MediaScannerWaitTimeoutSeconds = 30L
+        private const val MediaStoreIdSelectionChunkSize = 500
         private val AudioFileExtensions = setOf(
             "aac",
             "aif",
@@ -430,15 +516,18 @@ class LocalAudioLibrary(
                 .onEnter { directory -> shouldEnterDirectory(volumeRoot.root, directory) }
                 .onFail { _, _ -> }
                 .forEach { candidate ->
+                    if (
+                        candidate.name.startsWith('.') ||
+                        !candidate.hasAudioCandidateExtension() ||
+                        !candidate.isFile ||
+                        !candidate.canRead()
+                    ) {
+                        return@forEach
+                    }
                     val relativePathFromRoot = candidate.relativeToOrNull(volumeRoot.root)
                         ?.invariantSeparatorsPath
                         ?: return@forEach
-                    if (
-                        shouldSkipMediaScannerPath(relativePathFromRoot) ||
-                        !candidate.isFile ||
-                        !candidate.canRead() ||
-                        !candidate.isAudioCandidate()
-                    ) {
+                    if (shouldSkipMediaScannerPath(relativePathFromRoot)) {
                         return@forEach
                     }
                     val relativePath = candidate.relativePathFromVolumeRoot(volumeRoot.root)
@@ -490,6 +579,9 @@ class LocalAudioLibrary(
             return true
         }
         if (!directory.canRead()) {
+            return false
+        }
+        if (directory.name.startsWith('.')) {
             return false
         }
         val relativePath = directory.relativeToOrNull(scanRoot)
@@ -592,7 +684,7 @@ class LocalAudioLibrary(
             .lowercase(Locale.ROOT)
     }
 
-    private fun File.isAudioCandidate(): Boolean {
+    private fun File.hasAudioCandidateExtension(): Boolean {
         val extension = extension.lowercase(Locale.ROOT)
         return extension in AudioFileExtensions
     }

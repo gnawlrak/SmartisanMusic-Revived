@@ -16,12 +16,22 @@ class PlaybackStatsRepository private constructor(
 
     fun getStats(): Map<String, PlaybackStatsRecord> {
         return playbackStatsDao.getStats()
-            .associate { row ->
-                row.mediaId to PlaybackStatsRecord(
-                    playCount = row.playCount,
-                    score = row.score,
-                )
-            }
+            .toStatsMap()
+    }
+
+    fun getStats(mediaIds: Set<String>): Map<String, PlaybackStatsRecord> {
+        if (mediaIds.isEmpty()) {
+            return emptyMap()
+        }
+        return mediaIds
+            .asSequence()
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+            .chunked(PlaybackStatsQueryChunkSize)
+            .flatMap { chunk -> playbackStatsDao.getStats(chunk) }
+            .toList()
+            .toStatsMap()
     }
 
     suspend fun incrementPlayCount(
@@ -34,7 +44,7 @@ class PlaybackStatsRepository private constructor(
         }
         return database.withTransaction {
             if (playbackStatsDao.incrementExisting(normalizedMediaId, updatedAt) == 0) {
-                playbackStatsDao.insert(
+                val inserted = playbackStatsDao.insert(
                     PlaybackStatsEntity(
                         mediaId = normalizedMediaId,
                         playCount = 1L,
@@ -42,6 +52,9 @@ class PlaybackStatsRepository private constructor(
                         updatedAt = updatedAt,
                     ),
                 )
+                if (inserted == -1L) {
+                    playbackStatsDao.incrementExisting(normalizedMediaId, updatedAt)
+                }
             }
             playbackStatsDao.getPlayCount(normalizedMediaId)
         }
@@ -59,7 +72,7 @@ class PlaybackStatsRepository private constructor(
         val normalizedScore = score.coerceIn(MinScore, MaxScore)
         return database.withTransaction {
             if (playbackStatsDao.updateScore(normalizedMediaId, normalizedScore, updatedAt) == 0) {
-                playbackStatsDao.insert(
+                val inserted = playbackStatsDao.insert(
                     PlaybackStatsEntity(
                         mediaId = normalizedMediaId,
                         playCount = 0L,
@@ -67,6 +80,9 @@ class PlaybackStatsRepository private constructor(
                         updatedAt = updatedAt,
                     ),
                 )
+                if (inserted == -1L) {
+                    playbackStatsDao.updateScore(normalizedMediaId, normalizedScore, updatedAt)
+                }
             }
             playbackStatsDao.getScore(normalizedMediaId)
         }
@@ -90,5 +106,15 @@ class PlaybackStatsRepository private constructor(
 
         private const val MinScore = 0
         private const val MaxScore = 5
+        private const val PlaybackStatsQueryChunkSize = 500
+    }
+}
+
+private fun List<PlaybackStatsRow>.toStatsMap(): Map<String, PlaybackStatsRecord> {
+    return associate { row ->
+        row.mediaId to PlaybackStatsRecord(
+            playCount = row.playCount,
+            score = row.score,
+        )
     }
 }

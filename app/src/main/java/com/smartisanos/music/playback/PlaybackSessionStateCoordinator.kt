@@ -77,10 +77,10 @@ internal class PlaybackSessionStateCoordinator(
         if (shouldSkipEmptyQueueSave(snapshot)) {
             return
         }
-        lastQueuedSnapshot = snapshot
         withContext(Dispatchers.IO) {
             stateStore.save(snapshot)
         }
+        lastQueuedSnapshot = snapshot
     }
 
     private fun restore() {
@@ -144,20 +144,25 @@ internal class PlaybackSessionStateCoordinator(
         if (restoring) {
             return
         }
-        val snapshot = player.toPlaybackSessionSnapshot()
-        if (shouldSkipEmptyQueueSave(snapshot)) {
-            return
-        }
-        if (snapshot == lastQueuedSnapshot) {
-            return
-        }
-        lastQueuedSnapshot = snapshot
         persistJob?.cancel()
-        persistJob = scope.launch(Dispatchers.IO) {
+        persistJob = scope.launch {
             if (delayMillis > 0L) {
                 delay(delayMillis)
             }
-            stateStore.save(snapshot)
+            if (restoring) {
+                return@launch
+            }
+            val snapshot = player.toPlaybackSessionSnapshot()
+            if (shouldSkipEmptyQueueSave(snapshot)) {
+                return@launch
+            }
+            if (snapshot == lastQueuedSnapshot) {
+                return@launch
+            }
+            withContext(Dispatchers.IO) {
+                stateStore.save(snapshot)
+            }
+            lastQueuedSnapshot = snapshot
         }
     }
 

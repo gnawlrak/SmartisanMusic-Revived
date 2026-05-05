@@ -19,7 +19,7 @@ import com.smartisanos.music.R
 import com.smartisanos.music.playback.LocalAudioLibrary
 import kotlin.math.roundToInt
 
-internal fun Player?.snapshot(context: Context): PlaybackScreenState {
+internal fun Player?.snapshot(volume: Float = 1f): PlaybackScreenState {
     val player = this ?: return PlaybackScreenState()
     return PlaybackScreenState(
         mediaItem = player.currentMediaItem,
@@ -28,7 +28,7 @@ internal fun Player?.snapshot(context: Context): PlaybackScreenState {
         shuffleEnabled = player.shuffleModeEnabled,
         currentPositionMs = player.currentPosition.coerceAtLeast(0L),
         durationMs = player.duration.takeIf { it > 0L } ?: 0L,
-        volume = context.musicStreamVolumeFraction(),
+        volume = volume,
     )
 }
 
@@ -195,7 +195,9 @@ internal fun formatPlaybackTime(positionMs: Long): String {
     val totalSeconds = (positionMs / 1_000L).coerceAtLeast(0L)
     val minutes = totalSeconds / 60L
     val seconds = totalSeconds % 60L
-    return "%02d:%02d".format(minutes, seconds)
+    val minutesText = if (minutes < 10L) "0$minutes" else minutes.toString()
+    val secondsText = if (seconds < 10L) "0$seconds" else seconds.toString()
+    return "$minutesText:$secondsText"
 }
 
 internal fun fractionFromPosition(positionX: Float, trackWidthPx: Int): Float {

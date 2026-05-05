@@ -768,6 +768,17 @@ private data class OriginalNeedleViews(
     val top: ImageView,
 )
 
+private data class OriginalNeedleLayoutPx(
+    val needleWidthPx: Int,
+    val needleHeightPx: Int,
+    val needleTopWidthPx: Int,
+    val needleTopMarginPx: Int,
+    val needleRightMarginPx: Int,
+    val needleShadowRightMarginPx: Int,
+    val needlePivotXPx: Float,
+    val needlePivotYPx: Float,
+)
+
 @Composable
 private fun OriginalNeedleStack(
     needleRotation: Float,
@@ -776,6 +787,21 @@ private fun OriginalNeedleStack(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
+    val layout = remember(scale, density) {
+        val metrics = originalNeedleMetrics(scale)
+        OriginalNeedleLayoutPx(
+            needleWidthPx = with(density) { metrics.widthDp.dp.roundToPx() },
+            needleHeightPx = with(density) { metrics.heightDp.dp.roundToPx() },
+            needleTopWidthPx = with(density) { metrics.topWidthDp.dp.roundToPx() },
+            needleTopMarginPx = with(density) { metrics.topMarginDp.dp.roundToPx() },
+            needleRightMarginPx = with(density) { metrics.rightMarginDp.dp.roundToPx() },
+            needleShadowRightMarginPx = with(density) {
+                metrics.shadowRightMarginDp.dp.roundToPx()
+            },
+            needlePivotXPx = with(density) { metrics.pivotXDp.dp.toPx() },
+            needlePivotYPx = with(density) { metrics.pivotYDp.dp.toPx() },
+        )
+    }
     AndroidView(
         factory = { context ->
             FrameLayout(context).apply {
@@ -809,53 +835,42 @@ private fun OriginalNeedleStack(
         modifier = modifier,
         update = { frame ->
             val views = frame.tag as OriginalNeedleViews
-            val metrics = originalNeedleMetrics(scale)
-            val needleWidthPx = with(density) { metrics.widthDp.dp.roundToPx() }
-            val needleHeightPx = with(density) { metrics.heightDp.dp.roundToPx() }
-            val needleTopWidthPx = with(density) { metrics.topWidthDp.dp.roundToPx() }
-            val needleTopMarginPx = with(density) { metrics.topMarginDp.dp.roundToPx() }
-            val needleRightMarginPx = with(density) { metrics.rightMarginDp.dp.roundToPx() }
-            val needleShadowRightMarginPx = with(density) {
-                metrics.shadowRightMarginDp.dp.roundToPx()
-            }
-            val needlePivotXPx = with(density) { metrics.pivotXDp.dp.toPx() }
-            val needlePivotYPx = with(density) { metrics.pivotYDp.dp.toPx() }
 
             updateOriginalNeedleLayout(
                 view = views.base,
-                widthPx = needleWidthPx,
-                heightPx = needleHeightPx,
-                topMarginPx = needleTopMarginPx,
-                endMarginPx = needleRightMarginPx,
+                widthPx = layout.needleWidthPx,
+                heightPx = layout.needleHeightPx,
+                topMarginPx = layout.needleTopMarginPx,
+                endMarginPx = layout.needleRightMarginPx,
             )
             updateOriginalNeedleLayout(
                 view = views.shadow,
-                widthPx = needleWidthPx,
-                heightPx = needleHeightPx,
-                topMarginPx = needleTopMarginPx,
-                endMarginPx = needleShadowRightMarginPx,
+                widthPx = layout.needleWidthPx,
+                heightPx = layout.needleHeightPx,
+                topMarginPx = layout.needleTopMarginPx,
+                endMarginPx = layout.needleShadowRightMarginPx,
             )
             updateOriginalNeedleLayout(
                 view = views.needle,
-                widthPx = needleWidthPx,
-                heightPx = needleHeightPx,
-                topMarginPx = needleTopMarginPx,
-                endMarginPx = needleRightMarginPx,
+                widthPx = layout.needleWidthPx,
+                heightPx = layout.needleHeightPx,
+                topMarginPx = layout.needleTopMarginPx,
+                endMarginPx = layout.needleRightMarginPx,
             )
             updateOriginalNeedleLayout(
                 view = views.top,
-                widthPx = needleTopWidthPx,
-                heightPx = needleHeightPx,
-                topMarginPx = needleTopMarginPx,
-                endMarginPx = needleRightMarginPx,
+                widthPx = layout.needleTopWidthPx,
+                heightPx = layout.needleHeightPx,
+                topMarginPx = layout.needleTopMarginPx,
+                endMarginPx = layout.needleRightMarginPx,
             )
 
             val liftedScaleY = 1f - ((1f - NeedleLiftScaleY) * needleLiftFraction)
             val shadowRotation = needleRotation -
                 (NeedleLiftShadowRotationOffsetDegrees * needleLiftFraction)
             listOf(views.shadow, views.needle).forEach { view ->
-                view.pivotX = needlePivotXPx
-                view.pivotY = needlePivotYPx
+                view.pivotX = layout.needlePivotXPx
+                view.pivotY = layout.needlePivotYPx
                 view.scaleY = liftedScaleY
             }
             views.shadow.rotation = shadowRotation
@@ -876,10 +891,28 @@ private fun updateOriginalNeedleLayout(
     endMarginPx: Int,
 ) {
     val params = (view.layoutParams as? FrameLayout.LayoutParams)
-        ?: FrameLayout.LayoutParams(widthPx, heightPx, Gravity.TOP or Gravity.END)
+    val gravity = Gravity.TOP or Gravity.END
+    if (params == null) {
+        view.layoutParams = FrameLayout.LayoutParams(widthPx, heightPx, gravity).apply {
+            topMargin = topMarginPx
+            marginEnd = endMarginPx
+            rightMargin = endMarginPx
+        }
+        return
+    }
+    if (
+        params.width == widthPx &&
+        params.height == heightPx &&
+        params.gravity == gravity &&
+        params.topMargin == topMarginPx &&
+        params.marginEnd == endMarginPx &&
+        params.rightMargin == endMarginPx
+    ) {
+        return
+    }
     params.width = widthPx
     params.height = heightPx
-    params.gravity = Gravity.TOP or Gravity.END
+    params.gravity = gravity
     params.topMargin = topMarginPx
     params.marginEnd = endMarginPx
     params.rightMargin = endMarginPx

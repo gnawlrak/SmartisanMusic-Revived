@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -120,8 +121,19 @@ fun PlaybackScreen(
     val popcornSoundController = remember(context) {
         VinylPopcornSoundController(context)
     }
+    var volume by remember(context) {
+        mutableFloatStateOf(context.musicStreamVolumeFraction())
+    }
     var state by remember(controller) {
-        mutableStateOf(controller.snapshot(context))
+        mutableStateOf(
+            controller.snapshot(
+                volume = volume,
+            ),
+        )
+    }
+    val latestVolume by rememberUpdatedState(volume)
+    var livePositionMs by remember(controller) {
+        mutableLongStateOf(state.currentPositionMs)
     }
     var showMorePanel by rememberSaveable { mutableStateOf(false) }
     var showSleepTimerDialog by rememberSaveable { mutableStateOf(false) }
@@ -248,7 +260,9 @@ fun PlaybackScreen(
         val playbackController = controller ?: return@DisposableEffect onDispose { }
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
-                state = playbackController.snapshot(context)
+                val nextState = playbackController.snapshot(volume = latestVolume)
+                state = nextState
+                livePositionMs = nextState.currentPositionMs
             }
         }
         playbackController.addListener(listener)
@@ -433,11 +447,28 @@ fun PlaybackScreen(
         }
     }
 
-    LaunchedEffect(controller, state.mediaItem?.mediaId, state.isPlaying) {
+    LaunchedEffect(controller, state.mediaItem?.mediaId) {
         val playbackController = controller ?: return@LaunchedEffect
         while (isActive) {
-            state = playbackController.snapshot(context)
-            delay(if (state.isPlaying) 80L else 240L)
+            livePositionMs = playbackController.currentPosition.coerceAtLeast(0L)
+            delay(
+                if (playbackController.isPlaying) {
+                    PlaybackPositionPlayingRefreshMs
+                } else {
+                    PlaybackPositionIdleRefreshMs
+                },
+            )
+        }
+    }
+
+    LaunchedEffect(context) {
+        while (isActive) {
+            delay(PlaybackVolumeRefreshMs)
+            val nextVolume = context.musicStreamVolumeFraction()
+            if (abs(nextVolume - latestVolume) >= PlaybackVolumeChangeEpsilon) {
+                volume = nextVolume
+                state = state.copy(volume = nextVolume)
+            }
         }
     }
 
@@ -488,13 +519,13 @@ fun PlaybackScreen(
         !currentMediaId.isNullOrBlank() &&
         currentMediaId in favoriteIds
     val coverPreviewPositionMs = coverPageState.previewPositionMs
-    val livePositionMs = state.currentPositionMs.coerceIn(0L, durationMs.coerceAtLeast(0L))
+    val boundedLivePositionMs = livePositionMs.coerceIn(0L, durationMs.coerceAtLeast(0L))
     val displayPositionMs = if (currentVisualPage == PlaybackVisualPage.Cover) {
         coverPreviewPositionMs
             ?.coerceIn(0L, durationMs.coerceAtLeast(0L))
-            ?: livePositionMs
+            ?: boundedLivePositionMs
     } else {
-        livePositionMs
+        boundedLivePositionMs
     }
     val primaryLyricLine = stringResource(R.string.playback_more_primary_line)
     val secondaryLyricLine = stringResource(R.string.playback_more_secondary_line)
@@ -542,7 +573,7 @@ fun PlaybackScreen(
         currentVisualPage,
         coverPageState.dragMode,
         coverPageState.previewPositionMs,
-        state.currentPositionMs,
+        boundedLivePositionMs,
     ) {
         if (currentVisualPage != PlaybackVisualPage.Cover) {
             return@LaunchedEffect
@@ -550,7 +581,7 @@ fun PlaybackScreen(
         val previewPosition = coverPageState.previewPositionMs ?: return@LaunchedEffect
         if (
             coverPageState.dragMode == CoverDragMode.None &&
-            abs(state.currentPositionMs - previewPosition) <= CoverPreviewSettleToleranceMs
+            abs(boundedLivePositionMs - previewPosition) <= CoverPreviewSettleToleranceMs
         ) {
             coverPageState = coverPageState.copy(previewPositionMs = null)
         }
@@ -581,7 +612,7 @@ fun PlaybackScreen(
         currentVisualPage,
         coverPageState.dragMode,
         coverPageState.needleSettlingPositionMs,
-        state.currentPositionMs,
+        boundedLivePositionMs,
     ) {
         if (currentVisualPage != PlaybackVisualPage.Cover) {
             return@LaunchedEffect
@@ -589,7 +620,7 @@ fun PlaybackScreen(
         val settlingPosition = coverPageState.needleSettlingPositionMs ?: return@LaunchedEffect
         if (
             coverPageState.dragMode == CoverDragMode.None &&
-            abs(state.currentPositionMs - settlingPosition) <= CoverPreviewSettleToleranceMs
+            abs(boundedLivePositionMs - settlingPosition) <= CoverPreviewSettleToleranceMs
         ) {
             coverPageState = coverPageState.copy(
                 needlePreviewRotationDegrees = null,
@@ -622,7 +653,7 @@ fun PlaybackScreen(
         }
     }
 
-    val latestScratchWarmupPositionMs by rememberUpdatedState(livePositionMs)
+    val latestScratchWarmupPositionMs by rememberUpdatedState(boundedLivePositionMs)
     LaunchedEffect(scratchSourceUri, playbackSettings.scratchEnabled, currentVisualPage) {
         scratchFlingJob?.cancel()
         scratchFlingJob = null
@@ -713,7 +744,7 @@ fun PlaybackScreen(
                     scale = scale,
                     currentVisualPage = currentVisualPage,
                     coverPositionMs = displayPositionMs,
-                    lyricsPositionMs = livePositionMs,
+                    lyricsPositionMs = boundedLivePositionMs,
                     durationMs = durationMs,
                     scratchEnabled = playbackSettings.scratchEnabled,
                     hidePlayerAxisEnabled = playbackSettings.hidePlayerAxisEnabled,
@@ -743,7 +774,7 @@ fun PlaybackScreen(
                             coverPageState.resumePlaybackAfterDrag
                         coverPageState = coverPageState.copy(
                             dragMode = CoverDragMode.DiscScratch,
-                            previewPositionMs = livePositionMs,
+                            previewPositionMs = boundedLivePositionMs,
                             resumePlaybackAfterDrag = resumePlaybackAfterDrag,
                             needlePreviewRotationDegrees = null,
                             needleSettlingPositionMs = null,
@@ -755,7 +786,7 @@ fun PlaybackScreen(
                         controller?.setScratchSeekModeEnabled(true)
                         scratchSoundController.onScratchStart(
                             sourceUri = scratchSourceUri,
-                            positionMs = livePositionMs,
+                            positionMs = boundedLivePositionMs,
                         )
                     },
                     onDiscScratchMotion = { positionMs, deltaAngle ->
@@ -790,7 +821,10 @@ fun PlaybackScreen(
                             needleSettlingPositionMs = null,
                             needleParkedOutside = false,
                         )
-                        controller?.setScratchAudioSuppressionEnabled(resumePlaybackAfterDrag)
+                        if (resumePlaybackAfterDrag) {
+                            controller?.pause()
+                            state = state.copy(isPlaying = false)
+                        }
                         controller?.setScratchSeekModeEnabled(true)
                     },
                     onNeedleSeekPositionChange = { rotationDegrees, positionMs ->
@@ -802,6 +836,7 @@ fun PlaybackScreen(
                     },
                     onNeedleSeekEnd = { rotationDegrees, positionMs ->
                         LegacyPlaybackHaptics.vibrateEffect(context)
+                        val resumePlaybackAfterDrag = coverPageState.resumePlaybackAfterDrag
                         if (positionMs == null) {
                             coverPageState = coverPageState.copy(
                                 dragMode = CoverDragMode.None,
@@ -813,7 +848,8 @@ fun PlaybackScreen(
                             )
                             controller?.seekTo(0L)
                             controller?.pause()
-                            controller?.setScratchAudioSuppressionEnabled(false)
+                            livePositionMs = 0L
+                            state = state.copy(isPlaying = false, currentPositionMs = 0L)
                         } else {
                             coverPageState = coverPageState.copy(
                                 dragMode = CoverDragMode.None,
@@ -824,10 +860,17 @@ fun PlaybackScreen(
                                 needleParkedOutside = false,
                             )
                             controller?.seekTo(positionMs)
-                            controller?.play()
-                            controller?.setScratchAudioSuppressionEnabled(false)
+                            livePositionMs = positionMs
+                            state = state.copy(
+                                isPlaying = resumePlaybackAfterDrag,
+                                currentPositionMs = positionMs,
+                            )
+                            if (resumePlaybackAfterDrag) {
+                                controller?.play()
+                            }
                         }
                         controller?.setScratchSeekModeEnabled(false)
+                        controller?.setScratchAudioSuppressionEnabled(false)
                         scratchSoundController.stop()
                     },
                     onNeedleSeekCancel = {
@@ -840,7 +883,7 @@ fun PlaybackScreen(
             PlaybackBottomControls(
                 width = bottomControlsWidth,
                 bottomInset = bottomInset,
-                state = state,
+                state = state.copy(volume = volume),
                 entranceTimeMillis = entranceTimeMillis.value,
                 onRepeatClick = {
                     val nextRepeatMode = nextPlaybackRepeatMode(state.repeatMode)
@@ -867,9 +910,11 @@ fun PlaybackScreen(
                     state = state.copy(shuffleEnabled = shuffleEnabled)
                     context.toast(shuffleToastRes(shuffleEnabled))
                 },
-                onVolumeChange = { volume ->
-                    context.setMusicStreamVolumeFraction(volume)
-                    state = state.copy(volume = context.musicStreamVolumeFraction())
+                onVolumeChange = { targetVolume ->
+                    context.setMusicStreamVolumeFraction(targetVolume)
+                    val actualVolume = context.musicStreamVolumeFraction()
+                    volume = actualVolume
+                    state = state.copy(volume = actualVolume)
                 },
             )
         }
@@ -1055,3 +1100,8 @@ fun PlaybackScreen(
 
 private val PlaybackScreenState.canReorderUpcomingQueue: Boolean
     get() = !shuffleEnabled && repeatMode != Player.REPEAT_MODE_ALL
+
+private const val PlaybackPositionPlayingRefreshMs = 250L
+private const val PlaybackPositionIdleRefreshMs = 500L
+private const val PlaybackVolumeRefreshMs = 200L
+private const val PlaybackVolumeChangeEpsilon = 0.001f

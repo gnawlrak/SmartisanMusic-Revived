@@ -12,8 +12,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.view.animation.AlphaAnimation
+import android.view.animation.AnimationSet
 import android.view.animation.AnimationUtils
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.LayoutAnimationController
 import android.widget.AbsListView
 import android.widget.BaseAdapter
 import android.widget.FrameLayout
@@ -637,8 +640,9 @@ private class LegacyAlbumGridAdapter(
         val view = convertView ?: createGridItem(parent)
         val album = items[position]
         view.tag = album.id
-        view.findViewById<ImageView>(R.id.gridview_image)?.apply {
+        view.findViewById<LegacyAlbumTileImageView>(R.id.gridview_image)?.apply {
             setTag(R.string.add_track, position)
+            setMaskEnabled(true)
             bindLegacyAlbumArtwork(
                 album = album,
                 fallbackRes = R.drawable.noalbumcover_220,
@@ -679,17 +683,15 @@ private class LegacyAlbumGridAdapter(
             setDuplicateParentStateEnabled(true)
             setPadding(0, parent.resources.getDimensionPixelSize(R.dimen.gridview_padding_top2), 0, 0)
             layoutParams = AbsListView.LayoutParams(
-                AbsListView.LayoutParams.MATCH_PARENT,
+                coverSize,
                 AbsListView.LayoutParams.WRAP_CONTENT,
             )
             addView(
                 FrameLayout(context).apply {
                     id = R.id.edit_zone
                     addView(
-                        ImageView(context).apply {
+                        LegacyAlbumTileImageView(context).apply {
                             id = R.id.gridview_image
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            cropToPadding = true
                         },
                         FrameLayout.LayoutParams(coverSize, coverSize),
                     )
@@ -809,82 +811,33 @@ private class LegacyAlbumViewSwitchAnimator {
         val listView = root.listView
         val gridView = root.gridView
         val firstVisiblePosition = listView.firstVisiblePosition
-        val lastVisiblePosition = listView.lastVisiblePosition
         root.hideGridFooter()
         listHost.animate().cancel()
-        listHost.visibility = View.VISIBLE
+        listHost.visibility = View.GONE
         listHost.alpha = 1f
-        gridView.alpha = 0f
-        afterNextLayout(gridView, gen) {
-            if (gen != generation) return@afterNextLayout
-            val animators = mutableListOf<Animator>()
-            val gridFirstVisiblePosition = gridView.firstVisiblePosition
-            for (index in 0 until gridView.childCount) {
-                val gridChild = gridView.getChildAt(index) ?: continue
-                val gridCover = gridChild.findViewById<View>(R.id.gridview_image) ?: continue
-                val position = gridCover.getTag(R.string.add_track) as? Int ?: continue
-                val animationOrder = gridAnimationOrder(
-                    position = position,
-                    firstVisiblePosition = gridFirstVisiblePosition,
-                    fallbackIndex = index,
-                )
-                val listCover = listView.findCoverByPosition(position)
-                gridChild.prepareForAlbumSwitch()
-                gridChild.applyListToGridStart(
-                    listView = listView,
-                    listCover = listCover,
-                    gridCover = gridCover,
-                    targetPosition = position,
-                    listFirstPosition = firstVisiblePosition,
-                    listLastPosition = lastVisiblePosition,
-                )
-                animators += ObjectAnimator.ofPropertyValuesHolder(
-                    gridChild,
-                    PropertyValuesHolder.ofFloat(View.TRANSLATION_X, gridChild.translationX, 0f),
-                    PropertyValuesHolder.ofFloat(View.TRANSLATION_Y, gridChild.translationY, 0f),
-                    PropertyValuesHolder.ofFloat(View.SCALE_X, gridChild.scaleX, 1f),
-                    PropertyValuesHolder.ofFloat(View.SCALE_Y, gridChild.scaleY, 1f),
-                ).apply {
-                    duration = AlbumSwitchBaseDurationMillis
-                    startDelay = animationOrder * AlbumSwitchStaggerMillis
-                    interpolator = this@LegacyAlbumViewSwitchAnimator.interpolator
-                }
-            }
-            if (animators.isEmpty()) {
-                gridView.alpha = 1f
-                listHost.visibility = View.GONE
-                resetGridChildren(gridView)
-                return@afterNextLayout
-            }
-            val nextAnimator = AnimatorSet().apply {
-                playTogether(animators)
-                addListener(
-                    object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationStart(animation: Animator) {
-                            gridView.alpha = 1f
-                            listHost.visibility = View.GONE
-                        }
-
-                        override fun onAnimationEnd(animation: Animator) {
-                            resetGridChildren(gridView)
-                            (gridView.adapter as? BaseAdapter)?.notifyDataSetChanged()
-                            root.updateGridFooterVisibility()
-                        }
-
-                        override fun onAnimationCancel(animation: Animator) {
-                            resetGridChildren(gridView)
-                            (gridView.adapter as? BaseAdapter)?.notifyDataSetChanged()
-                            root.updateGridFooterVisibility()
-                        }
-                    },
-                )
-            }
-            animator = nextAnimator
-            nextAnimator.start()
-        }
+        gridView.alpha = 1f
+        gridView.layoutAnimation = legacyAlbumGridFadeLayoutAnimation()
         gridView.setSelection(firstVisiblePosition)
         gridView.visibility = View.VISIBLE
-        gridView.requestLayout()
+        gridView.post {
+            if (gen != generation) return@post
+            resetGridChildren(gridView)
+            gridView.scheduleLayoutAnimation()
+            root.updateGridFooterVisibility()
+        }
+    }
+
+    private fun legacyAlbumGridFadeLayoutAnimation(): LayoutAnimationController {
+        val animation = AnimationSet(true).apply {
+            addAnimation(
+                AlphaAnimation(0f, 1f).apply {
+                    duration = 300L
+                },
+            )
+        }
+        return LayoutAnimationController(animation, 0.133f).apply {
+            order = LayoutAnimationController.ORDER_NORMAL
+        }
     }
 
     private fun animateGridToList(root: LegacyAlbumRoot, gen: Int) {
@@ -1062,36 +1015,6 @@ private fun View.prepareForAlbumSwitch() {
     pivotX = 0f
     pivotY = 0f
     findViewById<View>(R.id.tv_album_name)?.visibility = View.INVISIBLE
-}
-
-private fun View.applyListToGridStart(
-    listView: ListView,
-    listCover: View?,
-    gridCover: View,
-    targetPosition: Int,
-    listFirstPosition: Int,
-    listLastPosition: Int,
-) {
-    val sampleListCover = listView.getChildAt(0)?.findViewById<View>(R.id.listview_item_image)
-    val sourceWidth = sampleListCover?.width?.takeIf { it > 0 } ?: gridCover.width.coerceAtLeast(1)
-    val sourceHeight = sampleListCover?.height?.takeIf { it > 0 } ?: gridCover.height.coerceAtLeast(1)
-    val gridInnerWidth = (gridCover.width - gridCover.paddingTop * 2).coerceAtLeast(1)
-    val gridInnerHeight = (gridCover.height - gridCover.paddingTop * 2).coerceAtLeast(1)
-    scaleX = sourceWidth.toFloat() / gridInnerWidth
-    scaleY = sourceHeight.toFloat() / gridInnerHeight
-    if (listCover != null && targetPosition in listFirstPosition..listLastPosition) {
-        val gridCoverOffsetX = gridCover.leftRelativeTo(this) + gridCover.paddingTop
-        val gridCoverOffsetY = gridCover.topRelativeTo(this) + gridCover.paddingTop
-        translationX = listCover.leftRelativeTo(listView) - left - gridCoverOffsetX * scaleX
-        translationY = listCover.topRelativeTo(listView) - top - gridCoverOffsetY * scaleY
-        return
-    }
-    translationX = -left.toFloat()
-    translationY = when {
-        targetPosition > listLastPosition -> top.toFloat()
-        targetPosition < listFirstPosition -> -listView.lastChildTop() / 2f
-        else -> -top.toFloat()
-    }
 }
 
 private data class AlbumSwitchTarget(

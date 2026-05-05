@@ -423,10 +423,11 @@ private class LegacyArtistAlbumGridAdapter(
         val view = convertView ?: createGridItem(parent)
         val item = items[position]
         view.tag = item.stableId
-        view.findViewById<ImageView>(R.id.gridview_image)?.apply {
+        view.findViewById<LegacyAlbumTileImageView>(R.id.gridview_image)?.apply {
             setTag(R.string.add_track, position)
             when (item) {
                 is LegacyArtistAlbumEntry.AllSongs -> {
+                    setMaskEnabled(false)
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setTag(R.id.legacy_album_artwork_request, null)
                     setImageResource(R.drawable.noalbumcover_all_songs2)
@@ -436,7 +437,9 @@ private class LegacyArtistAlbumGridAdapter(
                     fallbackRes = R.drawable.noalbumcover_220,
                     sizePx = parent.resources.getDimensionPixelSize(R.dimen.gridview_item_ccontainer_height),
                     artworkLoader = artworkLoader,
-                )
+                ).also {
+                    setMaskEnabled(true)
+                }
             }
         }
         bindState(view, item)
@@ -465,17 +468,15 @@ private class LegacyArtistAlbumGridAdapter(
             setDuplicateParentStateEnabled(true)
             setPadding(0, parent.resources.getDimensionPixelSize(R.dimen.gridview_padding_top2), 0, 0)
             layoutParams = AbsListView.LayoutParams(
-                AbsListView.LayoutParams.MATCH_PARENT,
+                coverSize,
                 AbsListView.LayoutParams.WRAP_CONTENT,
             )
             addView(
                 FrameLayout(context).apply {
                     id = R.id.edit_zone
                     addView(
-                        ImageView(context).apply {
+                        LegacyAlbumTileImageView(context).apply {
                             id = R.id.gridview_image
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            cropToPadding = true
                         },
                         FrameLayout.LayoutParams(coverSize, coverSize),
                     )

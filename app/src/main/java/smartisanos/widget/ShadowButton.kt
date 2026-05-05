@@ -26,12 +26,12 @@ class ShadowButton @JvmOverloads constructor(
     init {
         val typedArray = context.obtainStyledAttributes(
             attrs,
-            intArrayOf(R.attr.shadowButtonStyle, R.attr.backgroundShadow),
+            R.styleable.ShadowButton,
             defStyleAttr,
             0,
         )
-        shadowButtonStyle = typedArray.getInt(0, 0)
-        backgroundShadowResId = typedArray.getResourceId(1, 0)
+        shadowButtonStyle = typedArray.getInt(R.styleable.ShadowButton_shadowButtonStyle, 0)
+        backgroundShadowResId = typedArray.getResourceId(R.styleable.ShadowButton_backgroundShadow, 0)
         typedArray.recycle()
 
         setAllCaps(false)

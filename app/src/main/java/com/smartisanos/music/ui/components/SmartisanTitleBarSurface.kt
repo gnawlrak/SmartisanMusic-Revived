@@ -1,14 +1,15 @@
 package com.smartisanos.music.ui.components
 
+import android.annotation.SuppressLint
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import com.smartisanos.music.R
 
 enum class SmartisanTitleBarSurfaceStyle {
@@ -35,6 +36,7 @@ fun SmartisanTitleBarSurface(
 }
 
 @Composable
+@SuppressLint("LocalContextGetResourceValueCall")
 fun SmartisanDrawableBackground(
     @DrawableRes drawableRes: Int,
     modifier: Modifier = Modifier,

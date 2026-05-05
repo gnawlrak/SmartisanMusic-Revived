@@ -16,12 +16,6 @@ private val SmartisanBlankAttributeNamespaces = arrayOf(
     "http://schemas.android.com/apk/res/smartisanos",
 )
 
-private val SmartisanBlankAttributeIds = intArrayOf(
-    R.attr.emptyDrawable,
-    R.attr.primaryHint,
-    R.attr.secondaryHint,
-)
-
 class SmartisanBlankView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -91,14 +85,15 @@ private data class SmartisanBlankAttributes(
 )
 
 private fun Context.resolveBlankAttributes(attrs: AttributeSet?): SmartisanBlankAttributes {
-    val typedArray = obtainStyledAttributes(attrs, SmartisanBlankAttributeIds)
+    val typedArray = obtainStyledAttributes(attrs, R.styleable.SmartisanBlankView)
     return try {
         SmartisanBlankAttributes(
-            emptyDrawable = typedArray.getResourceId(0, 0).takeIf { it != 0 }
+            emptyDrawable = typedArray.getResourceId(R.styleable.SmartisanBlankView_emptyDrawable, 0)
+                .takeIf { it != 0 }
                 ?: attrs.resolveResource("emptyDrawable"),
-            primaryHint = typedArray.getText(1)
+            primaryHint = typedArray.getText(R.styleable.SmartisanBlankView_primaryHint)
                 ?: attrs.resolveText(this, "primaryHint"),
-            secondaryHint = typedArray.getText(2)
+            secondaryHint = typedArray.getText(R.styleable.SmartisanBlankView_secondaryHint)
                 ?: attrs.resolveText(this, "secondaryHint"),
         )
     } finally {

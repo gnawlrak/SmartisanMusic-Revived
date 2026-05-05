@@ -178,6 +178,15 @@
         <enum name="shrink_longButton" value="3" />
         <enum name="smallButton" value="1" />
     </attr>
+    <declare-styleable name="ShadowButton">
+        <attr name="shadowButtonStyle" />
+        <attr name="backgroundShadow" />
+    </declare-styleable>
+    <declare-styleable name="SmartisanBlankView">
+        <attr name="emptyDrawable" />
+        <attr name="primaryHint" />
+        <attr name="secondaryHint" />
+    </declare-styleable>
     <attr name="show_divider" format="boolean" />
     <attr name="slide_shuffle_speed" format="float" />
 

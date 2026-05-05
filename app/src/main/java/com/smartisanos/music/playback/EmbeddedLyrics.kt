@@ -1,4 +1,5 @@
 @file:Suppress("DEPRECATION")
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 
 package com.smartisanos.music.playback
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.R
 import com.smartisanos.music.data.settings.ArtistSettings
@@ -162,11 +163,13 @@ private fun LegacyPortSearchDrilldownPage(
     val visibleSongs = remember(mediaItems, hiddenMediaIds) {
         mediaItems.filterNot { mediaItem -> mediaItem.mediaId in hiddenMediaIds }
     }
-    val albums = remember(visibleSongs, context, artistSettings) {
+    val unknownAlbumTitle = stringResource(R.string.unknown_album)
+    val multipleArtistsTitle = stringResource(R.string.many_artist)
+    val albums = remember(visibleSongs, unknownAlbumTitle, multipleArtistsTitle, artistSettings) {
         buildAlbumSummaries(
             mediaItems = visibleSongs,
-            unknownAlbumTitle = context.getString(R.string.unknown_album),
-            multipleArtistsTitle = context.getString(R.string.many_artist),
+            unknownAlbumTitle = unknownAlbumTitle,
+            multipleArtistsTitle = multipleArtistsTitle,
             artistSettings = artistSettings,
         )
     }

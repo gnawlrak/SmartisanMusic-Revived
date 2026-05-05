@@ -113,12 +113,14 @@ fun GlobalPlaybackBar(
     val mediaId = mediaItem.mediaId
     val isExternalAudio = mediaItem.isExternalAudioLaunchItem()
     val isFavorite = !isExternalAudio && mediaId in favoriteIds
+    val unknownSongTitle = stringResource(R.string.unknown_song_title)
+    val unknownArtist = stringResource(R.string.unknown_artist)
     val title = mediaItem.mediaMetadata.displayTitle?.toString()
         ?: mediaItem.mediaMetadata.title?.toString()
-        ?: context.getString(R.string.unknown_song_title)
+        ?: unknownSongTitle
     val subtitle = mediaItem.mediaMetadata.subtitle?.toString()
         ?: mediaItem.mediaMetadata.artist?.toString()
-        ?: context.getString(R.string.unknown_artist)
+        ?: unknownArtist
 
     Column(modifier = modifier.fillMaxWidth()) {
         Image(

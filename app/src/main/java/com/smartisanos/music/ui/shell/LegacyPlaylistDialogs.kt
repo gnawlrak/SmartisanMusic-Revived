@@ -22,6 +22,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.smartisanos.music.R
 import smartisanos.app.MenuDialog
 
@@ -34,23 +35,23 @@ internal fun LegacyPlaylistNameDialogOverlay(
     val context = LocalContext.current
     val latestOnDismiss by rememberUpdatedState(onDismiss)
     val latestOnConfirm by rememberUpdatedState(onConfirm)
-    DisposableEffect(request) {
+    val title = when (request) {
+        is LegacyPlaylistNameDialogRequest.Create -> stringResource(R.string.new_playlist)
+        is LegacyPlaylistNameDialogRequest.Rename -> stringResource(R.string.playlist_rename_title)
+        null -> ""
+    }
+    val confirmText = when (request) {
+        is LegacyPlaylistNameDialogRequest.Create -> stringResource(R.string.rename_continue)
+        is LegacyPlaylistNameDialogRequest.Rename -> stringResource(R.string.save)
+        null -> ""
+    }
+    DisposableEffect(request, title, confirmText) {
         val activeRequest = request ?: return@DisposableEffect onDispose { }
         val dialog = LegacyPlaylistNameDialog(
             context = context,
-            title = context.getString(
-                when (activeRequest) {
-                    is LegacyPlaylistNameDialogRequest.Create -> R.string.new_playlist
-                    is LegacyPlaylistNameDialogRequest.Rename -> R.string.playlist_rename_title
-                },
-            ),
+            title = title,
             initialName = activeRequest.initialName,
-            confirmText = context.getString(
-                when (activeRequest) {
-                    is LegacyPlaylistNameDialogRequest.Create -> R.string.rename_continue
-                    is LegacyPlaylistNameDialogRequest.Rename -> R.string.save
-                },
-            ),
+            confirmText = confirmText,
             onDismiss = latestOnDismiss,
             onConfirm = { name ->
                 latestOnConfirm(activeRequest, name)

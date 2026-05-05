@@ -1027,7 +1027,7 @@ private fun playlistPlayActionButton(
         addView(
             TextView(context).apply {
                 text = context.getString(textRes)
-                setTextColor(context.getColorStateList(R.drawable.red_btn_text_color_selector))
+                setTextColor(context.getColorStateList(R.color.red_btn_text_color_selector))
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.settings_item_tips_text_size))
                 typeface = Typeface.DEFAULT_BOLD
             },

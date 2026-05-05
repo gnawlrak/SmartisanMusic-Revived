@@ -53,6 +53,7 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var playbackSessionStateStore: PlaybackSessionStateStore
     private var playbackSessionStateCoordinator: PlaybackSessionStateCoordinator? = null
     private var playbackPlayCountTracker: PlaybackPlayCountTracker? = null
+    private var mediaSessionArtworkBitmapLoader: MediaSessionArtworkBitmapLoader? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
     private var pendingRatingLibraryRefreshJob: Job? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -82,14 +83,17 @@ class PlaybackService : MediaLibraryService() {
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
+        val artworkBitmapLoader = MediaSessionArtworkBitmapLoader(this)
 
         player = exoPlayer
+        mediaSessionArtworkBitmapLoader = artworkBitmapLoader
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
             exoPlayer,
             PlaybackLibrarySessionCallback(),
         )
             .setSessionActivity(createSessionActivityPendingIntent())
+            .setBitmapLoader(artworkBitmapLoader)
             .setPeriodicPositionUpdateEnabled(false)
             .build()
 
@@ -164,6 +168,8 @@ class PlaybackService : MediaLibraryService() {
 
         player?.release()
         player = null
+        mediaSessionArtworkBitmapLoader?.shutdown()
+        mediaSessionArtworkBitmapLoader = null
         libraryExecutor.shutdown()
         libraryRefreshExecutor.shutdown()
 

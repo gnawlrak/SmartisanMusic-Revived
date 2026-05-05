@@ -55,7 +55,7 @@ internal fun loadArtworkBitmapSync(
         ?: loadAlbumArtworkBitmap(context, metadata.extras, size)
         ?: loadMediaStoreAudioArtworkBitmap(context, mediaItem.mediaId, size)
         ?: loadMediaThumbnail(context, mediaItem.localConfiguration?.uri, size)
-        ?: loadEmbeddedPicture(context, mediaItem.localConfiguration?.uri, size)
+        ?: loadEmbeddedArtworkBitmap(context, mediaItem.localConfiguration?.uri, size)
 }
 
 internal fun loadArtworkUriBitmap(
@@ -104,12 +104,12 @@ private fun loadMediaStoreAudioArtworkBitmap(
     mediaId: String,
     size: Size,
 ): Bitmap? {
-    val mediaUri = audioMediaUri(mediaId) ?: return null
+    val mediaUri = localAudioMediaUri(mediaId) ?: return null
     return loadMediaThumbnail(context, mediaUri, size)
-        ?: loadEmbeddedPicture(context, mediaUri, size)
+        ?: loadEmbeddedArtworkBitmap(context, mediaUri, size)
 }
 
-private fun audioMediaUri(mediaId: String): Uri? {
+internal fun localAudioMediaUri(mediaId: String): Uri? {
     val numericMediaId = mediaId.toLongOrNull() ?: return null
     return ContentUris.withAppendedId(
         MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
@@ -128,7 +128,7 @@ private fun loadMediaThumbnail(
     }.getOrNull()
 }
 
-private fun loadEmbeddedPicture(
+internal fun loadEmbeddedArtworkBitmap(
     context: Context,
     mediaUri: Uri?,
     size: Size,

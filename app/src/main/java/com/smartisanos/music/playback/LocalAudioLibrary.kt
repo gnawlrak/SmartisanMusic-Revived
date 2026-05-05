@@ -413,6 +413,7 @@ internal class LocalAudioLibrary(
         val playCount = stats?.playCount?.takeIf { it > 0L }
         val score = stats?.score?.takeIf { it > 0 }
         val extras = Bundle().apply {
+            putString(MediaIdExtraKey, mediaId)
             putString(StableKeyExtraKey, stableKey)
             putString(TitleSortKeyExtraKey, titleSortKey)
             putString(TitleSectionExtraKey, titleSection)
@@ -490,6 +491,7 @@ internal class LocalAudioLibrary(
     companion object {
         const val ROOT_ID = "root"
         const val StableKeyExtraKey = "com.smartisanos.music.extra.STABLE_KEY"
+        const val MediaIdExtraKey = "com.smartisanos.music.extra.MEDIA_ID"
         const val AlbumIdExtraKey = "com.smartisanos.music.extra.ALBUM_ID"
         const val RelativePathExtraKey = "com.smartisanos.music.extra.RELATIVE_PATH"
         const val DateAddedExtraKey = "com.smartisanos.music.extra.DATE_ADDED"

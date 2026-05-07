@@ -401,7 +401,7 @@ private class LegacyPlaylistAddSongsRootView(context: Context) : LinearLayout(co
         listFrame.addView(
             quickBar,
             FrameLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.letters_bar_width),
+                resources.getDimensionPixelSize(R.dimen.quickbar_width),
                 LayoutParams.MATCH_PARENT,
                 Gravity.END,
             ),

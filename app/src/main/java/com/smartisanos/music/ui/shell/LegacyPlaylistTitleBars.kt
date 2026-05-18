@@ -32,7 +32,6 @@ internal fun LegacyPlaylistTitleArea(
     rootEditMode: Boolean,
     rootSelectedCount: Int,
     detailEditMode: Boolean,
-    addMode: Boolean,
     predictiveBackProgress: Float? = null,
     predictiveBackExitConsumed: Boolean = false,
     onPredictiveBackExitConsumedReset: (() -> Unit)? = null,
@@ -42,92 +41,96 @@ internal fun LegacyPlaylistTitleArea(
     onDetailBack: () -> Unit,
     onDetailEnterEdit: () -> Unit,
     onDetailExitEdit: () -> Unit,
-    onAddModeConfirm: () -> Unit,
     onSearchClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (addMode && target != null) {
-        Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .background(ComposeColor.White),
-        ) {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsTopHeight(WindowInsets.statusBars),
+    val titleTarget = target?.copy(title = detailTitle.ifBlank { target.title })
+    val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+        dimensionResource(R.dimen.title_bar_height)
+    val titleBarContent: @Composable (
+        LegacyPlaylistTarget?,
+        String,
+        Boolean,
+        Int,
+        Boolean,
+    ) -> Unit = { barTarget, barTitle, rootEditing, rootSelectionCount, detailEditing ->
+        LegacyPortSmartisanTitleBar(
+            modifier = Modifier.fillMaxSize(),
+        ) { titleBar ->
+            titleBar.setupLegacyPlaylistTitleBar(
+                target = barTarget,
+                detailTitle = barTitle,
+                rootEditMode = rootEditing,
+                rootSelectedCount = rootSelectionCount,
+                detailEditMode = detailEditing,
+                onRootEnterEdit = onRootEnterEdit,
+                onRootExitEdit = onRootExitEdit,
+                onRootDeleteSelected = onRootDeleteSelected,
+                onDetailBack = onDetailBack,
+                onDetailEnterEdit = onDetailEnterEdit,
+                onDetailExitEdit = onDetailExitEdit,
+                onSearchClick = onSearchClick,
             )
-            val promptHeight = dimensionResource(R.dimen.status_bar_height)
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(promptHeight),
-                factory = { context ->
-                    TextView(context).apply {
-                        gravity = Gravity.CENTER
-                        setSingleLine(true)
-                        ellipsize = TextUtils.TruncateAt.END
-                        setTextColor(context.getColor(R.color.title_color))
-                        setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_size_act_title))
-                    }
-                },
-                update = { promptText ->
-                    val shortTitle = detailTitle.ellipsizeMiddle(8)
-                    promptText.text = promptText.context.getString(R.string.add_track_to) + " \"$shortTitle\""
-                },
-            )
-            LegacyPortSmartisanTitleBar(
-                includeStatusBar = false,
-            ) { titleBar ->
-                titleBar.setupLegacyPlaylistAddModeTitleBar(onAddModeConfirm)
-            }
         }
-    } else {
-        val titleTarget = target?.copy(title = detailTitle.ifBlank { target.title })
-        val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-            dimensionResource(R.dimen.title_bar_height)
-        val titleBarContent: @Composable (
-            LegacyPlaylistTarget?,
-            String,
-            Boolean,
-            Int,
-            Boolean,
-        ) -> Unit = { barTarget, barTitle, rootEditing, rootSelectionCount, detailEditing ->
-            LegacyPortSmartisanTitleBar(
-                modifier = Modifier.fillMaxSize(),
-            ) { titleBar ->
-                titleBar.setupLegacyPlaylistTitleBar(
-                    target = barTarget,
-                    detailTitle = barTitle,
-                    rootEditMode = rootEditing,
-                    rootSelectedCount = rootSelectionCount,
-                    detailEditMode = detailEditing,
-                    onRootEnterEdit = onRootEnterEdit,
-                    onRootExitEdit = onRootExitEdit,
-                    onRootDeleteSelected = onRootDeleteSelected,
-                    onDetailBack = onDetailBack,
-                    onDetailEnterEdit = onDetailEnterEdit,
-                    onDetailExitEdit = onDetailExitEdit,
-                    onSearchClick = onSearchClick,
-                )
-            }
-        }
-        LegacyPortPageStackTransition(
-            secondaryKey = titleTarget,
-            modifier = modifier
+    }
+    LegacyPortPageStackTransition(
+        secondaryKey = titleTarget,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(titleAreaHeight),
+        label = "legacy playlist title transition",
+        predictiveBackProgress = predictiveBackProgress,
+        predictiveBackExitConsumed = predictiveBackExitConsumed,
+        onPredictiveBackExitConsumedReset = onPredictiveBackExitConsumedReset,
+        primaryContent = {
+            titleBarContent(null, "", rootEditMode, rootSelectedCount, false)
+        },
+        secondaryContent = { playlistTarget ->
+            titleBarContent(playlistTarget, playlistTarget.title, false, 0, detailEditMode)
+        },
+    )
+}
+
+@Composable
+internal fun LegacyPlaylistAddModeTitleArea(
+    target: LegacyPlaylistTarget,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(ComposeColor.White),
+    ) {
+        Spacer(
+            modifier = Modifier
                 .fillMaxWidth()
-                .height(titleAreaHeight),
-            label = "legacy playlist title transition",
-            predictiveBackProgress = predictiveBackProgress,
-            predictiveBackExitConsumed = predictiveBackExitConsumed,
-            onPredictiveBackExitConsumedReset = onPredictiveBackExitConsumedReset,
-            primaryContent = {
-                titleBarContent(null, "", rootEditMode, rootSelectedCount, false)
+                .windowInsetsTopHeight(WindowInsets.statusBars),
+        )
+        val promptHeight = dimensionResource(R.dimen.status_bar_height)
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(promptHeight),
+            factory = { context ->
+                TextView(context).apply {
+                    gravity = Gravity.CENTER
+                    setSingleLine(true)
+                    ellipsize = TextUtils.TruncateAt.END
+                    setTextColor(context.getColor(R.color.title_color))
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_size_act_title))
+                }
             },
-            secondaryContent = { playlistTarget ->
-                titleBarContent(playlistTarget, playlistTarget.title, false, 0, detailEditMode)
+            update = { promptText ->
+                val shortTitle = target.title.ellipsizeMiddle(8)
+                promptText.text = promptText.context.getString(R.string.add_track_to) + " \"$shortTitle\""
             },
         )
+        LegacyPortSmartisanTitleBar(
+            includeStatusBar = false,
+        ) { titleBar ->
+            titleBar.setupLegacyPlaylistAddModeTitleBar(onConfirm)
+        }
     }
 }
 

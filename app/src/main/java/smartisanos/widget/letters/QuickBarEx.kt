@@ -46,6 +46,9 @@ class QuickBarEx @JvmOverloads constructor(
     private val visibleWidth = shadowWidth + letterBarWidth
     private val contentWidth = visibleWidth + gridWidth
 
+    val collapsedVisibleWidth: Int
+        get() = visibleWidth
+
     private val shadowView = View(context).apply {
         background = shadowDrawable
     }
@@ -81,7 +84,8 @@ class QuickBarEx @JvmOverloads constructor(
     private var endX = 0f
     private var downRawX = 0f
     private var downRawY = 0f
-    private var lastRawX = 0f
+    private var previousMoveRawX = 0f
+    private var currentMoveRawX = 0f
     private var dragStartX = 0f
     private var handlingDrag = false
     private var handlingHiddenTouch = false
@@ -193,7 +197,7 @@ class QuickBarEx @JvmOverloads constructor(
                 updateHostPositions()
                 downRawX = event.rawX
                 downRawY = event.rawY
-                lastRawX = event.rawX
+                resetMoveHistory(event.rawX)
                 dragStartX = x
                 handlingDrag = false
             }
@@ -202,9 +206,9 @@ class QuickBarEx @JvmOverloads constructor(
                 val deltaY = event.rawY - downRawY
                 if (shouldStartHorizontalDrag(deltaX, deltaY)) {
                     beginDrag()
+                    recordMove(event.rawX)
                     moveToRawX(event.rawX)
                     handlingDrag = true
-                    lastRawX = event.rawX
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
                 }
@@ -226,25 +230,25 @@ class QuickBarEx @JvmOverloads constructor(
                 updateHostPositions()
                 downRawX = event.rawX
                 downRawY = event.rawY
-                lastRawX = event.rawX
+                resetMoveHistory(event.rawX)
                 dragStartX = x
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 beginDrag()
+                recordMove(event.rawX)
                 moveToRawX(event.rawX)
                 handlingDrag = true
                 parent?.requestDisallowInterceptTouchEvent(true)
-                lastRawX = event.rawX
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                settleDrag(event.rawX, cancelled = false)
+                settleDrag(cancelled = false)
                 parent?.requestDisallowInterceptTouchEvent(false)
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
-                settleDrag(event.rawX, cancelled = true)
+                settleDrag(cancelled = true)
                 parent?.requestDisallowInterceptTouchEvent(false)
                 return true
             }
@@ -266,7 +270,7 @@ class QuickBarEx @JvmOverloads constructor(
                 cancelAnimator()
                 downRawX = event.rawX
                 downRawY = event.rawY
-                lastRawX = event.rawX
+                resetMoveHistory(event.rawX)
                 dragStartX = x
                 handlingDrag = false
                 handlingHiddenTouch = true
@@ -281,6 +285,7 @@ class QuickBarEx @JvmOverloads constructor(
                 }
                 val deltaX = event.rawX - downRawX
                 val deltaY = event.rawY - downRawY
+                recordMove(event.rawX)
                 if (!handlingDrag && shouldStartHorizontalDrag(deltaX, deltaY)) {
                     if (trackingLetters) {
                         lettersBar.cancelTouch()
@@ -292,7 +297,6 @@ class QuickBarEx @JvmOverloads constructor(
                 }
                 if (handlingDrag) {
                     moveToRawX(event.rawX)
-                    lastRawX = event.rawX
                 } else if (trackingLetters) {
                     lettersBar.moveTouch(event.y)
                 }
@@ -303,7 +307,7 @@ class QuickBarEx @JvmOverloads constructor(
                     return false
                 }
                 if (handlingDrag) {
-                    settleDrag(event.rawX, cancelled = false)
+                    settleDrag(cancelled = false)
                 } else if (trackingLetters) {
                     lettersBar.endTouch()
                     setLettersBarBg(false)
@@ -316,7 +320,7 @@ class QuickBarEx @JvmOverloads constructor(
                     return false
                 }
                 if (handlingDrag) {
-                    settleDrag(event.rawX, cancelled = true)
+                    settleDrag(cancelled = true)
                 } else if (trackingLetters) {
                     lettersBar.cancelTouch()
                     setLettersBarBg(false)
@@ -366,7 +370,17 @@ class QuickBarEx @JvmOverloads constructor(
         x = nextX
     }
 
-    private fun settleDrag(rawX: Float, cancelled: Boolean) {
+    private fun resetMoveHistory(rawX: Float) {
+        previousMoveRawX = rawX
+        currentMoveRawX = rawX
+    }
+
+    private fun recordMove(rawX: Float) {
+        previousMoveRawX = currentMoveRawX
+        currentMoveRawX = rawX
+    }
+
+    private fun settleDrag(cancelled: Boolean) {
         if (!handlingDrag && state != STATE_DRAGGING) {
             return
         }
@@ -375,7 +389,7 @@ class QuickBarEx @JvmOverloads constructor(
             hideLetterGrid()
             return
         }
-        val movedLeftOrSettled = rawX - lastRawX <= 0f
+        val movedLeftOrSettled = currentMoveRawX - previousMoveRawX <= 0f
         val shouldExpand = movedLeftOrSettled && x < (parent as View).width - ORIGINAL_SETTLE_THRESHOLD_PX
         if (shouldExpand) {
             showLetterGrid()

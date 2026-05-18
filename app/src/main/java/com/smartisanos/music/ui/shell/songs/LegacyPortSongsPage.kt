@@ -133,6 +133,7 @@ internal fun LegacyPortSongsPage(
             val showQuickBar = hasSongs &&
                 sortDisplayMode == LegacySongsSortDisplayMode.Name &&
                 sortedSongs.size > LegacySongsQuickBarVisibilityLimit
+            val quickBar = root.findViewById<QuickBarEx>(R.id.main_quickbar)
             listView.visibility = if (hasSongs || libraryLoaded) View.VISIBLE else View.INVISIBLE
             listView.bindLegacyPortListFooter(
                 textRes = R.string.track_count,
@@ -155,7 +156,7 @@ internal fun LegacyPortSongsPage(
                 nextCurrentIsPlaying = browser?.isPlaying == true,
                 nextDisplayMode = sortDisplayMode,
                 nextSectionMode = sortDisplayMode.toSectionMode(),
-                nextReserveQuickBarSpace = showQuickBar,
+                nextQuickBarCollapsedVisibleWidth = if (showQuickBar) quickBar?.collapsedVisibleWidth ?: 0 else 0,
                 nextEditMode = editMode,
                 nextSelectedMediaIds = selectedSongIds,
             )
@@ -192,7 +193,6 @@ internal fun LegacyPortSongsPage(
                 startArea = LegacySlideSelectionStartArea.Checkbox,
             )
             val swipeDeleteController = listView.legacySongSwipeDeleteController()
-            val quickBar = root.findViewById<QuickBarEx>(R.id.main_quickbar)
             swipeDeleteController.update(
                 enabled = !editMode,
                 keyAtPosition = { position ->

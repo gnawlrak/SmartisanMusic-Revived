@@ -27,7 +27,7 @@ internal class LegacySongsAdapter : BaseAdapter() {
     private var currentIsPlaying: Boolean = false
     private var displayMode: LegacySongsSortDisplayMode = LegacySongsSortDisplayMode.Name
     private var sectionMode: LegacySongsSectionMode = LegacySongsSectionMode.Name
-    private var reserveQuickBarSpace: Boolean = false
+    private var quickBarCollapsedVisibleWidth: Int = 0
     private var editMode: Boolean = false
     private var selectedMediaIds: Set<String> = emptySet()
 
@@ -37,14 +37,14 @@ internal class LegacySongsAdapter : BaseAdapter() {
         nextCurrentIsPlaying: Boolean,
         nextDisplayMode: LegacySongsSortDisplayMode,
         nextSectionMode: LegacySongsSectionMode,
-        nextReserveQuickBarSpace: Boolean,
+        nextQuickBarCollapsedVisibleWidth: Int,
         nextEditMode: Boolean,
         nextSelectedMediaIds: Set<String>,
     ): Boolean {
         val contentChanged = items != nextItems ||
             displayMode != nextDisplayMode ||
             sectionMode != nextSectionMode
-        val quickBarInsetChanged = reserveQuickBarSpace != nextReserveQuickBarSpace
+        val quickBarInsetChanged = quickBarCollapsedVisibleWidth != nextQuickBarCollapsedVisibleWidth
         val playbackChanged = currentMediaId != nextCurrentMediaId ||
             currentIsPlaying != nextCurrentIsPlaying
         val editModeChanged = editMode != nextEditMode
@@ -58,7 +58,7 @@ internal class LegacySongsAdapter : BaseAdapter() {
         currentIsPlaying = nextCurrentIsPlaying
         displayMode = nextDisplayMode
         sectionMode = nextSectionMode
-        reserveQuickBarSpace = nextReserveQuickBarSpace
+        quickBarCollapsedVisibleWidth = nextQuickBarCollapsedVisibleWidth
         editMode = nextEditMode
         selectedMediaIds = nextSelectedMediaIds
         if (contentChanged) {
@@ -236,14 +236,27 @@ internal class LegacySongsAdapter : BaseAdapter() {
     }
 
     private fun View.applyLegacyQuickBarInset() {
-        val rightInset = if (displayMode == LegacySongsSortDisplayMode.Name && reserveQuickBarSpace) {
-            resources.getDimensionPixelSize(R.dimen.quick_context_line_height)
+        val actionMore = findViewById<View>(R.id.img_action_more)
+        val actionMoreWidth = actionMore.legacyMeasuredWidth()
+        val rightInset = if (displayMode == LegacySongsSortDisplayMode.Name && quickBarCollapsedVisibleWidth > 0) {
+            (quickBarCollapsedVisibleWidth - actionMoreWidth / 3).coerceAtLeast(0)
         } else {
             0
         }
         if (paddingRight != rightInset) {
             setPadding(paddingLeft, paddingTop, rightInset, paddingBottom)
         }
+    }
+
+    private fun View?.legacyMeasuredWidth(): Int {
+        this ?: return 0
+        if (measuredWidth <= 0) {
+            measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+        }
+        return measuredWidth
     }
 
     private fun View.bindLegacySongEditState(

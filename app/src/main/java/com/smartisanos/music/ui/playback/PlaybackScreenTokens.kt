@@ -1,5 +1,6 @@
 package com.smartisanos.music.ui.playback
 
+import androidx.compose.animation.core.Easing
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -86,6 +87,15 @@ internal const val PlaybackSideButtonEntranceDelayMillis = 150
 internal const val PlaybackVolumeEntranceDelayMillis = 155
 internal const val PlaybackOuterButtonAlphaDelayMillis = 500
 internal const val PlaybackOuterButtonAlphaDurationMillis = 480
+internal const val PlaybackVisualPageEnterDurationMillis = 240
+internal const val PlaybackVisualPageExitDurationMillis = 180
+internal const val PlaybackVisualPageEnterDelayMillis = 40
+internal const val PlaybackLyricsActionEnterDelayMillis = 70
+
+internal val PlaybackLegacyDecelerateEasing = Easing { fraction ->
+    val inverse = 1f - fraction.coerceIn(0f, 1f)
+    1f - inverse * inverse * inverse
+}
 
 internal fun playbackEntranceProgress(
     timeMillis: Float,

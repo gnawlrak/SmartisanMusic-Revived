@@ -3,6 +3,16 @@ package com.smartisanos.music.ui.playback
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.ImageView
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -108,7 +118,39 @@ internal fun PlaybackVisualStage(
                 .size(actionButtonSize),
             onClick = onMoreClick,
         )
-        if (isLyricsPage) {
+        AnimatedVisibility(
+            visible = isLyricsPage,
+            enter = fadeIn(
+                animationSpec = tween(
+                    durationMillis = PlaybackVisualPageEnterDurationMillis,
+                    delayMillis = PlaybackLyricsActionEnterDelayMillis,
+                    easing = PlaybackLegacyDecelerateEasing,
+                ),
+            ) + scaleIn(
+                initialScale = 0.92f,
+                animationSpec = tween(
+                    durationMillis = PlaybackVisualPageEnterDurationMillis,
+                    delayMillis = PlaybackLyricsActionEnterDelayMillis,
+                    easing = PlaybackLegacyDecelerateEasing,
+                ),
+            ),
+            exit = fadeOut(
+                animationSpec = tween(
+                    durationMillis = PlaybackVisualPageExitDurationMillis,
+                    easing = PlaybackLegacyDecelerateEasing,
+                ),
+            ) + scaleOut(
+                targetScale = 0.92f,
+                animationSpec = tween(
+                    durationMillis = PlaybackVisualPageExitDurationMillis,
+                    easing = PlaybackLegacyDecelerateEasing,
+                ),
+            ),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .zIndex(2f)
+                .padding(end = moreButtonMargin, top = moreButtonTopMargin),
+        ) {
             val screenSwitchNormalRes = if (keepLyricsScreenAwake) {
                 R.drawable.sun_btn_on
             } else {
@@ -123,11 +165,7 @@ internal fun PlaybackVisualStage(
                 normalRes = screenSwitchNormalRes,
                 pressedRes = screenSwitchPressedRes,
                 contentDescription = stringResource(R.string.always_on),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .zIndex(2f)
-                    .padding(end = moreButtonMargin, top = moreButtonTopMargin)
-                    .size(actionButtonSize),
+                modifier = Modifier.size(actionButtonSize),
                 onClick = onKeepLyricsScreenAwakeToggle,
             )
         }
@@ -138,48 +176,107 @@ internal fun PlaybackVisualStage(
                 .height(turntableHeight),
             contentAlignment = Alignment.Center,
         ) {
-            when (currentVisualPage) {
-                PlaybackVisualPage.Cover -> PlaybackCoverPage(
-                    turntableWidth = turntableWidth,
-                    scale = scale,
-                    currentPositionMs = coverPositionMs,
-                    durationMs = durationMs,
-                    scratchEnabled = scratchEnabled,
-                    hidePlayerAxisEnabled = hidePlayerAxisEnabled,
-                    albumArtwork = albumArtwork,
-                    hasMediaItem = hasMediaItem,
-                    isPlaying = isPlaying,
-                    coverDragMode = coverDragMode,
-                    previewPositionMs = previewPositionMs,
-                    needlePreviewRotationDegrees = needlePreviewRotationDegrees,
-                    needleParkedOutside = needleParkedOutside,
-                    discManualRotationOffsetDegrees = discManualRotationOffsetDegrees,
-                    mediaId = mediaId,
-                    onVisualPageToggle = onVisualPageToggle,
-                    onDiscScratchStart = onDiscScratchStart,
-                    onDiscScratchMotion = onDiscScratchMotion,
-                    onDiscScratchPositionChange = onDiscScratchPositionChange,
-                    onDiscScratchEnd = onDiscScratchEnd,
-                    onDiscScratchCancel = onDiscScratchCancel,
-                    onNeedleSeekStart = onNeedleSeekStart,
-                    onNeedleSeekPositionChange = onNeedleSeekPositionChange,
-                    onNeedleSeekEnd = onNeedleSeekEnd,
-                    onNeedleSeekCancel = onNeedleSeekCancel,
-                    modifier = Modifier.matchParentSize(),
-                )
+            AnimatedContent(
+                targetState = currentVisualPage,
+                transitionSpec = {
+                    playbackVisualPageTransform(
+                        enteringLyrics = targetState == PlaybackVisualPage.Lyrics,
+                    )
+                },
+                label = "playbackVisualPage",
+                modifier = Modifier.matchParentSize(),
+            ) { targetPage ->
+                when (targetPage) {
+                    PlaybackVisualPage.Cover -> PlaybackCoverPage(
+                        turntableWidth = turntableWidth,
+                        scale = scale,
+                        currentPositionMs = coverPositionMs,
+                        durationMs = durationMs,
+                        scratchEnabled = scratchEnabled,
+                        hidePlayerAxisEnabled = hidePlayerAxisEnabled,
+                        albumArtwork = albumArtwork,
+                        hasMediaItem = hasMediaItem,
+                        isPlaying = isPlaying,
+                        coverDragMode = coverDragMode,
+                        previewPositionMs = previewPositionMs,
+                        needlePreviewRotationDegrees = needlePreviewRotationDegrees,
+                        needleParkedOutside = needleParkedOutside,
+                        discManualRotationOffsetDegrees = discManualRotationOffsetDegrees,
+                        mediaId = mediaId,
+                        onVisualPageToggle = onVisualPageToggle,
+                        onDiscScratchStart = onDiscScratchStart,
+                        onDiscScratchMotion = onDiscScratchMotion,
+                        onDiscScratchPositionChange = onDiscScratchPositionChange,
+                        onDiscScratchEnd = onDiscScratchEnd,
+                        onDiscScratchCancel = onDiscScratchCancel,
+                        onNeedleSeekStart = onNeedleSeekStart,
+                        onNeedleSeekPositionChange = onNeedleSeekPositionChange,
+                        onNeedleSeekEnd = onNeedleSeekEnd,
+                        onNeedleSeekCancel = onNeedleSeekCancel,
+                        modifier = Modifier.matchParentSize(),
+                    )
 
-                PlaybackVisualPage.Lyrics -> PlaybackLyricsPage(
-                    mediaId = mediaId,
-                    lyrics = embeddedLyrics,
-                    fallbackLyricsLines = fallbackLyricsLines,
-                    currentPositionMs = lyricsPositionMs,
-                    keepLyricsScreenAwake = keepLyricsScreenAwake,
-                    onVisualPageToggle = onVisualPageToggle,
-                    modifier = Modifier.matchParentSize(),
-                )
+                    PlaybackVisualPage.Lyrics -> PlaybackLyricsPage(
+                        mediaId = mediaId,
+                        lyrics = embeddedLyrics,
+                        fallbackLyricsLines = fallbackLyricsLines,
+                        currentPositionMs = lyricsPositionMs,
+                        keepLyricsScreenAwake = keepLyricsScreenAwake,
+                        onVisualPageToggle = onVisualPageToggle,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
             }
         }
     }
+}
+
+private fun playbackVisualPageTransform(
+    enteringLyrics: Boolean,
+): ContentTransform {
+    val enterOffsetDirection = if (enteringLyrics) 1 else -1
+    val exitOffsetDirection = if (enteringLyrics) -1 else 1
+    val enterScale = if (enteringLyrics) 0.985f else 1.015f
+    val exitScale = if (enteringLyrics) 1.015f else 0.985f
+    val enter = fadeIn(
+        animationSpec = tween(
+            durationMillis = PlaybackVisualPageEnterDurationMillis,
+            delayMillis = PlaybackVisualPageEnterDelayMillis,
+            easing = PlaybackLegacyDecelerateEasing,
+        ),
+    ) + scaleIn(
+        initialScale = enterScale,
+        animationSpec = tween(
+            durationMillis = PlaybackVisualPageEnterDurationMillis,
+            delayMillis = PlaybackVisualPageEnterDelayMillis,
+            easing = PlaybackLegacyDecelerateEasing,
+        ),
+    ) + slideInVertically(
+        animationSpec = tween(
+            durationMillis = PlaybackVisualPageEnterDurationMillis,
+            delayMillis = PlaybackVisualPageEnterDelayMillis,
+            easing = PlaybackLegacyDecelerateEasing,
+        ),
+    ) { fullHeight -> enterOffsetDirection * (fullHeight / 36) }
+    val exit = fadeOut(
+        animationSpec = tween(
+            durationMillis = PlaybackVisualPageExitDurationMillis,
+            easing = PlaybackLegacyDecelerateEasing,
+        ),
+    ) + scaleOut(
+        targetScale = exitScale,
+        animationSpec = tween(
+            durationMillis = PlaybackVisualPageExitDurationMillis,
+            easing = PlaybackLegacyDecelerateEasing,
+        ),
+    ) + slideOutVertically(
+        animationSpec = tween(
+            durationMillis = PlaybackVisualPageExitDurationMillis,
+            easing = PlaybackLegacyDecelerateEasing,
+        ),
+    ) { fullHeight -> exitOffsetDirection * (fullHeight / 42) }
+
+    return enter togetherWith exit
 }
 
 @Composable

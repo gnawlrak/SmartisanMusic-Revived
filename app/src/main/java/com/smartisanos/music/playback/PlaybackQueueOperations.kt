@@ -1,5 +1,6 @@
 package com.smartisanos.music.playback
 
+import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.smartisanos.music.isExternalAudioLaunchItem
@@ -123,3 +124,27 @@ internal fun Player?.removeMediaItemsMatching(predicate: (MediaItem) -> Boolean)
         index = rangeStart - 1
     }
 }
+
+internal fun MediaItem.withPlaybackRating(score: Int): MediaItem {
+    val normalizedScore = score.coerceIn(0, 5)
+    val extras = Bundle(mediaMetadata.extras ?: Bundle()).apply {
+        RatingExtraKeys.forEach(::remove)
+        if (normalizedScore > 0) {
+            putLong(LocalAudioLibrary.RatingExtraKey, normalizedScore.toLong())
+        }
+    }
+    val metadata = mediaMetadata.buildUpon()
+        .setExtras(extras)
+        .build()
+    return buildUpon()
+        .setMediaMetadata(metadata)
+        .build()
+}
+
+private val RatingExtraKeys = listOf(
+    LocalAudioLibrary.RatingExtraKey,
+    "star",
+    "score",
+    "rating",
+    "play_score",
+)

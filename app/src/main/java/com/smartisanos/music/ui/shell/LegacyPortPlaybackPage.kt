@@ -71,9 +71,11 @@ import smartisanos.widget.TitleBar
 @Composable
 internal fun LegacyPortPlaybackPage(
     playbackSettings: PlaybackSettings,
+    ratingOverrides: Map<String, Int>,
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit,
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
     onScratchEnabledChange: (Boolean) -> Unit,
+    onTrackRatingChanged: (String, Int) -> Unit,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -84,7 +86,6 @@ internal fun LegacyPortPlaybackPage(
         FavoriteSongsRepository.getInstance(context.applicationContext)
     }
     val favoriteIds by favoriteRepository.observeFavoriteIds().collectAsState(initial = emptySet())
-    var ratingOverrides by remember { mutableStateOf(emptyMap<String, Int>()) }
     var pendingRatingRequests by remember { mutableStateOf(emptyMap<String, Int>()) }
     var queueSnapshot by remember(controller, context, favoriteIds, ratingOverrides) {
         mutableStateOf(
@@ -171,7 +172,7 @@ internal fun LegacyPortPlaybackPage(
                         ?: 0
                     if (playbackController != null) {
                         pendingRatingRequests = pendingRatingRequests + (mediaId to score)
-                        ratingOverrides = ratingOverrides + (mediaId to score)
+                        onTrackRatingChanged(mediaId, score)
                         queueSnapshot = queueSnapshot.withCurrentRating(mediaId, score)
                         scope.launch {
                             val successful = runCatching {
@@ -185,7 +186,7 @@ internal fun LegacyPortPlaybackPage(
                             }
                             pendingRatingRequests = pendingRatingRequests - mediaId
                             if (!successful) {
-                                ratingOverrides = ratingOverrides + (mediaId to previousScore)
+                                onTrackRatingChanged(mediaId, previousScore)
                                 queueSnapshot = queueSnapshot.withCurrentRating(mediaId, previousScore)
                             }
                         }

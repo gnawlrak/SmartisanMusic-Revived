@@ -65,6 +65,7 @@ import com.smartisanos.music.playback.deduplicateQueueCandidates
 import com.smartisanos.music.playback.invalidateLibrary
 import com.smartisanos.music.playback.refreshLibrary
 import com.smartisanos.music.playback.removeMediaItemsByMediaIds
+import com.smartisanos.music.playback.withPlaybackRating
 import com.smartisanos.music.resolveExternalAudioMediaStoreIds
 import com.smartisanos.music.resolveExternalAudioArtist
 import com.smartisanos.music.ui.components.LegacyTrackActionItem
@@ -176,6 +177,7 @@ private fun LegacyPortMainShellContent(
     var pendingTrackActionSource by remember { mutableStateOf(LegacyTrackActionSource.Library) }
     var showPlaybackPlaylistCreateDialog by remember { mutableStateOf(false) }
     var playbackPlaylistCreateInitialValue by remember { mutableStateOf("") }
+    var ratingOverrides by remember { mutableStateOf(emptyMap<String, Int>()) }
     var snapshot by remember(controller) {
         mutableStateOf(
             LegacyPlaybackBarSnapshot(
@@ -191,6 +193,9 @@ private fun LegacyPortMainShellContent(
         loadRequested = libraryLoadRequested,
         libraryRefreshVersion = libraryRefreshVersion,
     )
+    val legacyLibraryItems = remember(legacyLibrary.items, ratingOverrides) {
+        legacyLibrary.items.withRatingOverrides(ratingOverrides)
+    }
     val artworkRequestKey = playbackBarContentSnapshot.mediaItem?.artworkRequestKey()
     val artworkBitmap by produceState<Bitmap?>(initialValue = null, artworkRequestKey) {
         value = playbackBarContentSnapshot.mediaItem?.let { mediaItem ->
@@ -634,7 +639,7 @@ private fun LegacyPortMainShellContent(
             }
             LegacyPortTabContent(
                 destination = currentDestination,
-                mediaItems = legacyLibrary.items,
+                mediaItems = legacyLibraryItems,
                 favoriteRecords = favoriteRecords,
                 libraryLoaded = legacyLibrary.loaded,
                 songsEditMode = currentDestination == MusicDestination.Songs && songsEditMode,
@@ -866,12 +871,16 @@ private fun LegacyPortMainShellContent(
         LegacyPortPlaybackOverlay(
             visible = playbackVisible,
             playbackSettings = playbackSettings,
+            ratingOverrides = ratingOverrides,
             onRequestAddToPlaylist = ::requestAddToPlaylist,
             onRequestAddToQueue = ::enqueueMediaItems,
             onScratchEnabledChange = { enabled ->
                 scope.launch {
                     playbackSettingsStore.setScratchEnabled(enabled)
                 }
+            },
+            onTrackRatingChanged = { mediaId, score ->
+                ratingOverrides = ratingOverrides + (mediaId to score.coerceIn(0, 5))
             },
             onCollapse = {
                 playbackVisible = false
@@ -881,7 +890,7 @@ private fun LegacyPortMainShellContent(
         LegacyPortSearchOverlay(
             visible = searchVisible,
             query = searchQuery,
-            mediaItems = legacyLibrary.items,
+            mediaItems = legacyLibraryItems,
             hiddenMediaIds = libraryExclusions.hiddenMediaIds,
             drilldownTarget = searchDrilldownTarget,
             libraryRefreshVersion = libraryRefreshVersion,
@@ -1023,5 +1032,15 @@ private fun MusicDestination.requiresFullLibraryItems(): Boolean {
         MusicDestination.Playlist,
         MusicDestination.More,
         -> false
+    }
+}
+
+private fun List<MediaItem>.withRatingOverrides(ratingOverrides: Map<String, Int>): List<MediaItem> {
+    if (isEmpty() || ratingOverrides.isEmpty()) {
+        return this
+    }
+    return map { item ->
+        val score = ratingOverrides[item.mediaId] ?: return@map item
+        item.withPlaybackRating(score)
     }
 }

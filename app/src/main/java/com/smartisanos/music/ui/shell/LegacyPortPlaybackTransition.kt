@@ -25,9 +25,11 @@ private val LegacyDecelerateEasing = Easing { fraction ->
 internal fun LegacyPortPlaybackOverlay(
     visible: Boolean,
     playbackSettings: PlaybackSettings,
+    ratingOverrides: Map<String, Int>,
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit,
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
     onScratchEnabledChange: (Boolean) -> Unit,
+    onTrackRatingChanged: (String, Int) -> Unit,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -39,9 +41,11 @@ internal fun LegacyPortPlaybackOverlay(
     ) {
         LegacyPortPlaybackPage(
             playbackSettings = playbackSettings,
+            ratingOverrides = ratingOverrides,
             onRequestAddToPlaylist = onRequestAddToPlaylist,
             onRequestAddToQueue = onRequestAddToQueue,
             onScratchEnabledChange = onScratchEnabledChange,
+            onTrackRatingChanged = onTrackRatingChanged,
             onCollapse = onCollapse,
             modifier = Modifier.fillMaxSize(),
         )

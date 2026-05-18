@@ -454,10 +454,11 @@ class PlaybackService : MediaLibraryService() {
                     return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
                 }
                 return libraryRefreshExecutor.submit<SessionResult> {
-                    runBlocking {
+                    val savedScore = runBlocking {
                         playbackStatsRepository.setScore(mediaId, score)
                     } ?: return@submit SessionResult(SessionError.ERROR_UNKNOWN)
-                    serviceScope.launch(Dispatchers.Main.immediate) {
+                    runBlocking(Dispatchers.Main.immediate) {
+                        updateQueuedTrackRating(mediaId, savedScore)
                         scheduleRatingLibraryRefresh()
                     }
                     SessionResult(SessionResult.RESULT_SUCCESS)
@@ -494,6 +495,16 @@ class PlaybackService : MediaLibraryService() {
             Int.MAX_VALUE,
             null,
         )
+    }
+
+    private fun updateQueuedTrackRating(mediaId: String, score: Int) {
+        val playbackPlayer = player ?: return
+        for (index in 0 until playbackPlayer.mediaItemCount) {
+            val item = playbackPlayer.getMediaItemAt(index)
+            if (item.mediaId == mediaId) {
+                playbackPlayer.replaceMediaItem(index, item.withPlaybackRating(score))
+            }
+        }
     }
 
     private companion object {

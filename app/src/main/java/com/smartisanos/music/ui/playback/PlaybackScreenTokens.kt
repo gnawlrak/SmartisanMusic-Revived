@@ -73,6 +73,7 @@ internal val PlaybackSeekThumbWidth = 22.3.dp
 internal val PlaybackSeekThumbHeight = 41.dp
 internal val PlaybackSeekBarDividerHeight = 0.7.dp
 internal val PlaybackVolumeBarHeight = 60.dp
+internal val PlaybackVolumeHorizontalPadding = 26.5.dp
 internal val PlaybackVolumeThumbOffset = 5.dp
 internal val PlaybackActionButtonSize = 31.dp
 internal val PlaybackControlEntranceOffset = 186.dp

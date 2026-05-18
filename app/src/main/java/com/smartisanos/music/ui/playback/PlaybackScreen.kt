@@ -691,11 +691,7 @@ fun PlaybackScreen(
             WindowInsets.safeDrawing.getBottom(this).toDp()
         }
         val turntableWidth = maxWidth
-        val bottomControlsWidth = minOf(
-            (maxWidth - PlaybackContentHorizontalPadding - PlaybackContentHorizontalPadding)
-                .coerceAtLeast(0.dp),
-            OriginalTurntableBaseWidthDp.dp,
-        )
+        val bottomControlsWidth = turntableWidth
         val scale = turntableWidth.value / OriginalTurntableBaseWidthDp
         val turntableEntranceProgress = playbackEntranceProgress(
             timeMillis = entranceTimeMillis.value,

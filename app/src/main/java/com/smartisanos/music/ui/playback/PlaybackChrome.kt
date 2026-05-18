@@ -240,7 +240,7 @@ internal fun PlaybackControlButtons(
     isPlaying: Boolean,
     repeatMode: Int,
     shuffleEnabled: Boolean,
-    scale: Float,
+    controlWidth: Dp,
     entranceTimeMillis: Float,
     onRepeatClick: () -> Unit,
     onPreviousClick: () -> Unit,
@@ -248,6 +248,7 @@ internal fun PlaybackControlButtons(
     onNextClick: () -> Unit,
     onShuffleClick: () -> Unit,
 ) {
+    val buttonMetrics = playbackControlButtonMetrics(controlWidth)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -261,8 +262,8 @@ internal fun PlaybackControlButtons(
             pressedRes = repeatIconRes,
             contentDescription = stringResource(repeatContentDescriptionRes(repeatMode)),
             modifier = Modifier
-                .width(67.3.dp * scale)
-                .height(87.dp * scale)
+                .width(buttonMetrics.outerWidth)
+                .height(buttonMetrics.height)
                 .then(
                     playbackControlEntranceModifier(
                         timeMillis = entranceTimeMillis,
@@ -279,8 +280,8 @@ internal fun PlaybackControlButtons(
             pressedRes = R.drawable.btn_playing_prev_down,
             contentDescription = stringResource(R.string.previous_song),
             modifier = Modifier
-                .width(70.dp * scale)
-                .height(87.dp * scale)
+                .width(buttonMetrics.sideWidth)
+                .height(buttonMetrics.height)
                 .then(
                     playbackControlEntranceModifier(
                         timeMillis = entranceTimeMillis,
@@ -308,8 +309,8 @@ internal fun PlaybackControlButtons(
                 stringResource(R.string.play)
             },
             modifier = Modifier
-                .width(85.3.dp * scale)
-                .height(87.dp * scale)
+                .width(buttonMetrics.playWidth)
+                .height(buttonMetrics.height)
                 .then(
                     playbackControlEntranceModifier(
                         timeMillis = entranceTimeMillis,
@@ -325,8 +326,8 @@ internal fun PlaybackControlButtons(
             pressedRes = R.drawable.btn_playing_next_down,
             contentDescription = stringResource(R.string.next_song),
             modifier = Modifier
-                .width(70.dp * scale)
-                .height(87.dp * scale)
+                .width(buttonMetrics.sideWidth)
+                .height(buttonMetrics.height)
                 .then(
                     playbackControlEntranceModifier(
                         timeMillis = entranceTimeMillis,
@@ -350,8 +351,8 @@ internal fun PlaybackControlButtons(
             },
             contentDescription = stringResource(R.string.shuffle),
             modifier = Modifier
-                .width(67.3.dp * scale)
-                .height(87.dp * scale)
+                .width(buttonMetrics.outerWidth)
+                .height(buttonMetrics.height)
                 .then(
                     playbackControlEntranceModifier(
                         timeMillis = entranceTimeMillis,
@@ -363,6 +364,40 @@ internal fun PlaybackControlButtons(
                 ),
             onClick = onShuffleClick,
         )
+    }
+}
+
+private data class PlaybackControlButtonMetrics(
+    val outerWidth: Dp,
+    val sideWidth: Dp,
+    val playWidth: Dp,
+    val height: Dp,
+)
+
+private fun playbackControlButtonMetrics(controlWidth: Dp): PlaybackControlButtonMetrics {
+    val width = controlWidth.value
+    return when {
+        width >= 432f -> PlaybackControlButtonMetrics(
+            outerWidth = 77.dp,
+            sideWidth = 84.dp,
+            playWidth = 102.3.dp,
+            height = 104.5.dp,
+        )
+        width >= 411f -> PlaybackControlButtonMetrics(
+            outerWidth = 77.dp,
+            sideWidth = 80.1.dp,
+            playWidth = 98.dp,
+            height = 99.5.dp,
+        )
+        else -> {
+            val scale = width / OriginalTurntableBaseWidthDp
+            PlaybackControlButtonMetrics(
+                outerWidth = 67.3.dp * scale,
+                sideWidth = 70.dp * scale,
+                playWidth = 85.3.dp * scale,
+                height = 87.dp * scale,
+            )
+        }
     }
 }
 
@@ -399,6 +434,9 @@ internal fun PlaybackVolumeBar(
     onValueChange: (Float) -> Unit,
 ) {
     val density = LocalDensity.current
+    val horizontalPaddingPx = with(density) {
+        PlaybackVolumeHorizontalPadding.roundToPx()
+    }
     val thumbOffsetPx = with(density) { PlaybackVolumeThumbOffset.roundToPx() }
     val latestOnValueChange = rememberUpdatedState(onValueChange)
     AndroidView(
@@ -410,7 +448,7 @@ internal fun PlaybackVolumeBar(
                 progressDrawable = ContextCompat.getDrawable(context, R.drawable.volume_seekbar_progress)
                 thumb = ContextCompat.getDrawable(context, R.drawable.playing_control_volume)
                 thumbOffset = thumbOffsetPx
-                setPadding(0, 0, 0, 0)
+                setPadding(horizontalPaddingPx, 0, horizontalPaddingPx, 0)
                 setOnSeekBarChangeListener(
                     object : SeekBar.OnSeekBarChangeListener {
                         override fun onProgressChanged(
@@ -437,6 +475,12 @@ internal fun PlaybackVolumeBar(
             }
             if (seekBar.thumbOffset != thumbOffsetPx) {
                 seekBar.thumbOffset = thumbOffsetPx
+            }
+            if (
+                seekBar.paddingLeft != horizontalPaddingPx ||
+                seekBar.paddingRight != horizontalPaddingPx
+            ) {
+                seekBar.setPadding(horizontalPaddingPx, 0, horizontalPaddingPx, 0)
             }
         },
         modifier = modifier

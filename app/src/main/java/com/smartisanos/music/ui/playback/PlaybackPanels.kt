@@ -128,7 +128,7 @@ internal fun PlaybackBottomControls(
                 isPlaying = state.isPlaying,
                 repeatMode = state.repeatMode,
                 shuffleEnabled = state.shuffleEnabled,
-                scale = width.value / 360f,
+                controlWidth = width,
                 entranceTimeMillis = entranceTimeMillis,
                 onRepeatClick = onRepeatClick,
                 onPreviousClick = onPreviousClick,

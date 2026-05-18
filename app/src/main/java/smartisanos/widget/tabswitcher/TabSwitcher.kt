@@ -24,16 +24,19 @@ class TabSwitcher @JvmOverloads constructor(
     private val tabContainer: LinearLayout
     private val destinationViews = mutableMapOf<MusicDestination, BottomTabItemView>()
     private var selectedDestination = MusicDestination.Playlist
+    private var startInset = 0
+    private var endInset = 0
+    private var bottomInset = 0
     private var suppressSelectionCallback = false
     private var onDestinationSelected: ((MusicDestination) -> Unit)? = null
 
     init {
         val barHeight = resources.getDimensionPixelSize(R.dimen.smartisan_tabswitch_tabbar_height)
+        setBackgroundResource(R.drawable.sb_repeat_tabbar_bg)
 
         tabContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setBackgroundResource(R.drawable.sb_repeat_tabbar_bg)
             weightSum = 5f
         }
         addView(
@@ -71,6 +74,21 @@ class TabSwitcher @JvmOverloads constructor(
         )
 
         setDestinations(MusicDestination.entries)
+    }
+
+    fun setNavigationBarInsets(start: Int, end: Int, bottom: Int) {
+        if (startInset == start && endInset == end && bottomInset == bottom) {
+            return
+        }
+        startInset = start
+        endInset = end
+        bottomInset = bottom
+        (tabContainer.layoutParams as LayoutParams).let { layoutParams ->
+            layoutParams.marginStart = start
+            layoutParams.marginEnd = end
+            layoutParams.bottomMargin = bottom
+            tabContainer.layoutParams = layoutParams
+        }
     }
 
     fun setOnDestinationSelectedListener(listener: ((MusicDestination) -> Unit)?) {

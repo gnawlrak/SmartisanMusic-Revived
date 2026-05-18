@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         consumeLaunchIntent(intent)
         enableEdgeToEdge()
+        window.isNavigationBarContrastEnforced = false
         setContent {
             MusicTheme(darkTheme = false, dynamicColor = false) {
                 RequestAudioPermissionOnLaunch()

@@ -249,8 +249,6 @@ internal class LegacyArtistAlbumsRoot(context: Context) : FrameLayout(context) {
             selector = context.getDrawable(R.drawable.listview_selector)
             cacheColorHint = Color.TRANSPARENT
             setBackgroundColor(Color.WHITE)
-            setPadding(0, 0, 0, resources.legacyArtistScrollBottomPadding())
-            clipToPadding = false
             layoutAnimation = AnimationUtils.loadLayoutAnimation(context, R.anim.list_anim_layout)
         }
         listHost.addView(
@@ -274,9 +272,8 @@ internal class LegacyArtistAlbumsRoot(context: Context) : FrameLayout(context) {
                 resources.getDimensionPixelSize(R.dimen.gridview_margin),
                 0,
                 resources.getDimensionPixelSize(R.dimen.gridview_margin),
-                resources.legacyArtistScrollBottomPadding(),
+                0,
             )
-            clipToPadding = false
             visibility = View.GONE
         }
         addView(

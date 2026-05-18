@@ -2,6 +2,7 @@ package com.smartisanos.music.ui.shell.tabs
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -120,7 +121,9 @@ internal fun LegacyPortTabContent(
                 onRequestAddToQueue = onRequestAddToQueue,
                 onTrackMoreClick = onLibraryTrackMoreClick,
                 artistSettings = artistSettings,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = playbackBarOverlayHeight),
             )
             MusicDestination.Artist -> LegacyPortArtistPage(
                 mediaItems = mediaItems,
@@ -139,7 +142,9 @@ internal fun LegacyPortTabContent(
                 onRequestAddToQueue = onRequestAddToQueue,
                 onTrackMoreClick = onLibraryTrackMoreClick,
                 artistSettings = artistSettings,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = playbackBarOverlayHeight),
             )
             MusicDestination.Playlist -> LegacyPortPlaylistPage(
                 mediaItems = mediaItems,
@@ -150,7 +155,9 @@ internal fun LegacyPortTabContent(
                 onAddModeActiveChanged = onPlaylistAddModeActiveChanged,
                 onLibraryNeeded = onLibraryNeeded,
                 onSearchClick = onSearchClick,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = playbackBarOverlayHeight),
             )
             MusicDestination.More -> LegacyPortMorePage(
                 active = true,
@@ -175,7 +182,9 @@ internal fun LegacyPortTabContent(
                 onSettingsPageActiveChanged = onMoreSettingsPageActiveChanged,
                 onLibraryNeeded = onLibraryNeeded,
                 onSearchClick = onSearchClick,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = playbackBarOverlayHeight),
             )
         }
     }

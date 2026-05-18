@@ -21,6 +21,7 @@ internal class LegacyPortListFooterView(context: Context) : LinearLayout(context
     }
     private val content = TextView(context).apply {
         gravity = Gravity.CENTER
+        includeFontPadding = true
         setTextColor(Color.rgb(0xbc, 0xbc, 0xbc))
         setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.footer_text_size))
         setBackgroundColor(Color.WHITE)
@@ -67,6 +68,7 @@ internal fun ListView.addLegacyPortListFooter(): LegacyPortListFooterView {
     (getTag(R.id.legacy_port_list_footer) as? LegacyPortListFooterView)?.let { footer ->
         return footer
     }
+    isVerticalFadingEdgeEnabled = false
     return LegacyPortListFooterView(context).also { footer ->
         setTag(R.id.legacy_port_list_footer, footer)
         addFooterView(footer, null, false)

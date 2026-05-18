@@ -321,13 +321,6 @@ private fun View.artistGridToListTarget(
     )
 }
 
-internal fun android.content.res.Resources.legacyArtistScrollBottomPadding(): Int {
-    val playbackBarHeight = getDimensionPixelSize(R.dimen.play_back_content_height)
-    val playbackShadowHeight = (6f * displayMetrics.density).toInt()
-    val contentBottomCompensation = (6f * displayMetrics.density).toInt()
-    return playbackBarHeight + playbackShadowHeight + contentBottomCompensation
-}
-
 private fun ListView.lastArtistChildTop(): Int {
     return getChildAt(childCount - 1)?.top ?: 0
 }

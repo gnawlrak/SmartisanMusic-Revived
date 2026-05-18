@@ -59,8 +59,6 @@ private class LegacyArtistOverviewRoot(context: Context) : FrameLayout(context) 
             selector = context.getDrawable(R.drawable.listview_selector)
             cacheColorHint = Color.TRANSPARENT
             setBackgroundResource(R.drawable.account_background)
-            setPadding(0, 0, 0, resources.legacyArtistScrollBottomPadding())
-            clipToPadding = false
             layoutAnimation = AnimationUtils.loadLayoutAnimation(context, R.anim.list_anim_layout)
             addFooterView(footer, null, false)
         }

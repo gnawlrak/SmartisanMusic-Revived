@@ -58,13 +58,6 @@ private val LegacyAlbumSecondaryTextColor = Color.rgb(0xa4, 0xa7, 0xac)
 private val LegacyAlbumSelectedTextColor = Color.rgb(0xe6, 0x40, 0x40)
 private val LegacyAlbumFooterTextColor = Color.rgb(0xbc, 0xbc, 0xbc)
 
-private fun android.content.res.Resources.getLegacyAlbumScrollBottomPadding(): Int {
-    val playbackBarHeight = getDimensionPixelSize(R.dimen.play_back_content_height)
-    val playbackShadowHeight = (6f * displayMetrics.density).toInt()
-    val contentBottomCompensation = (6f * displayMetrics.density).toInt()
-    return playbackBarHeight + playbackShadowHeight + contentBottomCompensation
-}
-
 private fun android.content.res.Resources.getDimensionPixelSizeCompatFooterPadding(): Int {
     return (8f * displayMetrics.density).toInt()
 }
@@ -370,8 +363,6 @@ private class LegacyAlbumRoot(context: Context) : LinearLayout(context) {
             selector = context.getDrawable(R.drawable.listview_selector)
             cacheColorHint = Color.TRANSPARENT
             setBackgroundColor(Color.WHITE)
-            setPadding(0, 0, 0, resources.getLegacyAlbumScrollBottomPadding())
-            clipToPadding = false
             layoutAnimation = AnimationUtils.loadLayoutAnimation(context, R.anim.list_anim_layout)
             addFooterView(listFooterView, null, false)
         }
@@ -396,9 +387,8 @@ private class LegacyAlbumRoot(context: Context) : LinearLayout(context) {
                 resources.getDimensionPixelSize(R.dimen.gridview_margin),
                 0,
                 resources.getDimensionPixelSize(R.dimen.gridview_margin),
-                resources.getLegacyAlbumScrollBottomPadding(),
+                0,
             )
-            clipToPadding = false
             visibility = View.GONE
             setOnScrollListener(
                 object : AbsListView.OnScrollListener {

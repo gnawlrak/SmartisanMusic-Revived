@@ -31,8 +31,8 @@
 
     <View
         android:id="@id/rl_right"
-        android:layout_width="30.0dp"
-        android:layout_height="30.0dp"
+        android:layout_width="@dimen/listview_item_height"
+        android:layout_height="@dimen/listview_item_height"
         android:layout_alignParentRight="true"
         android:layout_centerVertical="true"
         android:layout_marginRight="@dimen/listview_items_margin_right"
@@ -48,6 +48,7 @@
         android:layout_marginRight="@dimen/listview_items_margin_right"
         android:contentDescription="@string/tab_more"
         android:duplicateParentState="true"
+        android:scaleType="center"
         android:src="@drawable/btn_more_selector" />
 
     <RelativeLayout

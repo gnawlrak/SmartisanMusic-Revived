@@ -172,7 +172,7 @@ private fun LegacyPortMainShellContent(
     var pendingSongDeleteDismissAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingSystemDeleteSongIds by remember { mutableStateOf(emptySet<String>()) }
     var pendingPlaylistPickerMediaItems by remember { mutableStateOf<List<MediaItem>?>(null) }
-    var pendingTrackActionMediaId by remember { mutableStateOf<String?>(null) }
+    var pendingTrackActionItem by remember { mutableStateOf<MediaItem?>(null) }
     var pendingTrackActionSource by remember { mutableStateOf(LegacyTrackActionSource.Library) }
     var showPlaybackPlaylistCreateDialog by remember { mutableStateOf(false) }
     var playbackPlaylistCreateInitialValue by remember { mutableStateOf("") }
@@ -191,11 +191,6 @@ private fun LegacyPortMainShellContent(
         loadRequested = libraryLoadRequested,
         libraryRefreshVersion = libraryRefreshVersion,
     )
-    val pendingTrackActionItem = remember(pendingTrackActionMediaId, legacyLibrary.items) {
-        pendingTrackActionMediaId?.let { mediaId ->
-            legacyLibrary.items.firstOrNull { item -> item.mediaId == mediaId }
-        }
-    }
     val artworkRequestKey = playbackBarContentSnapshot.mediaItem?.artworkRequestKey()
     val artworkBitmap by produceState<Bitmap?>(initialValue = null, artworkRequestKey) {
         value = playbackBarContentSnapshot.mediaItem?.let { mediaItem ->
@@ -321,12 +316,12 @@ private fun LegacyPortMainShellContent(
         if (item.mediaId.isBlank()) {
             return
         }
-        pendingTrackActionMediaId = item.mediaId
+        pendingTrackActionItem = item
         pendingTrackActionSource = source
     }
 
     fun dismissTrackActions() {
-        pendingTrackActionMediaId = null
+        pendingTrackActionItem = null
     }
 
     fun dismissSongDeleteConfirmation() {

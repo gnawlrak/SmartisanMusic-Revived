@@ -78,7 +78,6 @@ internal fun LegacyPlaylistTitleArea(
             )
             LegacyPortSmartisanTitleBar(
                 includeStatusBar = false,
-                showShadow = true,
             ) { titleBar ->
                 titleBar.setupLegacyPlaylistAddModeTitleBar(onAddModeConfirm)
             }
@@ -96,7 +95,6 @@ internal fun LegacyPlaylistTitleArea(
         ) -> Unit = { barTarget, barTitle, rootEditing, rootSelectionCount, detailEditing ->
             LegacyPortSmartisanTitleBar(
                 modifier = Modifier.fillMaxSize(),
-                showShadow = true,
             ) { titleBar ->
                 titleBar.setupLegacyPlaylistTitleBar(
                     target = barTarget,

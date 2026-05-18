@@ -69,13 +69,14 @@
 
         <ImageView
             android:id="@id/img_action_more"
-            android:layout_width="30.0dp"
-            android:layout_height="30.0dp"
+            android:layout_width="@dimen/listview_item_height"
+            android:layout_height="@dimen/listview_item_height"
             android:layout_gravity="center_vertical"
             android:layout_marginLeft="@dimen/listview_items_margin_left"
             android:layout_marginRight="@dimen/listview_items_margin_right"
             android:contentDescription="@string/tab_more"
             android:duplicateParentState="true"
+            android:scaleType="center"
             android:src="@drawable/btn_more_selector" />
     </LinearLayout>
 </com.smartisanos.music.ui.widgets.EditableLayout>

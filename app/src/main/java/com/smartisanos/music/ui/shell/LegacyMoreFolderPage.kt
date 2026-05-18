@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -45,11 +46,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.smartisanos.music.R
@@ -62,6 +65,7 @@ import com.smartisanos.music.playback.replaceQueueAndPlay
 import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.components.hasAudioPermission
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortSmartisanTitleBar
+import com.smartisanos.music.ui.shell.titlebar.LegacyPortTitleBarShadow
 import com.smartisanos.music.ui.folder.DirectoryEntry
 import com.smartisanos.music.ui.folder.buildDirectoryEntries
 import com.smartisanos.music.ui.folder.filterDirectoryEntriesForDisplay
@@ -165,13 +169,14 @@ internal fun LegacyPortFolderPage(
         }
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(ComposeColor.White),
     ) {
         val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
             dimensionResource(R.dimen.title_bar_height)
+        val titleShadowHeight = dimensionResource(R.dimen.title_bar_shadow_height)
         val handleBack = {
             when {
                 target != null -> target = null
@@ -191,118 +196,129 @@ internal fun LegacyPortFolderPage(
                 showDeleteConfirm = true
             }
         }
-        LegacyPortPageStackTransition(
-            secondaryKey = target,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(titleAreaHeight),
-            label = "legacy folder title stack",
-            predictiveBackProgress = detailPredictiveBackState.progress,
-            predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
-            onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
-            primaryContent = {
-                LegacyPortSmartisanTitleBar(
-                    modifier = Modifier.fillMaxSize(),
-                    showShadow = true,
-                ) { titleBar ->
-                    titleBar.setupLegacyFolderTitleBar(
-                        title = context.getString(R.string.tab_directory),
-                        editMode = editMode,
-                        selectedCount = selectedDirectoryKeys.size,
-                        libraryRefreshing = libraryRefreshing,
-                        onBack = handleBack,
-                        onEnterEdit = enterEdit,
-                        onDeleteSelected = deleteSelected,
-                        onRefreshLibrary = onRefreshLibrary,
-                    )
-                }
-            },
-            secondaryContent = { folderTarget ->
-                LegacyPortSmartisanTitleBar(
-                    modifier = Modifier.fillMaxSize(),
-                    showShadow = true,
-                ) { titleBar ->
-                    titleBar.setupLegacyFolderTitleBar(
-                        title = folderTarget.title,
-                        editMode = false,
-                        selectedCount = 0,
-                        libraryRefreshing = libraryRefreshing,
-                        onBack = handleBack,
-                        onEnterEdit = enterEdit,
-                        onDeleteSelected = deleteSelected,
-                        onRefreshLibrary = onRefreshLibrary,
-                    )
-                }
-            },
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+        Column(
+            modifier = Modifier.fillMaxSize(),
         ) {
             LegacyPortPageStackTransition(
                 secondaryKey = target,
-                modifier = Modifier.fillMaxSize(),
-                label = "legacy folder detail stack",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(titleAreaHeight),
+                label = "legacy folder title stack",
                 predictiveBackProgress = detailPredictiveBackState.progress,
                 predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
                 onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
                 primaryContent = {
-                    LegacyFolderRootPage(
-                        active = active,
-                        directories = allDirectories,
-                        editMode = editMode,
-                        selectedDirectoryKeys = selectedDirectoryKeys,
-                        onDirectoryClick = { entry ->
-                            if (editMode) {
-                                selectedDirectoryKeys = selectedDirectoryKeys.toggle(entry.key)
-                            } else {
-                                target = LegacyFolderTarget(
-                                    key = entry.key,
-                                    title = entry.name,
-                                )
-                            }
-                        },
-                        onDirectorySelectionChange = { directoryKey, selected ->
-                            selectedDirectoryKeys = selectedDirectoryKeys.withSelection(directoryKey, selected)
-                        },
-                        onDirectoryVisibilityChange = { entry, hidden ->
-                            val affectedMediaIds = if (hidden) {
-                                mediaIdsInDirectory(mediaItems = mediaItems, directoryKey = entry.key)
-                            } else {
-                                emptySet()
-                            }
-                            scope.launch {
-                                exclusionsStore.setDirectoryKeysHidden(
-                                    directoryKeys = setOf(entry.key),
-                                    hidden = hidden,
-                                )
-                                if (affectedMediaIds.isNotEmpty()) {
-                                    onMediaIdsHidden(affectedMediaIds)
-                                }
-                            }
-                        },
+                    LegacyPortSmartisanTitleBar(
                         modifier = Modifier.fillMaxSize(),
-                    )
+                    ) { titleBar ->
+                        titleBar.setupLegacyFolderTitleBar(
+                            title = context.getString(R.string.tab_directory),
+                            editMode = editMode,
+                            selectedCount = selectedDirectoryKeys.size,
+                            libraryRefreshing = libraryRefreshing,
+                            onBack = handleBack,
+                            onEnterEdit = enterEdit,
+                            onDeleteSelected = deleteSelected,
+                            onRefreshLibrary = onRefreshLibrary,
+                        )
+                    }
                 },
                 secondaryContent = { folderTarget ->
-                    val songs = remember(mediaItems, exclusions, folderTarget.key) {
-                        filterMediaItemsForDirectory(
-                            mediaItems = mediaItems,
-                            directoryKey = folderTarget.key,
-                            exclusions = exclusions,
-                        ).sortedForFolder()
-                    }
-                    LegacyFolderDetailPage(
-                        active = active && target == folderTarget,
-                        tracks = songs,
-                        browser = browser,
-                        onTrackMoreClick = onTrackMoreClick,
+                    LegacyPortSmartisanTitleBar(
                         modifier = Modifier.fillMaxSize(),
-                    )
+                    ) { titleBar ->
+                        titleBar.setupLegacyFolderTitleBar(
+                            title = folderTarget.title,
+                            editMode = false,
+                            selectedCount = 0,
+                            libraryRefreshing = libraryRefreshing,
+                            showRightActions = false,
+                            onBack = handleBack,
+                            onEnterEdit = enterEdit,
+                            onDeleteSelected = deleteSelected,
+                            onRefreshLibrary = onRefreshLibrary,
+                        )
+                    }
                 },
             )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                LegacyPortPageStackTransition(
+                    secondaryKey = target,
+                    modifier = Modifier.fillMaxSize(),
+                    label = "legacy folder detail stack",
+                    predictiveBackProgress = detailPredictiveBackState.progress,
+                    predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
+                    onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
+                    primaryContent = {
+                        LegacyFolderRootPage(
+                            active = active,
+                            directories = allDirectories,
+                            editMode = editMode,
+                            selectedDirectoryKeys = selectedDirectoryKeys,
+                            onDirectoryClick = { entry ->
+                                if (editMode) {
+                                    selectedDirectoryKeys = selectedDirectoryKeys.toggle(entry.key)
+                                } else {
+                                    target = LegacyFolderTarget(
+                                        key = entry.key,
+                                        title = entry.name,
+                                    )
+                                }
+                            },
+                            onDirectorySelectionChange = { directoryKey, selected ->
+                                selectedDirectoryKeys = selectedDirectoryKeys.withSelection(directoryKey, selected)
+                            },
+                            onDirectoryVisibilityChange = { entry, hidden ->
+                                val affectedMediaIds = if (hidden) {
+                                    mediaIdsInDirectory(mediaItems = mediaItems, directoryKey = entry.key)
+                                } else {
+                                    emptySet()
+                                }
+                                scope.launch {
+                                    exclusionsStore.setDirectoryKeysHidden(
+                                        directoryKeys = setOf(entry.key),
+                                        hidden = hidden,
+                                    )
+                                    if (affectedMediaIds.isNotEmpty()) {
+                                        onMediaIdsHidden(affectedMediaIds)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    },
+                    secondaryContent = { folderTarget ->
+                        val songs = remember(mediaItems, exclusions, folderTarget.key) {
+                            filterMediaItemsForDirectory(
+                                mediaItems = mediaItems,
+                                directoryKey = folderTarget.key,
+                                exclusions = exclusions,
+                            ).sortedForFolder()
+                        }
+                        LegacyFolderDetailPage(
+                            active = active && target == folderTarget,
+                            tracks = songs,
+                            browser = browser,
+                            onTrackMoreClick = onTrackMoreClick,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    },
+                )
+            }
         }
+        LegacyPortTitleBarShadow(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = titleAreaHeight)
+                .fillMaxWidth()
+                .height(titleShadowHeight)
+                .zIndex(1f),
+        )
     }
 
     LegacyFolderDeleteDialog(
@@ -332,6 +348,7 @@ private fun TitleBar.setupLegacyFolderTitleBar(
     editMode: Boolean,
     selectedCount: Int,
     libraryRefreshing: Boolean,
+    showRightActions: Boolean = true,
     onBack: () -> Unit,
     onEnterEdit: () -> Unit,
     onDeleteSelected: () -> Unit,
@@ -364,17 +381,19 @@ private fun TitleBar.setupLegacyFolderTitleBar(
                     onBack()
                 }
             }
-            addRightImageView(R.drawable.standard_icon_multi_select_selector, 0).apply {
-                setOnClickListener {
-                    onEnterEdit()
+            if (showRightActions) {
+                addRightImageView(R.drawable.standard_icon_multi_select_selector, 0).apply {
+                    setOnClickListener {
+                        onEnterEdit()
+                    }
                 }
-            }
-            addRightImageView(R.drawable.standard_icon_refresh_selector, 1).apply {
-                isEnabled = !libraryRefreshing
-                contentDescription = context.getString(R.string.library_rescan_full)
-                setOnClickListener {
-                    if (!libraryRefreshing) {
-                        onRefreshLibrary()
+                addRightImageView(R.drawable.standard_icon_refresh_selector, 1).apply {
+                    isEnabled = !libraryRefreshing
+                    contentDescription = context.getString(R.string.library_rescan_full)
+                    setOnClickListener {
+                        if (!libraryRefreshing) {
+                            onRefreshLibrary()
+                        }
                     }
                 }
             }
@@ -442,7 +461,6 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
             cacheColorHint = Color.TRANSPARENT
             setBackgroundColor(Color.TRANSPARENT)
             isVerticalScrollBarEnabled = false
-            addLegacyPortListFooter()
             adapter = directoryAdapter
             setOnTouchListener { _, event ->
                 slideSelectionController.handleTouch(event)
@@ -484,10 +502,6 @@ private class LegacyFolderRootView(context: Context) : FrameLayout(context) {
         val displayCount = if (editMode) displayDirectories.size else visibleDirectories.size
         blankView.visibility = if (displayCount == 0) View.VISIBLE else View.GONE
         listView.visibility = if (displayCount == 0) View.INVISIBLE else View.VISIBLE
-        listView.bindLegacyPortListFooter(
-            textRes = R.string.folder_count,
-            count = displayCount,
-        )
 
         boundEditMode = editMode
         if (firstBind) {

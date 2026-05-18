@@ -630,7 +630,7 @@ internal class LegacyAlbumTrackAdapter : BaseAdapter() {
         val more = ImageView(context).apply {
             id = R.id.img_action_more
             setImageResource(R.drawable.btn_more_selector)
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.CENTER
             isDuplicateParentStateEnabled = true
             isClickable = true
             isFocusable = false
@@ -639,8 +639,8 @@ internal class LegacyAlbumTrackAdapter : BaseAdapter() {
         row.addView(
             more,
             RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT,
-                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                parent.resources.getDimensionPixelSize(R.dimen.listview_item_height),
+                parent.resources.getDimensionPixelSize(R.dimen.listview_item_height),
             ).apply {
                 rightMargin = parent.resources.getDimensionPixelSize(R.dimen.listview_items_margin_right)
                 addRule(RelativeLayout.ALIGN_PARENT_RIGHT)

@@ -28,13 +28,13 @@
 
         <ImageView
             android:id="@id/img_action_more"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="@dimen/listview_item_height"
+            android:layout_height="@dimen/listview_item_height"
             android:layout_alignParentRight="true"
             android:layout_centerVertical="true"
             android:contentDescription="@string/tab_more"
             android:duplicateParentState="true"
-            android:scaleType="fitCenter"
+            android:scaleType="center"
             android:src="@drawable/btn_more_selector" />
 
         <RelativeLayout

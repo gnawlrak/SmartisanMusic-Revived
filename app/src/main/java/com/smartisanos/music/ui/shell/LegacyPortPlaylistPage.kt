@@ -39,9 +39,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.runtime.Composable
@@ -54,12 +56,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.smartisanos.music.R
@@ -73,6 +77,7 @@ import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.replaceQueueAndPlay
 import com.smartisanos.music.playback.replaceQueueAndPlayShuffled
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortSmartisanTitleBar
+import com.smartisanos.music.ui.shell.titlebar.LegacyPortTitleBarShadow
 import com.smartisanos.music.ui.widgets.CustomCheckBox
 import com.smartisanos.music.ui.widgets.EditableLayout
 import com.smartisanos.music.ui.widgets.EditableListViewItem
@@ -239,224 +244,241 @@ internal fun LegacyPortPlaylistPage(
         target = null
     }
 
-    Column(
+    val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+        dimensionResource(R.dimen.title_bar_height) +
+        if (addMode && target != null) dimensionResource(R.dimen.status_bar_height) else 0.dp
+    val titleShadowHeight = dimensionResource(R.dimen.title_bar_shadow_height)
+
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(ComposeColor.White),
     ) {
-        LegacyPlaylistTitleArea(
-            target = target,
-            detailTitle = detailTitle,
-            rootEditMode = rootEditMode,
-            rootSelectedCount = selectedPlaylistIds.size,
-            detailEditMode = detailEditMode,
-            addMode = addMode,
-            predictiveBackProgress = detailPredictiveBackState.progress,
-            predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
-            onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
-            onRootEnterEdit = {
-                rootEditMode = true
-                selectedPlaylistIds = emptySet()
-            },
-            onRootExitEdit = {
-                rootEditMode = false
-                selectedPlaylistIds = emptySet()
-            },
-            onRootDeleteSelected = {
-                if (selectedPlaylistIds.isNotEmpty()) {
-                    deleteRequest = LegacyPlaylistDeleteRequest.RootSelected
-                }
-            },
-            onDetailBack = {
-                target = null
-                detailEditMode = false
-                addMode = false
-                selectedTrackIds = emptySet()
-                selectedAddSongIds = emptySet()
-            },
-            onDetailEnterEdit = {
-                detailEditMode = true
-                selectedTrackIds = emptySet()
-            },
-            onDetailExitEdit = {
-                detailEditMode = false
-                selectedTrackIds = emptySet()
-            },
-            onAddModeConfirm = {
-                val playlistId = target?.playlistId ?: return@LegacyPlaylistTitleArea
-                val mediaIds = selectedAddSongIds.toList()
-                if (mediaIds.isEmpty()) {
-                    addMode = false
-                    selectedAddSongIds = emptySet()
-                    return@LegacyPlaylistTitleArea
-                }
-                scope.launch {
-                    playlistRepository.addMediaIds(playlistId, mediaIds)
-                    selectedAddSongIds = emptySet()
-                    addMode = false
-                }
-            },
-            onSearchClick = onSearchClick,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+        Column(
+            modifier = Modifier.fillMaxSize(),
         ) {
-            LegacyPortPageStackTransition(
-                secondaryKey = target,
-                modifier = Modifier.fillMaxSize(),
-                label = "legacy playlist transition",
+            LegacyPlaylistTitleArea(
+                target = target,
+                detailTitle = detailTitle,
+                rootEditMode = rootEditMode,
+                rootSelectedCount = selectedPlaylistIds.size,
+                detailEditMode = detailEditMode,
+                addMode = addMode,
                 predictiveBackProgress = detailPredictiveBackState.progress,
                 predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
                 onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
-                primaryContent = {
-                    LegacyPlaylistRootPage(
-                        active = active,
-                        playlists = playlists,
-                        editMode = rootEditMode,
-                        selectedPlaylistIds = selectedPlaylistIds,
-                        onCreatePlaylist = {
-                            scope.launch {
-                                nameDialogRequest = LegacyPlaylistNameDialogRequest.Create(
-                                    initialName = playlistRepository.suggestNextUntitledName(),
-                                )
-                            }
-                        },
-                        onRenamePlaylist = { playlist ->
-                            nameDialogRequest = LegacyPlaylistNameDialogRequest.Rename(
-                                playlistId = playlist.id,
-                                initialName = playlist.name,
-                            )
-                        },
-                        onPlaylistClick = { playlist ->
-                            if (rootEditMode) {
-                                selectedPlaylistIds = selectedPlaylistIds.togglePlaylistSelection(playlist.id)
-                            } else {
-                                onLibraryNeeded()
-                                target = LegacyPlaylistTarget(
-                                    playlistId = playlist.id,
-                                    title = playlist.name,
-                                )
-                            }
-                        },
-                        onPlaylistSelectionChange = { playlist, selected ->
-                            selectedPlaylistIds = selectedPlaylistIds.withSelection(playlist.id, selected)
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                onRootEnterEdit = {
+                    rootEditMode = true
+                    selectedPlaylistIds = emptySet()
                 },
-                secondaryContent = { playlistTarget ->
-                    val detailSnapshot = if (playlistTarget == target) {
-                        LegacyPlaylistDetailSnapshot(
-                            playlistId = playlistTarget.playlistId,
-                            playlist = activePlaylist,
-                            title = detailTitle,
-                            tracks = detailTracks,
-                            libraryLoading = detailLibraryLoading,
-                        )
-                    } else {
-                        retainedDetailSnapshot?.takeIf { snapshot ->
-                            snapshot.playlistId == playlistTarget.playlistId
-                        } ?: LegacyPlaylistDetailSnapshot(
-                            playlistId = playlistTarget.playlistId,
-                            playlist = activePlaylist,
-                            title = playlistTarget.title,
-                            tracks = detailTracks,
-                            libraryLoading = detailLibraryLoading,
-                        )
+                onRootExitEdit = {
+                    rootEditMode = false
+                    selectedPlaylistIds = emptySet()
+                },
+                onRootDeleteSelected = {
+                    if (selectedPlaylistIds.isNotEmpty()) {
+                        deleteRequest = LegacyPlaylistDeleteRequest.RootSelected
                     }
-                    LegacyPlaylistDetailPage(
-                        active = active && !addMode,
-                        playlist = detailSnapshot.playlist,
-                        title = detailSnapshot.title,
-                        tracks = detailSnapshot.tracks,
-                        libraryLoading = detailSnapshot.libraryLoading,
-                        editMode = detailEditMode,
-                        selectedTrackIds = selectedTrackIds,
+                },
+                onDetailBack = {
+                    target = null
+                    detailEditMode = false
+                    addMode = false
+                    selectedTrackIds = emptySet()
+                    selectedAddSongIds = emptySet()
+                },
+                onDetailEnterEdit = {
+                    detailEditMode = true
+                    selectedTrackIds = emptySet()
+                },
+                onDetailExitEdit = {
+                    detailEditMode = false
+                    selectedTrackIds = emptySet()
+                },
+                onAddModeConfirm = {
+                    val playlistId = target?.playlistId ?: return@LegacyPlaylistTitleArea
+                    val mediaIds = selectedAddSongIds.toList()
+                    if (mediaIds.isEmpty()) {
+                        addMode = false
+                        selectedAddSongIds = emptySet()
+                        return@LegacyPlaylistTitleArea
+                    }
+                    scope.launch {
+                        playlistRepository.addMediaIds(playlistId, mediaIds)
+                        selectedAddSongIds = emptySet()
+                        addMode = false
+                    }
+                },
+                onSearchClick = onSearchClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                LegacyPortPageStackTransition(
+                    secondaryKey = target,
+                    modifier = Modifier.fillMaxSize(),
+                    label = "legacy playlist transition",
+                    predictiveBackProgress = detailPredictiveBackState.progress,
+                    predictiveBackExitConsumed = detailPredictiveBackState.exitConsumed,
+                    onPredictiveBackExitConsumedReset = detailPredictiveBackState::reset,
+                    primaryContent = {
+                        LegacyPlaylistRootPage(
+                            active = active,
+                            playlists = playlists,
+                            editMode = rootEditMode,
+                            selectedPlaylistIds = selectedPlaylistIds,
+                            onCreatePlaylist = {
+                                scope.launch {
+                                    nameDialogRequest = LegacyPlaylistNameDialogRequest.Create(
+                                        initialName = playlistRepository.suggestNextUntitledName(),
+                                    )
+                                }
+                            },
+                            onRenamePlaylist = { playlist ->
+                                nameDialogRequest = LegacyPlaylistNameDialogRequest.Rename(
+                                    playlistId = playlist.id,
+                                    initialName = playlist.name,
+                                )
+                            },
+                            onPlaylistClick = { playlist ->
+                                if (rootEditMode) {
+                                    selectedPlaylistIds = selectedPlaylistIds.togglePlaylistSelection(playlist.id)
+                                } else {
+                                    onLibraryNeeded()
+                                    target = LegacyPlaylistTarget(
+                                        playlistId = playlist.id,
+                                        title = playlist.name,
+                                    )
+                                }
+                            },
+                            onPlaylistSelectionChange = { playlist, selected ->
+                                selectedPlaylistIds = selectedPlaylistIds.withSelection(playlist.id, selected)
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    },
+                    secondaryContent = { playlistTarget ->
+                        val detailSnapshot = if (playlistTarget == target) {
+                            LegacyPlaylistDetailSnapshot(
+                                playlistId = playlistTarget.playlistId,
+                                playlist = activePlaylist,
+                                title = detailTitle,
+                                tracks = detailTracks,
+                                libraryLoading = detailLibraryLoading,
+                            )
+                        } else {
+                            retainedDetailSnapshot?.takeIf { snapshot ->
+                                snapshot.playlistId == playlistTarget.playlistId
+                            } ?: LegacyPlaylistDetailSnapshot(
+                                playlistId = playlistTarget.playlistId,
+                                playlist = activePlaylist,
+                                title = playlistTarget.title,
+                                tracks = detailTracks,
+                                libraryLoading = detailLibraryLoading,
+                            )
+                        }
+                        LegacyPlaylistDetailPage(
+                            active = active && !addMode,
+                            playlist = detailSnapshot.playlist,
+                            title = detailSnapshot.title,
+                            tracks = detailSnapshot.tracks,
+                            libraryLoading = detailSnapshot.libraryLoading,
+                            editMode = detailEditMode,
+                            selectedTrackIds = selectedTrackIds,
+                            browser = browser,
+                            onShuffle = {
+                                if (detailSnapshot.tracks.isEmpty()) {
+                                    return@LegacyPlaylistDetailPage
+                                }
+                                browser.replaceQueueAndPlayShuffled(detailSnapshot.tracks)
+                            },
+                            onDeletePlaylist = {
+                                deleteRequest = LegacyPlaylistDeleteRequest.DetailPlaylist
+                            },
+                            onEditModeChange = { enabled ->
+                                detailEditMode = enabled
+                                selectedTrackIds = emptySet()
+                            },
+                            onAddOrRemoveClick = {
+                                if (selectedTrackIds.isEmpty()) {
+                                    onLibraryNeeded()
+                                    addMode = true
+                                    selectedAddSongIds = emptySet()
+                                } else {
+                                    deleteRequest = LegacyPlaylistDeleteRequest.DetailTracks
+                                }
+                            },
+                            onToggleAll = { checked ->
+                                selectedTrackIds = if (checked) {
+                                    detailSnapshot.tracks.map(MediaItem::mediaId).toSet()
+                                } else {
+                                    emptySet()
+                                }
+                            },
+                            onReorderTracks = { orderedMediaIds ->
+                                val playlistId = target?.playlistId ?: return@LegacyPlaylistDetailPage
+                                scope.launch {
+                                    playlistRepository.reorderVisibleMediaIds(playlistId, orderedMediaIds)
+                                }
+                            },
+                            onTrackSelectionChange = { mediaId, selected ->
+                                selectedTrackIds = selectedTrackIds.withSelection(mediaId, selected)
+                            },
+                            onTrackClick = { item, index ->
+                                if (detailEditMode) {
+                                    selectedTrackIds = selectedTrackIds.togglePlaylistSelection(item.mediaId)
+                                    return@LegacyPlaylistDetailPage
+                                }
+                                browser.replaceQueueAndPlay(detailSnapshot.tracks, index)
+                            },
+                            onTrackMoreClick = onTrackMoreClick,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    },
+                )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = addMode && target != null,
+                    modifier = Modifier.fillMaxSize(),
+                    enter = slideInVertically(
+                        animationSpec = tween(
+                            durationMillis = PlaylistAddModeSlideMillis,
+                            easing = PlaylistAddModeEasing,
+                        ),
+                        initialOffsetY = { it },
+                    ),
+                    exit = slideOutVertically(
+                        animationSpec = tween(
+                            durationMillis = PlaylistAddModeSlideMillis,
+                            easing = PlaylistAddModeEasing,
+                        ),
+                        targetOffsetY = { it },
+                    ),
+                ) {
+                    LegacyPlaylistAddSongsPage(
+                        active = active && addMode,
+                        songs = addableSongs,
+                        libraryLoading = !libraryLoaded,
+                        selectedSongIds = selectedAddSongIds,
                         browser = browser,
-                        onShuffle = {
-                            if (detailSnapshot.tracks.isEmpty()) {
-                                return@LegacyPlaylistDetailPage
-                            }
-                            browser.replaceQueueAndPlayShuffled(detailSnapshot.tracks)
+                        onSongSelectionChange = { mediaId, selected ->
+                            selectedAddSongIds = selectedAddSongIds.withSelection(mediaId, selected)
                         },
-                        onDeletePlaylist = {
-                            deleteRequest = LegacyPlaylistDeleteRequest.DetailPlaylist
-                        },
-                        onEditModeChange = { enabled ->
-                            detailEditMode = enabled
-                            selectedTrackIds = emptySet()
-                        },
-                        onAddOrRemoveClick = {
-                            if (selectedTrackIds.isEmpty()) {
-                                onLibraryNeeded()
-                                addMode = true
-                                selectedAddSongIds = emptySet()
-                            } else {
-                                deleteRequest = LegacyPlaylistDeleteRequest.DetailTracks
-                            }
-                        },
-                        onToggleAll = { checked ->
-                            selectedTrackIds = if (checked) {
-                                detailSnapshot.tracks.map(MediaItem::mediaId).toSet()
-                            } else {
-                                emptySet()
-                            }
-                        },
-                        onReorderTracks = { orderedMediaIds ->
-                            val playlistId = target?.playlistId ?: return@LegacyPlaylistDetailPage
-                            scope.launch {
-                                playlistRepository.reorderVisibleMediaIds(playlistId, orderedMediaIds)
-                            }
-                        },
-                        onTrackSelectionChange = { mediaId, selected ->
-                            selectedTrackIds = selectedTrackIds.withSelection(mediaId, selected)
-                        },
-                        onTrackClick = { item, index ->
-                            if (detailEditMode) {
-                                selectedTrackIds = selectedTrackIds.togglePlaylistSelection(item.mediaId)
-                                return@LegacyPlaylistDetailPage
-                            }
-                            browser.replaceQueueAndPlay(detailSnapshot.tracks, index)
-                        },
-                        onTrackMoreClick = onTrackMoreClick,
                         modifier = Modifier.fillMaxSize(),
                     )
-                },
-            )
-            androidx.compose.animation.AnimatedVisibility(
-                visible = addMode && target != null,
-                modifier = Modifier.fillMaxSize(),
-                enter = slideInVertically(
-                    animationSpec = tween(
-                        durationMillis = PlaylistAddModeSlideMillis,
-                        easing = PlaylistAddModeEasing,
-                    ),
-                    initialOffsetY = { it },
-                ),
-                exit = slideOutVertically(
-                    animationSpec = tween(
-                        durationMillis = PlaylistAddModeSlideMillis,
-                        easing = PlaylistAddModeEasing,
-                    ),
-                    targetOffsetY = { it },
-                ),
-            ) {
-                LegacyPlaylistAddSongsPage(
-                    active = active && addMode,
-                    songs = addableSongs,
-                    libraryLoading = !libraryLoaded,
-                    selectedSongIds = selectedAddSongIds,
-                    browser = browser,
-                    onSongSelectionChange = { mediaId, selected ->
-                        selectedAddSongIds = selectedAddSongIds.withSelection(mediaId, selected)
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                }
             }
         }
+        LegacyPortTitleBarShadow(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = titleAreaHeight)
+                .fillMaxWidth()
+                .height(titleShadowHeight)
+                .zIndex(1f),
+        )
     }
 
     LegacyPlaylistNameDialogOverlay(

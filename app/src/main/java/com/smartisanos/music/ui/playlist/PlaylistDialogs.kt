@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -516,7 +517,11 @@ private fun PlaylistPickerRow(
             overflow = TextOverflow.Ellipsis,
         )
         androidx.compose.material3.Text(
-            text = stringResource(R.string.playlist_song_count, playlist.songCount),
+            text = pluralStringResource(
+                R.plurals.playlist_song_count,
+                playlist.songCount,
+                playlist.songCount,
+            ),
             style = PlaylistPickerSubtitleStyle,
             modifier = Modifier.padding(top = 2.dp),
         )

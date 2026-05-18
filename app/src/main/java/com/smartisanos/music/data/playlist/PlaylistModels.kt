@@ -1,7 +1,5 @@
 package com.smartisanos.music.data.playlist
 
-internal const val DefaultPlaylistBaseName = "未命名播放列表"
-
 data class UserPlaylistSummary(
     val id: String,
     val name: String,
@@ -50,7 +48,7 @@ internal fun normalizePlaylistName(name: String): String {
 
 internal fun nextUntitledPlaylistName(
     existingNames: Collection<String>,
-    baseName: String = DefaultPlaylistBaseName,
+    baseName: String,
 ): String {
     val occupiedNumbers = existingNames.asSequence()
         .map(::normalizePlaylistName)

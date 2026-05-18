@@ -9,7 +9,7 @@ import android.widget.HeaderViewListAdapter
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
-import androidx.annotation.StringRes
+import androidx.annotation.PluralsRes
 import com.smartisanos.music.R
 
 internal const val LegacyPortListFooterThreshold = 8
@@ -76,12 +76,12 @@ internal fun ListView.addLegacyPortListFooter(): LegacyPortListFooterView {
 }
 
 internal fun ListView.bindLegacyPortListFooter(
-    @StringRes textRes: Int,
+    @PluralsRes pluralsRes: Int,
     count: Int,
     visible: Boolean = count >= LegacyPortListFooterThreshold,
 ) {
     (getTag(R.id.legacy_port_list_footer) as? LegacyPortListFooterView)
-        ?.bind(context.getString(textRes, count), visible)
+        ?.bind(context.resources.getQuantityString(pluralsRes, count, count), visible)
 }
 
 internal inline fun <reified T> ListView.legacyWrappedAdapter(): T? {

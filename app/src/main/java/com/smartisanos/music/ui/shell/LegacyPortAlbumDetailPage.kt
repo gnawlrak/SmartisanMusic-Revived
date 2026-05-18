@@ -120,7 +120,7 @@ internal fun LegacyPortAlbumDetailPage(
                     },
                 )
                 root.listView.bindLegacyPortListFooter(
-                    textRes = R.string.track_count,
+                    pluralsRes = R.plurals.track_count,
                     count = album.songs.size,
                 )
 

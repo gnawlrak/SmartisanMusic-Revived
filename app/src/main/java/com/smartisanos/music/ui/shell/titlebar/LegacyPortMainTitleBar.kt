@@ -115,7 +115,7 @@ private fun TitleBar.setupLegacyMainTitleBar(
     removeAllLeftViews()
     removeAllRightViews()
     setShadowVisible(false)
-    setCenterText(albumDetailTitle ?: artistTarget?.title ?: destination.label)
+    setCenterText(albumDetailTitle ?: artistTarget?.title ?: context.getString(destination.labelRes))
 
     if (destination == MusicDestination.Album && albumDetailTitle != null) {
         addLeftImageView(R.drawable.standard_icon_back_selector).apply {

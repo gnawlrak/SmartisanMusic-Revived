@@ -1,41 +1,42 @@
 package com.smartisanos.music.ui.navigation
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import com.smartisanos.music.R
 
 enum class MusicDestination(
     val route: String,
-    val label: String,
+    @param:StringRes val labelRes: Int,
     @param:DrawableRes val iconRes: Int,
     @param:DrawableRes val selectedIconRes: Int,
 ) {
     Playlist(
         route = "playlist",
-        label = "播放列表",
+        labelRes = R.string.tab_play_list,
         iconRes = R.drawable.tabbar_playlist,
         selectedIconRes = R.drawable.tabbar_playlist_down,
     ),
     Artist(
         route = "artist",
-        label = "艺术家",
+        labelRes = R.string.tab_artist,
         iconRes = R.drawable.tabbar_artist,
         selectedIconRes = R.drawable.tabbar_artist_down,
     ),
     Album(
         route = "album",
-        label = "专辑",
+        labelRes = R.string.tab_album,
         iconRes = R.drawable.tabbar_album,
         selectedIconRes = R.drawable.tabbar_album_down,
     ),
     Songs(
         route = "songs",
-        label = "歌曲",
+        labelRes = R.string.tab_song,
         iconRes = R.drawable.tabbar_song,
         selectedIconRes = R.drawable.tabbar_song_down,
     ),
     More(
         route = "more",
-        label = "更多",
+        labelRes = R.string.tab_more,
         iconRes = R.drawable.tabbar_more,
         selectedIconRes = R.drawable.tabbar_more_down,
     );

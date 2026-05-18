@@ -136,7 +136,7 @@ internal fun LegacyPortSongsPage(
             val quickBar = root.findViewById<QuickBarEx>(R.id.main_quickbar)
             listView.visibility = if (hasSongs || libraryLoaded) View.VISIBLE else View.INVISIBLE
             listView.bindLegacyPortListFooter(
-                textRes = R.string.track_count,
+                pluralsRes = R.plurals.track_count,
                 count = sortedSongs.size,
             )
             val adapter = listView.legacyWrappedAdapter<LegacySongsAdapter>() ?: LegacySongsAdapter().also { adapter ->

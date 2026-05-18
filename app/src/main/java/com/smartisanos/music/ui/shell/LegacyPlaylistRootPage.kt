@@ -200,7 +200,7 @@ private class LegacyPlaylistRootView(context: Context) : FrameLayout(context) {
         blankView.visibility = if (playlists.isEmpty()) View.VISIBLE else View.GONE
         listView.visibility = if (playlists.isEmpty()) View.INVISIBLE else View.VISIBLE
         listView.bindLegacyPortListFooter(
-            textRes = R.string.playlists_count,
+            pluralsRes = R.plurals.playlists_count,
             count = playlists.size,
             visible = playlists.size >= PlaylistRootFooterThreshold,
         )

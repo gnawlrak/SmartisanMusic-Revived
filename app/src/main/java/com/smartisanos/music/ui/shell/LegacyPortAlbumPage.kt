@@ -705,7 +705,11 @@ private class LegacyAlbumFooterView(context: Context) : LinearLayout(context) {
     }
 
     fun bind(albumCount: Int, visible: Boolean) {
-        content.text = context.getString(R.string.legacy_album_count, albumCount)
+        content.text = context.resources.getQuantityString(
+            R.plurals.legacy_album_count,
+            albumCount,
+            albumCount,
+        )
         content.visibility = if (visible) View.VISIBLE else View.GONE
     }
 }

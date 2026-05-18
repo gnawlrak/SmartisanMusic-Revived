@@ -181,7 +181,7 @@ private class LegacyPlaylistDetailRootView(context: Context) : LinearLayout(cont
             setEmptyVisible(tracks.isEmpty())
         }
         listView.bindLegacyPortListFooter(
-            textRes = R.string.track_count,
+            pluralsRes = R.plurals.track_count,
             count = tracks.size,
         )
         val previousEditMode = listView.getTag(R.id.elvitem) as? Boolean

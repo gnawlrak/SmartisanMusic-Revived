@@ -5,11 +5,13 @@ import org.junit.Test
 
 class PlaylistModelsTest {
 
+    private val defaultPlaylistBaseName = "未命名播放列表"
+
     @Test
     fun `nextUntitledPlaylistName starts from one`() {
         assertEquals(
             "未命名播放列表 1",
-            nextUntitledPlaylistName(emptyList()),
+            nextUntitledPlaylistName(emptyList(), defaultPlaylistBaseName),
         )
     }
 
@@ -23,6 +25,7 @@ class PlaylistModelsTest {
                     "未命名播放列表 2",
                     "收藏夹",
                 ),
+                defaultPlaylistBaseName,
             ),
         )
     }
@@ -36,6 +39,7 @@ class PlaylistModelsTest {
                     "未命名播放列表 1",
                     "未命名播放列表 3",
                 ),
+                defaultPlaylistBaseName,
             ),
         )
     }

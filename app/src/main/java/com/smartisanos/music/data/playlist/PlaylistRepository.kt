@@ -2,11 +2,13 @@ package com.smartisanos.music.data.playlist
 
 import android.content.Context
 import androidx.room.withTransaction
+import com.smartisanos.music.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 class PlaylistRepository private constructor(
+    private val appContext: Context,
     private val database: PlaylistDatabase,
 ) {
 
@@ -41,7 +43,10 @@ class PlaylistRepository private constructor(
     }
 
     suspend fun suggestNextUntitledName(): String {
-        return nextUntitledPlaylistName(playlistDao.getPlaylistNames())
+        return nextUntitledPlaylistName(
+            existingNames = playlistDao.getPlaylistNames(),
+            baseName = appContext.getString(R.string.playlist_default_name),
+        )
     }
 
     suspend fun createPlaylist(
@@ -245,8 +250,10 @@ class PlaylistRepository private constructor(
 
         fun getInstance(context: Context): PlaylistRepository {
             return instance ?: synchronized(this) {
+                val appContext = context.applicationContext
                 instance ?: PlaylistRepository(
-                    PlaylistDatabase.getInstance(context.applicationContext),
+                    appContext,
+                    PlaylistDatabase.getInstance(appContext),
                 ).also { instance = it }
             }
         }

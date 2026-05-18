@@ -260,7 +260,7 @@ fun PlaybackQueueScreen(
         ) {
             state.currentTrack?.let { currentTrack ->
                 item(key = "header_now_playing") {
-                    QueueSectionHeader(title = "正在播放")
+                    QueueSectionHeader(title = stringResource(R.string.playback_queue_current))
                 }
                 item(key = "current_track") {
                     CurrentPlayingCard(
@@ -274,7 +274,7 @@ fun PlaybackQueueScreen(
             if (upcomingTracks.isNotEmpty()) {
                 item(key = "header_upcoming") {
                     QueueSectionHeaderWithClear(
-                        title = "继续播放",
+                        title = stringResource(R.string.playback_queue_continue),
                         onClearClick = {
                             endDragging()
                             onClearUpcomingClick()
@@ -357,7 +357,7 @@ private fun PlaybackQueueTopBar(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "播放队列",
+                    text = stringResource(R.string.playback_queue),
                     style = QueueTopBarTitleStyle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -367,7 +367,7 @@ private fun PlaybackQueueTopBar(
                 PressedDrawableButton(
                     normalRes = R.drawable.btn_playing_list,
                     pressedRes = R.drawable.btn_playing_list_down,
-                    contentDescription = "返回全屏播放页",
+                    contentDescription = stringResource(R.string.playback_queue_return_to_player),
                     modifier = Modifier
                         .width(40.dp)
                         .height(30.dp),

@@ -548,7 +548,7 @@ private class LegacyLovedSongsAdapter(
 
     fun updateFooter(listView: ListView) {
         listView.bindLegacyPortListFooter(
-            textRes = R.string.track_count,
+            pluralsRes = R.plurals.track_count,
             count = entries.size,
         )
     }

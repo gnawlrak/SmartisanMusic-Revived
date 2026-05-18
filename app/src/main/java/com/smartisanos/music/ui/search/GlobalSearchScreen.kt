@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -652,12 +653,22 @@ private fun androidx.compose.foundation.lazy.LazyListScope.appendArtistResults(
         items = artists,
         key = { artist -> "artist-${artist.id}" },
     ) { artist ->
+        val albumCount = pluralStringResource(
+            R.plurals.legacy_album_count,
+            artist.albumCount,
+            artist.albumCount,
+        )
+        val trackCount = pluralStringResource(
+            R.plurals.track_count,
+            artist.trackCount,
+            artist.trackCount,
+        )
         SearchEntityRow(
             title = artist.name,
             subtitle = stringResource(
                 R.string.artist_album_song_count,
-                artist.albumCount,
-                artist.trackCount,
+                albumCount,
+                trackCount,
             ),
             representative = artist.representative,
             titleColor = SearchResultHighlightColor,

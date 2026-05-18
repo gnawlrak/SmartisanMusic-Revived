@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.media3.common.MediaItem
@@ -118,6 +119,7 @@ internal fun LegacyPortFolderPage(
     val exclusionsStore = remember(context.applicationContext) {
         LibraryExclusionsStore(context.applicationContext)
     }
+    val directoryTitle = stringResource(R.string.tab_directory)
     val exclusions by exclusionsStore.exclusions.collectAsState(initial = LibraryExclusions())
     val hasPermission = remember(context) {
         hasAudioPermission(context)
@@ -213,7 +215,7 @@ internal fun LegacyPortFolderPage(
                         modifier = Modifier.fillMaxSize(),
                     ) { titleBar ->
                         titleBar.setupLegacyFolderTitleBar(
-                            title = context.getString(R.string.tab_directory),
+                            title = directoryTitle,
                             editMode = editMode,
                             selectedCount = selectedDirectoryKeys.size,
                             libraryRefreshing = libraryRefreshing,
@@ -674,7 +676,11 @@ private class LegacyFolderDirectoryAdapter : BaseAdapter() {
         } else {
             entry.visibleCount
         }
-        val trackCount = context.getString(R.string.album_track_count, count)
+        val trackCount = context.resources.getQuantityString(
+            R.plurals.album_track_count,
+            count,
+            count,
+        )
         val bright = view.findViewById<View>(R.id.ll_bright)
         val arrow = view.findViewById<View>(R.id.arrow)
         val eye = view.findViewById<ImageView>(R.id.iv_right_view)
@@ -967,7 +973,7 @@ private class LegacyFolderDetailRootView(context: Context) : LinearLayout(contex
         blankView.visibility = if (tracks.isEmpty()) View.VISIBLE else View.GONE
         listView.visibility = if (tracks.isEmpty()) View.INVISIBLE else View.VISIBLE
         listView.bindLegacyPortListFooter(
-            textRes = R.string.track_count,
+            pluralsRes = R.plurals.track_count,
             count = tracks.size,
         )
         val adapter = listView.legacyWrappedAdapter<LegacyFolderTrackAdapter>()

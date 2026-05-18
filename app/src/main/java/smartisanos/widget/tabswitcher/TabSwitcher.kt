@@ -104,11 +104,12 @@ class TabSwitcher @JvmOverloads constructor(
         destinationViews.clear()
 
         destinations.forEach { destination ->
+            val label = context.getString(destination.labelRes)
             val itemView = BottomTabItemView(context).apply {
                 id = View.generateViewId()
                 setDrawableResource(destination.tabIconSelectorRes())
-                text = destination.label
-                contentDescription = destination.label
+                text = label
+                contentDescription = label
                 setTextColor(context.getColorStateList(R.color.tab_bar_text_color))
                 setOnCheckedChangeListener { view, checked ->
                     if (!checked || suppressSelectionCallback) {

@@ -11,6 +11,9 @@
     <string name="collect_music">我喜欢的歌曲</string>
     <string name="tab_directory">文件夹</string>
     <string name="tab_play_list">播放列表</string>
+    <string name="tab_artist">艺术家</string>
+    <string name="tab_album">专辑</string>
+    <string name="tab_song">歌曲</string>
     <string name="new_playlist">新建播放列表</string>
     <string name="no_playlist">暂无播放列表</string>
     <string name="create_playlist">可以在此创建自己的播放列表</string>
@@ -41,8 +44,12 @@
     <string name="playlist_remove_song_confirm">确认删除选中的歌曲?</string>
     <string name="delete_song_title_text">确认删除选中的歌曲?</string>
     <string name="dialog_delete_conform">确认删除</string>
-    <string name="playlist_song_count">%1$d 首歌曲</string>
-    <string name="playlists_count">%1$d 个播放列表</string>
+    <plurals name="playlist_song_count">
+        <item quantity="other">%1$d 首歌曲</item>
+    </plurals>
+    <plurals name="playlists_count">
+        <item quantity="other">%1$d 个播放列表</item>
+    </plurals>
     <string name="delete_track">移除歌曲</string>
     <string name="s_random_play">随机播放</string>
     <string name="s_remove_track_list">删除列表</string>
@@ -62,11 +69,17 @@
     <string name="unknown_album">未知专辑</string>
     <string name="many_artist">多位艺术家</string>
     <string name="unknown_style">未知风格</string>
-    <string name="album_track_count">%1$d 首歌曲</string>
-    <string name="legacy_album_count">%1$d 张专辑</string>
-    <string name="legacy_artist_count">%1$d 位艺术家</string>
+    <plurals name="album_track_count">
+        <item quantity="other">%1$d 首歌曲</item>
+    </plurals>
+    <plurals name="legacy_album_count">
+        <item quantity="other">%1$d 张专辑</item>
+    </plurals>
+    <plurals name="legacy_artist_count">
+        <item quantity="other">%1$d 位艺术家</item>
+    </plurals>
     <string name="artist_all_songs">所有歌曲</string>
-    <string name="artist_album_song_count">%1$d 张专辑，%2$d 首歌曲</string>
+    <string name="artist_album_song_count">%1$s，%2$s</string>
     <string name="listview_header_list">列表</string>
     <string name="listview_header_tile">平铺</string>
     <string name="tab_local_search">搜索</string>
@@ -75,7 +88,9 @@
     <string name="library_refreshing">扫描中</string>
     <string name="library_refresh_success">媒体库已刷新</string>
     <string name="library_refresh_failed">媒体库刷新失败</string>
-    <string name="folder_count">%1$d 个文件夹</string>
+    <plurals name="folder_count">
+        <item quantity="other">%1$d 个文件夹</item>
+    </plurals>
     <string name="dialog_remove_song_by_dor">确认要删除选中的文件夹?</string>
     <string name="hiden_dir">已隐藏</string>
     <string name="shown_dir">已显示</string>
@@ -102,7 +117,9 @@
     <string name="sort_title">歌曲排序</string>
     <string name="sort_by_saved_time">最近添加</string>
     <string name="sort_by_name">歌曲名称</string>
-    <string name="track_count">%1$d 首歌曲</string>
+    <plurals name="track_count">
+        <item quantity="other">%1$d 首歌曲</item>
+    </plurals>
     <string name="uncollect_song_dialog_title">确认取消喜欢选中的歌曲？</string>
     <string name="uncollect_song_confirm">取消喜欢</string>
     <string name="pause">暂停</string>
@@ -126,6 +143,7 @@
     <string name="playback_queue_current">正在播放</string>
     <string name="playback_queue_continue">继续播放</string>
     <string name="playback_left_btn_content_description">离开播放页面</string>
+    <string name="playback_queue_return_to_player">返回全屏播放页</string>
     <string name="playqueue_btn_show_content_description">显示播放队列</string>
     <string name="playqueue_btn_hide_content_description">隐藏播放队列</string>
     <string name="str_clear_play_task">清空播放队列</string>
@@ -183,7 +201,7 @@
     <string name="audio_permission_action">授予权限</string>
     <string name="audio_permission_settings">打开设置</string>
     <string name="toggle_directory_visibility">隐藏显示</string>
-    <string name="legacy_artist_summary">%1$d 张专辑，%2$d 首歌曲</string>
+    <string name="legacy_artist_summary">%1$s，%2$s</string>
     <plurals name="legacy_album_song_count">
         <item quantity="other">%1$d 首歌曲，%2$s</item>
     </plurals>

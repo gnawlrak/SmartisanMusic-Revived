@@ -379,7 +379,11 @@ private class LegacyArtistAlbumListAdapter(
             setTextColor(if (selected) Color.rgb(0xe6, 0x40, 0x40) else LegacyArtistPrimaryTextColor)
         }
         view.findViewById<TextView>(R.id.listview_item_line_two)?.apply {
-            text = context.getString(R.string.album_track_count, item.trackCount)
+            text = context.resources.getQuantityString(
+                R.plurals.album_track_count,
+                item.trackCount,
+                item.trackCount,
+            )
             setTextColor(LegacyArtistSecondaryTextColor)
         }
     }
@@ -534,7 +538,7 @@ private fun LegacyPortArtistAllSongsPage(
                 },
             )
             root.listView.bindLegacyPortListFooter(
-                textRes = R.string.track_count,
+                pluralsRes = R.plurals.track_count,
                 count = sortedSongs.size,
             )
             val adapter = root.listView.legacyAlbumTrackAdapter()

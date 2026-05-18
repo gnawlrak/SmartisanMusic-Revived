@@ -72,7 +72,7 @@ private class LegacyArtistOverviewRoot(context: Context) : FrameLayout(context) 
 
     fun bindFooter(artistCount: Int) {
         listView.bindLegacyPortListFooter(
-            textRes = R.string.legacy_artist_count,
+            pluralsRes = R.plurals.legacy_artist_count,
             count = artistCount,
             visible = artistCount >= LegacyArtistListFooterThreshold,
         )
@@ -109,10 +109,20 @@ private class LegacyArtistOverviewAdapter : BaseAdapter() {
             setTextColor(LegacyArtistPrimaryTextColor)
         }
         view.findViewById<TextView>(R.id.listview_item_line_two)?.apply {
+            val albumCount = parent.context.resources.getQuantityString(
+                R.plurals.legacy_album_count,
+                artist.albumCount,
+                artist.albumCount,
+            )
+            val trackCount = parent.context.resources.getQuantityString(
+                R.plurals.track_count,
+                artist.trackCount,
+                artist.trackCount,
+            )
             text = parent.context.getString(
                 R.string.legacy_artist_summary,
-                artist.albumCount,
-                artist.trackCount,
+                albumCount,
+                trackCount,
             )
             setTextColor(LegacyArtistSecondaryTextColor)
         }

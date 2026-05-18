@@ -4,9 +4,6 @@ import android.animation.Animator
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
-import android.content.Context
-import android.graphics.Typeface
-import android.view.Gravity
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.animation.AlphaAnimation
@@ -15,41 +12,9 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.LayoutAnimationController
 import android.widget.BaseAdapter
 import android.widget.GridView
-import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.TextView
 import com.smartisanos.music.R
 import com.smartisanos.music.ui.album.AlbumViewMode
-
-internal class LegacyArtistFooterView(context: Context) : LinearLayout(context) {
-    private val content = TextView(context).apply {
-        gravity = Gravity.CENTER
-        setTextColor(LegacyArtistFooterTextColor)
-        textSize = 15f
-        typeface = Typeface.DEFAULT
-        setBackgroundResource(R.drawable.account_background)
-        val verticalPadding = (8f * resources.displayMetrics.density).toInt()
-        setPadding(0, verticalPadding, 0, verticalPadding)
-    }
-
-    init {
-        orientation = VERTICAL
-        setBackgroundResource(R.drawable.account_background)
-        addView(
-            content,
-            LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.WRAP_CONTENT,
-            ),
-        )
-        bind(text = "", visible = false)
-    }
-
-    fun bind(text: String, visible: Boolean) {
-        content.text = text
-        content.visibility = if (visible) View.VISIBLE else View.GONE
-    }
-}
 
 internal class LegacyArtistAlbumViewSwitchAnimator {
     private var animator: Animator? = null

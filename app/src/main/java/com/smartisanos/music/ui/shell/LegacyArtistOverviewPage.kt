@@ -48,7 +48,6 @@ internal fun LegacyPortArtistOverviewPage(
 
 private class LegacyArtistOverviewRoot(context: Context) : FrameLayout(context) {
     val listView: ListView
-    private val footer = LegacyArtistFooterView(context)
 
     init {
         setBackgroundResource(R.drawable.account_background)
@@ -60,7 +59,7 @@ private class LegacyArtistOverviewRoot(context: Context) : FrameLayout(context) 
             cacheColorHint = Color.TRANSPARENT
             setBackgroundResource(R.drawable.account_background)
             layoutAnimation = AnimationUtils.loadLayoutAnimation(context, R.anim.list_anim_layout)
-            addFooterView(footer, null, false)
+            addLegacyPortListFooter()
         }
         addView(
             listView,
@@ -72,8 +71,9 @@ private class LegacyArtistOverviewRoot(context: Context) : FrameLayout(context) 
     }
 
     fun bindFooter(artistCount: Int) {
-        footer.bind(
-            text = context.getString(R.string.legacy_artist_count, artistCount),
+        listView.bindLegacyPortListFooter(
+            textRes = R.string.legacy_artist_count,
+            count = artistCount,
             visible = artistCount >= LegacyArtistListFooterThreshold,
         )
     }

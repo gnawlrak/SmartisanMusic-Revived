@@ -57,7 +57,6 @@ internal const val ArtistAlbumSwitchStaggerMillis = 10L
 internal const val LegacyArtistListFooterThreshold = 8
 internal val LegacyArtistPrimaryTextColor = Color.rgb(0x35, 0x35, 0x39)
 internal val LegacyArtistSecondaryTextColor = Color.rgb(0xa4, 0xa7, 0xac)
-internal val LegacyArtistFooterTextColor = Color.rgb(0xbc, 0xbc, 0xbc)
 
 internal sealed interface LegacyArtistTarget {
     val artistId: String

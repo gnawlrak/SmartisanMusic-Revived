@@ -266,6 +266,9 @@ internal class LegacyArtistAlbumsRoot(context: Context) : FrameLayout(context) {
             selector = ColorDrawable(Color.TRANSPARENT)
             cacheColorHint = Color.TRANSPARENT
             setBackgroundColor(Color.WHITE)
+            scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_ALWAYS
             verticalSpacing = resources.getDimensionPixelSize(R.dimen.gridview_verticalSpacing)
             horizontalSpacing = resources.getDimensionPixelSize(R.dimen.gridview_horizontalSpacing)
             setPadding(

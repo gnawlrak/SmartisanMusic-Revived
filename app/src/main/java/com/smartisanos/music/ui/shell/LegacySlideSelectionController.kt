@@ -28,12 +28,15 @@ internal data class LegacySlideSelectionChange(
 )
 
 internal class LegacySlideSelectionModel {
-    private var lastPosition = ListView.INVALID_POSITION
+    private var anchorPosition = ListView.INVALID_POSITION
     private var targetSelected = false
-    private val visitedKeys = linkedSetOf<String>()
+    private var expandedFromAnchor = false
+    private val activeKeys = linkedSetOf<String>()
+    private val baselineSelected = mutableMapOf<String, Boolean>()
+    private val currentSelected = mutableMapOf<String, Boolean>()
 
     val active: Boolean
-        get() = lastPosition != ListView.INVALID_POSITION
+        get() = anchorPosition != ListView.INVALID_POSITION
 
     fun begin(
         position: Int,
@@ -41,9 +44,10 @@ internal class LegacySlideSelectionModel {
         selected: Boolean,
     ) {
         reset()
-        lastPosition = position
+        anchorPosition = position
         targetSelected = !selected
-        visitedKeys.clear()
+        baselineSelected[key] = selected
+        currentSelected[key] = selected
     }
 
     fun changesThrough(
@@ -54,26 +58,52 @@ internal class LegacySlideSelectionModel {
         if (!active || position == ListView.INVALID_POSITION) {
             return emptyList()
         }
-        val range = if (position >= lastPosition) {
-            lastPosition..position
-        } else {
-            lastPosition downTo position
+        if (position != anchorPosition) {
+            expandedFromAnchor = true
         }
+        val range = if (position == anchorPosition && expandedFromAnchor) {
+            emptyList()
+        } else if (position >= anchorPosition) {
+            anchorPosition..position
+        } else {
+            anchorPosition downTo position
+        }
+        val nextKeys = linkedSetOf<String>()
         val changes = mutableListOf<LegacySlideSelectionChange>()
         range.forEach { nextPosition ->
             val key = keyAtPosition(nextPosition) ?: return@forEach
-            if (visitedKeys.add(key) && isSelected(key) != targetSelected) {
+            nextKeys += key
+            baselineSelected.getOrPut(key) { isSelected(key) }
+        }
+        activeKeys.filter { key -> key !in nextKeys }.asReversed().forEach { key ->
+            val baseline = baselineSelected.getValue(key)
+            if (currentSelectionOf(key) != baseline) {
+                changes += LegacySlideSelectionChange(key, baseline)
+            }
+            currentSelected[key] = baseline
+        }
+        nextKeys.filter { key -> key !in activeKeys }.forEach { key ->
+            if (currentSelectionOf(key) != targetSelected) {
                 changes += LegacySlideSelectionChange(key, targetSelected)
             }
+            currentSelected[key] = targetSelected
         }
-        lastPosition = position
+        activeKeys.clear()
+        activeKeys += nextKeys
         return changes
     }
 
     fun reset() {
-        lastPosition = ListView.INVALID_POSITION
+        anchorPosition = ListView.INVALID_POSITION
         targetSelected = false
-        visitedKeys.clear()
+        expandedFromAnchor = false
+        activeKeys.clear()
+        baselineSelected.clear()
+        currentSelected.clear()
+    }
+
+    private fun currentSelectionOf(key: String): Boolean {
+        return currentSelected[key] ?: baselineSelected.getValue(key)
     }
 }
 

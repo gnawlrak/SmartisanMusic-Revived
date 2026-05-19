@@ -10,8 +10,8 @@
 
     <com.smartisanos.music.ui.widgets.CustomCheckBox
         android:id="@id/cb_del"
-        android:layout_width="@dimen/listview_item_height"
-        android:layout_height="@dimen/listview_item_height"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_centerVertical="true"
         android:layout_marginLeft="@dimen/check_box_margin_left"
         android:button="@drawable/check_box_selector"

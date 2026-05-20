@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import com.smartisanos.music.R
+import kotlin.math.max
 
 class TitleBar @JvmOverloads constructor(
     context: Context,
@@ -29,6 +30,8 @@ class TitleBar @JvmOverloads constructor(
     private val imageViewSize = resources.getDimensionPixelSize(R.dimen.standard_icon_size)
     private val marginEdge = resources.getDimensionPixelSize(R.dimen.bar_margin_edge)
     private val marginView = resources.getDimensionPixelSize(R.dimen.title_bar_margin_view)
+    private val titleBarCenterLimit =
+        resources.getDimensionPixelSize(R.dimen.title_bar_center_limite)
 
     init {
         setBackgroundColor(context.getColor(android.R.color.white))
@@ -166,10 +169,66 @@ class TitleBar @JvmOverloads constructor(
     fun getRightViewByIndex(index: Int): View? = rightViews.filter { it.visibility != View.GONE }.getOrNull(index)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val titleBarHeightSpec = MeasureSpec.makeMeasureSpec(titleBarHeight, MeasureSpec.EXACTLY)
         super.onMeasure(
             widthMeasureSpec,
-            MeasureSpec.makeMeasureSpec(titleBarHeight, MeasureSpec.EXACTLY),
+            titleBarHeightSpec,
         )
+        val activeCenterView = centerView ?: titleView
+        val leftWidth = sideClusterWidth(leftViews)
+        val rightWidth = sideClusterWidth(rightViews)
+        val widestSideWidth = max(leftWidth, rightWidth)
+        val contentWidth = measuredWidth - paddingLeft - paddingRight
+        val centerMaxWidth = if (widestSideWidth == 0) {
+            contentWidth
+        } else {
+            contentWidth - widestSideWidth * 2 + marginView * 2
+        }.coerceAtLeast(0)
+
+        var needsRemeasure = false
+        val shouldHideCenter = widestSideWidth > titleBarCenterLimit || centerMaxWidth == 0
+        val centerVisibility = if (shouldHideCenter) View.GONE else View.VISIBLE
+        if (activeCenterView.visibility != centerVisibility) {
+            activeCenterView.visibility = centerVisibility
+            needsRemeasure = true
+        }
+        if (!shouldHideCenter && limitCenterViewWidth(activeCenterView, centerMaxWidth)) {
+            needsRemeasure = true
+        }
+        if (needsRemeasure) {
+            super.onMeasure(widthMeasureSpec, titleBarHeightSpec)
+        }
+    }
+
+    private fun sideClusterWidth(sideViews: List<View>): Int {
+        var width = 0
+        var visibleCount = 0
+        sideViews.forEach { view ->
+            if (view.visibility != View.GONE) {
+                if (visibleCount == 0) {
+                    width += marginEdge
+                }
+                width += view.measuredWidth + marginView
+                visibleCount += 1
+            }
+        }
+        return width
+    }
+
+    private fun limitCenterViewWidth(view: View, width: Int): Boolean {
+        if (view === titleView) {
+            if (titleView.maxWidth == width) {
+                return false
+            }
+            titleView.maxWidth = width
+            return true
+        }
+        val params = view.layoutParams ?: return false
+        if (params.width == width) {
+            return false
+        }
+        params.width = width
+        return true
     }
 
     private fun newIconView(resId: Int): ImageView {

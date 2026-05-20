@@ -68,7 +68,6 @@ import com.smartisanos.music.playback.extractEmbeddedLyrics
 import com.smartisanos.music.playback.invalidateLibrary
 import com.smartisanos.music.playback.loadEmbeddedLyrics
 import com.smartisanos.music.playback.removeMediaItemsByMediaIds
-import com.smartisanos.music.playback.setScratchAudioSuppressionEnabled
 import com.smartisanos.music.playback.setScratchSeekModeEnabled
 import com.smartisanos.music.playback.startSleepTimer
 import com.smartisanos.music.ui.components.loadEmbeddedArtwork
@@ -306,7 +305,6 @@ fun PlaybackScreen(
         }
         controller?.setScratchSeekModeEnabled(false)
         scratchSoundController.stop()
-        controller?.setScratchAudioSuppressionEnabled(false)
     }
 
     fun finishDiscScratch(
@@ -327,7 +325,6 @@ fun PlaybackScreen(
         }
         controller?.setScratchSeekModeEnabled(false)
         scratchSoundController.stop()
-        controller?.setScratchAudioSuppressionEnabled(false)
     }
 
     fun launchDiscScratchFling(
@@ -429,7 +426,6 @@ fun PlaybackScreen(
     DisposableEffect(controller) {
         val playbackController = controller
         onDispose {
-            playbackController?.setScratchAudioSuppressionEnabled(false)
             playbackController?.setScratchSeekModeEnabled(false)
         }
     }
@@ -654,14 +650,13 @@ fun PlaybackScreen(
     }
 
     val latestScratchWarmupPositionMs by rememberUpdatedState(boundedLivePositionMs)
-    LaunchedEffect(scratchSourceUri, playbackSettings.scratchEnabled, currentVisualPage) {
+    LaunchedEffect(scratchSourceUri, playbackSettings.scratchEnabled) {
         scratchFlingJob?.cancel()
         scratchFlingJob = null
         scratchSoundController.stop()
         if (
             scratchSourceUri == null ||
-            !playbackSettings.scratchEnabled ||
-            currentVisualPage != PlaybackVisualPage.Cover
+            !playbackSettings.scratchEnabled
         ) {
             scratchSoundController.prepareSource(null, 0L)
             return@LaunchedEffect
@@ -866,7 +861,6 @@ fun PlaybackScreen(
                             }
                         }
                         controller?.setScratchSeekModeEnabled(false)
-                        controller?.setScratchAudioSuppressionEnabled(false)
                         scratchSoundController.stop()
                     },
                     onNeedleSeekCancel = {

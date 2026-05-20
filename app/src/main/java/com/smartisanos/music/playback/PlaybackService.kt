@@ -59,7 +59,6 @@ class PlaybackService : MediaLibraryService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     @Volatile private var exclusionsSnapshot: LibraryExclusions = LibraryExclusions()
     private val exclusionsReady = CompletableDeferred<LibraryExclusions>()
-    private var scratchSuppressedPlayerVolume: Float? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -251,21 +250,6 @@ class PlaybackService : MediaLibraryService() {
         )
     }
 
-    private fun setScratchAudioSuppressionEnabled(enabled: Boolean) {
-        val activePlayer = player ?: return
-        if (enabled) {
-            if (scratchSuppressedPlayerVolume == null) {
-                scratchSuppressedPlayerVolume = activePlayer.volume
-                activePlayer.volume = 0f
-            }
-            return
-        }
-        scratchSuppressedPlayerVolume?.let { volume ->
-            activePlayer.volume = volume
-        }
-        scratchSuppressedPlayerVolume = null
-    }
-
     private fun removeHiddenQueuedItems(exclusions: LibraryExclusions) {
         player.removeMediaItemsMatching { item ->
             val relativePath = item.mediaMetadata.extras
@@ -283,7 +267,6 @@ class PlaybackService : MediaLibraryService() {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(ScratchSeekModeCommand)
-                .add(ScratchAudioSuppressionCommand)
                 .add(StartSleepTimerCommand)
                 .add(CancelSleepTimerCommand)
                 .add(RefreshLibraryCommand)
@@ -380,12 +363,6 @@ class PlaybackService : MediaLibraryService() {
                 val enabled = args.getBoolean(ScratchSeekModeEnabledKey, false)
                 player?.setSeekParameters(
                     if (enabled) SeekParameters.EXACT else SeekParameters.DEFAULT,
-                )
-                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
-            }
-            if (customCommand.customAction == ScratchAudioSuppressionAction) {
-                setScratchAudioSuppressionEnabled(
-                    args.getBoolean(ScratchAudioSuppressionEnabledKey, false),
                 )
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }

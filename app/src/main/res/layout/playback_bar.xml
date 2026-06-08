@@ -16,6 +16,6 @@
                 <ImageButton android:layout_gravity="center_vertical" android:id="@id/next_btn" android:tag="binding_5" android:background="@null" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="@string/next_song" />
             </LinearLayout>
         </RelativeLayout>
-        <View android:background="@color/nav_list_line" android:layout_width="match_parent" android:layout_height="@dimen/nav_divider_height" />
+        <View android:id="@+id/playback_bar_bottom_divider" android:background="@color/nav_list_line" android:layout_width="match_parent" android:layout_height="@dimen/nav_divider_height" />
     </LinearLayout>
 </LinearLayout>

@@ -18,6 +18,7 @@ internal fun LegacyPortBottomBar(
     currentDestination: MusicDestination,
     onDestinationSelected: (MusicDestination) -> Unit,
     modifier: Modifier = Modifier,
+    topChromeVisible: Boolean = true,
 ) {
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
@@ -39,6 +40,7 @@ internal fun LegacyPortBottomBar(
                 end = navigationBarEndInsetPx,
                 bottom = navigationBarInsetPx,
             )
+            tabSwitcher.setTopChromeVisible(topChromeVisible)
             tabSwitcher.setOnDestinationSelectedListener(onDestinationSelected)
             tabSwitcher.setCurrentDestination(currentDestination)
         },

@@ -790,6 +790,7 @@ private fun LegacyPortMainShellContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(playbackBarHeight),
+                        bottomDividerVisible = false,
                     )
                 }
                 LegacyPortBottomBar(
@@ -797,6 +798,7 @@ private fun LegacyPortMainShellContent(
                     onDestinationSelected = { destination ->
                         currentDestination = destination
                     },
+                    topChromeVisible = !playbackBarComposed,
                 )
             }
         }

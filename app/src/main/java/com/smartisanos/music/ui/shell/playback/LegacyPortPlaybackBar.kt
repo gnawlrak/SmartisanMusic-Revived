@@ -37,6 +37,7 @@ internal fun LegacyPortPlaybackBar(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
+    bottomDividerVisible: Boolean = true,
 ) {
     AndroidView(
         modifier = modifier,
@@ -53,6 +54,7 @@ internal fun LegacyPortPlaybackBar(
                 onPrevious = onPrevious,
                 onPlayPause = onPlayPause,
                 onNext = onNext,
+                bottomDividerVisible = bottomDividerVisible,
             )
             host.setPlaybackBarShown(
                 shown = shown,
@@ -108,7 +110,11 @@ private class LegacyPlaybackBarHostView(context: Context) : FrameLayout(context)
         onPrevious: () -> Unit,
         onPlayPause: () -> Unit,
         onNext: () -> Unit,
+        bottomDividerVisible: Boolean,
     ) {
+        playbackBar.findViewById<View>(R.id.playback_bar_bottom_divider)?.visibility =
+            if (bottomDividerVisible) View.VISIBLE else View.GONE
+
         val mediaItem = snapshot.mediaItem ?: return
         val mediaId = mediaItem.mediaId
         val isExternalAudio = mediaItem.isExternalAudioLaunchItem()

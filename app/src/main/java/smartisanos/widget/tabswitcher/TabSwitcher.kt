@@ -22,6 +22,8 @@ class TabSwitcher @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : RelativeLayout(context, attrs, defStyleAttr) {
     private val tabContainer: LinearLayout
+    private val topShadowView: ImageView
+    private val topDividerView: View
     private val destinationViews = mutableMapOf<MusicDestination, BottomTabItemView>()
     private var selectedDestination = MusicDestination.Playlist
     private var startInset = 0
@@ -49,10 +51,11 @@ class TabSwitcher @JvmOverloads constructor(
             },
         )
 
+        topShadowView = ImageView(context).apply {
+            setBackgroundResource(R.drawable.tab_bar_shadow)
+        }
         addView(
-            ImageView(context).apply {
-                setBackgroundResource(R.drawable.tab_bar_shadow)
-            },
+            topShadowView,
             LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
@@ -61,10 +64,11 @@ class TabSwitcher @JvmOverloads constructor(
             },
         )
 
+        topDividerView = View(context).apply {
+            setBackgroundColor(context.getColor(R.color.nav_list_line))
+        }
         addView(
-            View(context).apply {
-                setBackgroundColor(context.getColor(R.color.nav_list_line))
-            },
+            topDividerView,
             LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 resources.getDimensionPixelSize(R.dimen.nav_divider_height),
@@ -74,6 +78,12 @@ class TabSwitcher @JvmOverloads constructor(
         )
 
         setDestinations(MusicDestination.entries)
+    }
+
+    fun setTopChromeVisible(visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        topShadowView.visibility = visibility
+        topDividerView.visibility = visibility
     }
 
     fun setNavigationBarInsets(start: Int, end: Int, bottom: Int) {

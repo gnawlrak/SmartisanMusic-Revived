@@ -540,23 +540,11 @@ fun PlaybackScreen(
     } else {
         boundedLivePositionMs
     }
-    val primaryLyricLine = stringResource(R.string.playback_more_primary_line)
-    val secondaryLyricLine = stringResource(R.string.playback_more_secondary_line)
-    val tertiaryLyricLine = stringResource(R.string.playback_more_tertiary_line)
+    val noLyricsLine = stringResource(R.string.playback_more_primary_line)
     val fallbackLyricsLines = remember(
-        title,
-        artist,
-        primaryLyricLine,
-        secondaryLyricLine,
-        tertiaryLyricLine,
+        noLyricsLine,
     ) {
-        listOf(
-            title,
-            artist,
-            primaryLyricLine,
-            secondaryLyricLine,
-            tertiaryLyricLine,
-        )
+        listOf(noLyricsLine)
     }
     val controllerTracks = controller?.currentTracks
     val trackLyrics = remember(state.mediaItem?.mediaId, controllerTracks) {

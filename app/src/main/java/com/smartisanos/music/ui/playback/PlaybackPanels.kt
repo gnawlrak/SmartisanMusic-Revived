@@ -1,11 +1,13 @@
 package com.smartisanos.music.ui.playback
 
+import android.os.SystemClock
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,13 +32,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -46,12 +56,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import com.smartisanos.music.R
 import com.smartisanos.music.playback.EmbeddedLyrics
 import kotlin.math.abs
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 
 // Reverse resources:
 // - lrc_layout.xml: full-height ListView with 80dp vertical fading edges
@@ -89,6 +103,9 @@ private val PlaybackLyricsHorizontalPadding = 53.6.dp
 private val PlaybackLyricsLineSpacing = 4.dp
 private val PlaybackLyricsRowHeight = 24.dp
 private val PlaybackLyricsParagraphGap = 16.dp
+private const val PlaybackLyricsSmoothScrollMaxLineJump = 4
+private const val PlaybackLyricsManualScrollResumeDelayMillis = 2_800L
+private const val PlaybackLyricsManualScrollMarkIntervalMillis = 220L
 
 @Composable
 internal fun PlaybackBottomControls(
@@ -170,6 +187,31 @@ internal fun PlaybackLyricsOverlay(
 
     key(mediaId, lyrics, fallbackLines) {
         val listState = rememberLazyListState()
+        val autoFollowState = remember { PlaybackLyricsAutoFollowState() }
+        val manualScrollConnection = remember(renderModel.mode, autoFollowState) {
+            object : NestedScrollConnection {
+                override fun onPreScroll(
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (
+                        renderModel.mode == PlaybackLyricsMode.Timed &&
+                        source == NestedScrollSource.UserInput &&
+                        available.y != 0f
+                    ) {
+                        autoFollowState.suspendForManualScroll()
+                    }
+                    return Offset.Zero
+                }
+
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (renderModel.mode == PlaybackLyricsMode.Timed && available.y != 0f) {
+                        autoFollowState.suspendForManualScroll()
+                    }
+                    return Velocity.Zero
+                }
+            }
+        }
 
         BoxWithConstraints(modifier = modifier) {
             val centerPadding = remember(maxHeight) {
@@ -177,28 +219,49 @@ internal fun PlaybackLyricsOverlay(
             }
             val visualCenterIndex by remember(listState, renderModel) {
                 derivedStateOf {
-                    if (renderModel.mode != PlaybackLyricsMode.Static) {
+                    if (renderModel.mode != PlaybackLyricsMode.Static && !autoFollowState.suspended) {
                         renderModel.alphaAnchorIndex
                     } else {
-                        val layoutInfo = listState.layoutInfo
-                        val visibleItems = layoutInfo.visibleItemsInfo
-                        if (visibleItems.isEmpty()) {
-                            renderModel.alphaAnchorIndex
-                        } else {
-                            val viewportCenter = (
-                                layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset
-                            ) / 2
-                            visibleItems.minByOrNull { item ->
-                                abs((item.offset + (item.size / 2)) - viewportCenter)
-                            }?.index ?: renderModel.alphaAnchorIndex
-                        }
+                        listState.centeredVisibleItemIndex(renderModel.alphaAnchorIndex)
                     }
                 }
             }
 
-            LaunchedEffect(renderModel.focusIndex, renderModel.mode) {
-                if (renderModel.mode != PlaybackLyricsMode.Static) {
-                    listState.scrollToItem(index = renderModel.focusIndex)
+            LaunchedEffect(
+                autoFollowState.suspended,
+                autoFollowState.manualScrollGeneration,
+                renderModel.mode,
+            ) {
+                if (autoFollowState.suspended && renderModel.mode == PlaybackLyricsMode.Timed) {
+                    snapshotFlow { listState.isScrollInProgress }
+                        .filter { scrolling -> !scrolling }
+                        .first()
+                    delay(PlaybackLyricsManualScrollResumeDelayMillis)
+                    autoFollowState.resume()
+                }
+            }
+
+            LaunchedEffect(
+                renderModel.focusIndex,
+                renderModel.mode,
+                autoFollowState.suspended,
+            ) {
+                when (renderModel.mode) {
+                    PlaybackLyricsMode.Timed -> {
+                        if (autoFollowState.suspended) return@LaunchedEffect
+                        if (autoFollowState.shouldAnimateTo(renderModel.focusIndex)) {
+                            listState.animateScrollToItem(index = renderModel.focusIndex)
+                        } else {
+                            listState.scrollToItem(index = renderModel.focusIndex)
+                        }
+                    }
+                    PlaybackLyricsMode.Fallback -> {
+                        autoFollowState.resetFocusTracking()
+                        listState.scrollToItem(index = renderModel.focusIndex)
+                    }
+                    PlaybackLyricsMode.Static -> {
+                        autoFollowState.resetFocusTracking()
+                    }
                 }
             }
 
@@ -217,9 +280,10 @@ internal fun PlaybackLyricsOverlay(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .nestedScroll(manualScrollConnection)
                     .padding(horizontal = PlaybackLyricsHorizontalPadding),
                 state = listState,
-                userScrollEnabled = renderModel.mode == PlaybackLyricsMode.Static,
+                userScrollEnabled = renderModel.mode != PlaybackLyricsMode.Fallback,
                 contentPadding = PaddingValues(vertical = centerPadding),
                 verticalArrangement = Arrangement.spacedBy(PlaybackLyricsLineSpacing),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -279,6 +343,41 @@ internal data class PlaybackLyricsRenderModel(
     val alphaAnchorIndex: Int,
     val highlightedIndex: Int?,
 )
+
+private class PlaybackLyricsAutoFollowState {
+    var suspended by mutableStateOf(false)
+        private set
+
+    var manualScrollGeneration by mutableIntStateOf(0)
+        private set
+
+    private var lastManualScrollMarkMillis = 0L
+    private var lastFocusIndex: Int? = null
+
+    fun suspendForManualScroll() {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastManualScrollMarkMillis >= PlaybackLyricsManualScrollMarkIntervalMillis) {
+            manualScrollGeneration += 1
+            lastManualScrollMarkMillis = now
+        }
+        suspended = true
+    }
+
+    fun resume() {
+        suspended = false
+    }
+
+    fun resetFocusTracking() {
+        lastFocusIndex = null
+    }
+
+    fun shouldAnimateTo(focusIndex: Int): Boolean {
+        val previousIndex = lastFocusIndex
+        lastFocusIndex = focusIndex
+        return previousIndex != null &&
+            abs(focusIndex - previousIndex) <= PlaybackLyricsSmoothScrollMaxLineJump
+    }
+}
 
 internal fun buildPlaybackLyricsRenderModel(
     lyrics: EmbeddedLyrics?,
@@ -346,6 +445,18 @@ private fun alphaForDistance(distance: Int): Float =
         4 -> 0.36f
         else -> 0.2f
     }
+
+private fun LazyListState.centeredVisibleItemIndex(fallbackIndex: Int): Int {
+    val layoutInfo = layoutInfo
+    val visibleItems = layoutInfo.visibleItemsInfo
+    if (visibleItems.isEmpty()) {
+        return fallbackIndex
+    }
+    val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+    return visibleItems.minByOrNull { item ->
+        abs((item.offset + (item.size / 2)) - viewportCenter)
+    }?.index ?: fallbackIndex
+}
 
 @Composable
 internal fun PlaybackMoreActionPanel(

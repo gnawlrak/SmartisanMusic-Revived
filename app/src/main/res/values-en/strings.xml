@@ -186,9 +186,7 @@
     <string name="artist_separators_hint">Multiple separators are supported</string>
     <string name="artist_custom_separator_hint">Custom</string>
     <string name="popcorn_sound_tips">Simulates worn vinyl during playback with rain-like crackle noise</string>
-    <string name="playback_more_primary_line">No embedded lyrics</string>
-    <string name="playback_more_secondary_line">Lyrics mask and touch layer are connected to the playback screen</string>
-    <string name="playback_more_tertiary_line">Tap "Lyrics" to switch between turntable and lyric overlay</string>
+    <string name="playback_more_primary_line">No lyrics</string>
     <string name="setting_stop_time">Set sleep timer</string>
     <string name="time_no">None</string>
     <string name="time_15m">15 minutes</string>

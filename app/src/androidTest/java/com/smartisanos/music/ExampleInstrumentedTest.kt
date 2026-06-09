@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.smartisanos.music", appContext.packageName)
+        assertEquals("com.smartisan.music", appContext.packageName)
     }
 }

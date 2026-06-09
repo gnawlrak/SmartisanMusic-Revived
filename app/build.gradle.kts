@@ -13,7 +13,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.smartisanos.music"
+        applicationId = "com.smartisan.music"
         minSdk = 31
         targetSdk = 36
         versionCode = 212

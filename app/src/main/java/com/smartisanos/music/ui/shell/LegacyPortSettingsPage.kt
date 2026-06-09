@@ -3,6 +3,7 @@ package com.smartisanos.music.ui.shell
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -41,6 +42,7 @@ import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.data.settings.parseArtistSeparatorInput
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortSmartisanTitleBar
+import smartisanos.widget.ShadowDrawable
 import smartisanos.widget.SwitchEx
 import smartisanos.widget.TitleBar
 
@@ -135,9 +137,21 @@ private fun TitleBar.setupLegacySettingsTitleBar(
     }
 }
 
+private enum class LegacySettingsRowShape(
+    val backgroundRes: Int,
+    val shadowRes: Int,
+) {
+    Single(R.drawable.group_list_item_bg_single, R.drawable.list_content_item_single_shadow),
+    Top(R.drawable.group_list_item_bg_top, R.drawable.list_content_item_top_shadow),
+    Middle(R.drawable.group_list_item_bg_mid, R.drawable.list_content_item_middle_shadow),
+    Bottom(R.drawable.group_list_item_bg_bottom, R.drawable.list_content_item_bottom_shadow),
+}
+
 private class LegacySettingsContentView(context: Context) : ScrollView(context) {
     private val content = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
+        clipChildren = false
+        clipToPadding = false
     }
     private val scratchRow = LegacySettingsSwitchRow(context, R.string.djing)
     private val axisRow = LegacySettingsSwitchRow(context, R.string.player_axis_enabled)
@@ -149,6 +163,8 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         isFillViewport = true
         isVerticalScrollBarEnabled = false
         overScrollMode = OVER_SCROLL_ALWAYS
+        clipChildren = false
+        clipToPadding = false
         addView(
             content,
             LayoutParams(
@@ -157,13 +173,21 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
             ),
         )
         content.addView(gapView(context))
-        content.addView(scratchRow, rowLayoutParams(context))
+        content.addView(
+            settingsGroup(
+                context,
+                scratchRow to LegacySettingsRowShape.Top,
+                axisRow to LegacySettingsRowShape.Middle,
+                popcornRow to LegacySettingsRowShape.Bottom,
+            ),
+        )
         content.addView(gapView(context))
-        content.addView(axisRow, rowLayoutParams(context))
-        content.addView(gapView(context))
-        content.addView(popcornRow, rowLayoutParams(context))
-        content.addView(gapView(context))
-        content.addView(artistSeparatorsRow, rowLayoutParams(context))
+        content.addView(
+            settingsGroup(
+                context,
+                artistSeparatorsRow to LegacySettingsRowShape.Single,
+            ),
+        )
     }
 
     fun bind(
@@ -193,6 +217,21 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         }
     }
 
+    private fun settingsGroup(
+        context: Context,
+        vararg rows: Pair<View, LegacySettingsRowShape>,
+    ): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            rows.forEach { (row, shape) ->
+                row.setLegacySettingsBackground(shape)
+                addView(row, rowLayoutParams(context))
+            }
+        }
+    }
+
     private fun rowLayoutParams(context: Context): LinearLayout.LayoutParams {
         val margin = context.resources.getDimensionPixelSize(R.dimen.list_item_left_right_margin)
         return LinearLayout.LayoutParams(
@@ -202,6 +241,19 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
             leftMargin = margin
             rightMargin = margin
         }
+    }
+
+    private fun View.setLegacySettingsBackground(shape: LegacySettingsRowShape) {
+        val target = requireNotNull(context.getDrawable(shape.backgroundRes)).mutate()
+        val shadow = requireNotNull(context.getDrawable(shape.shadowRes)).mutate()
+        val shadowPadding = Rect()
+        shadow.getPadding(shadowPadding)
+        background = ShadowDrawable(
+            shadow = shadow,
+            target = target,
+            insetLeftRight = shadowPadding.left,
+            insetTopBottom = shadowPadding.top,
+        )
     }
 }
 

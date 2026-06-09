@@ -1,5 +1,16 @@
 package com.smartisanos.music.ui.playback
 
+import android.app.Dialog
+import android.content.Context
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,12 +29,15 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,13 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartisanos.music.R
 import com.smartisanos.music.playback.PlaybackSleepTimerState
-import com.smartisanos.music.ui.components.SmartisanConfirmDialog
 import com.smartisanos.music.ui.components.SmartisanDialogActionRow
 import com.smartisanos.music.ui.components.SmartisanDialogBodyStyle
 import com.smartisanos.music.ui.components.SmartisanDialogCard
 import com.smartisanos.music.ui.components.SmartisanDialogDividerColor
 import com.smartisanos.music.ui.components.SmartisanDialogSecondaryActionStyle
 import com.smartisanos.music.ui.components.SmartisanDialogTitleStyle
+import android.graphics.Color as AndroidColor
 
 private const val MinuteMs = 60_000L
 
@@ -127,14 +141,166 @@ internal fun PlaybackConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    SmartisanConfirmDialog(
-        title = title,
-        message = message,
-        confirmText = confirmText,
-        dismissText = dismissText,
-        onConfirm = onConfirm,
-        onDismiss = onDismiss,
-    )
+    val context = LocalContext.current
+    val latestOnConfirm by rememberUpdatedState(onConfirm)
+    val latestOnDismiss by rememberUpdatedState(onDismiss)
+
+    DisposableEffect(context, title, message, confirmText, dismissText) {
+        val dialog = RevonePlaybackConfirmDialog(
+            context = context,
+            title = title,
+            message = message,
+            confirmText = confirmText,
+            dismissText = dismissText,
+            onConfirm = {
+                latestOnConfirm()
+            },
+            onDismiss = {
+                latestOnDismiss()
+            },
+        )
+        dialog.show()
+        onDispose {
+            dialog.dismissIfShowing()
+        }
+    }
+}
+
+private class RevonePlaybackConfirmDialog(
+    private val context: Context,
+    title: String,
+    message: String?,
+    confirmText: String,
+    dismissText: String,
+    private val onConfirm: () -> Unit,
+    private val onDismiss: () -> Unit,
+) {
+    private val dialog = Dialog(context, R.style.MmsDialogTheme)
+
+    init {
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.revone_global_dialog_shape_background)
+        }
+        dialog.requestWindowFeature(1)
+        dialog.setContentView(root)
+        dialog.setCanceledOnTouchOutside(true)
+        dialog.setOnCancelListener {
+            onDismiss()
+        }
+
+        root.addView(
+            TextView(context).apply {
+                text = title
+                gravity = Gravity.CENTER
+                setTextColor(context.getColor(R.color.status_bar_color_dialog))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                typeface = Typeface.DEFAULT_BOLD
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                context.resources.getDimensionPixelSize(R.dimen.revone_dialog_button_height),
+            ),
+        )
+
+        if (!message.isNullOrBlank()) {
+            val content = FrameLayout(context).apply {
+                setBackgroundResource(R.drawable.revone_global_dialog_message_background)
+                setPadding(context.dpPx(24), context.dpPx(18), context.dpPx(24), context.dpPx(18))
+                minimumHeight = context.dpPx(76)
+            }
+            content.addView(
+                TextView(context).apply {
+                    text = message
+                    gravity = Gravity.CENTER
+                    setTextColor(context.getColor(R.color.setting_item_summary_text_color))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    setLineSpacing(context.dpPx(2).toFloat(), 1f)
+                },
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ),
+            )
+            root.addView(
+                content,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+
+        val buttons = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        buttons.addView(
+            dialogButton(dismissText, R.drawable.btn_text_color_selector).apply {
+                setBackgroundResource(R.drawable.revone_dialog_button_left_bg_selector)
+                setOnClickListener {
+                    dialog.dismiss()
+                    onDismiss()
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f),
+        )
+        buttons.addView(
+            android.view.View(context).apply {
+                setBackgroundResource(R.drawable.revone_button_dialog_vertical_divider)
+            },
+            LinearLayout.LayoutParams(context.dpPx(1), LinearLayout.LayoutParams.MATCH_PARENT),
+        )
+        buttons.addView(
+            dialogButton(confirmText, R.color.blue_btn_text_color_selector).apply {
+                setBackgroundResource(R.drawable.revone_dialog_button_right_bg_selector)
+                setOnClickListener {
+                    dialog.dismiss()
+                    onConfirm()
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f),
+        )
+        root.addView(
+            buttons,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                context.resources.getDimensionPixelSize(R.dimen.revone_dialog_button_height),
+            ),
+        )
+    }
+
+    fun show() {
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(AndroidColor.TRANSPARENT))
+            setDimAmount(0.54f)
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setLayout(context.resources.getDimensionPixelSize(R.dimen.revone_global_dialog_content_width), WindowManager.LayoutParams.WRAP_CONTENT)
+        }
+    }
+
+    fun dismissIfShowing() {
+        if (dialog.isShowing) {
+            dialog.dismiss()
+        }
+    }
+
+    private fun dialogButton(text: String, textColorSelector: Int): Button {
+        return Button(context).apply {
+            gravity = Gravity.CENTER
+            this.text = text
+            setTextColor(context.getColorStateList(textColorSelector))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            typeface = Typeface.DEFAULT_BOLD
+            isAllCaps = false
+            minWidth = 0
+            minHeight = 0
+            minimumWidth = 0
+            minimumHeight = 0
+            setPadding(0, 0, 0, 0)
+        }
+    }
 }
 
 @Composable
@@ -205,3 +371,5 @@ internal fun formatSleepTimerRemaining(remainingMs: Long): String {
         "%02d:%02d".format(minutes, seconds)
     }
 }
+
+private fun Context.dpPx(value: Int): Int = (value * resources.displayMetrics.density).toInt()

@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.TypedValue
@@ -13,7 +12,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -113,18 +114,14 @@ private class LegacyPlaylistNameDialog(
     private val onDismiss: () -> Unit,
     private val onConfirm: (String) -> Unit,
 ) {
-    private val dialog = Dialog(context)
+    private val dialog = Dialog(context, R.style.MmsDialogTheme)
     private val editText: EditText
-    private val confirmButton: TextView
+    private val confirmButton: Button
 
     init {
-        val density = context.resources.displayMetrics.density
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                cornerRadius = 10f * density
-            }
+            setBackgroundResource(R.drawable.revone_global_dialog_shape_background)
         }
         dialog.requestWindowFeature(1)
         dialog.setContentView(root)
@@ -137,82 +134,106 @@ private class LegacyPlaylistNameDialog(
             TextView(context).apply {
                 text = title
                 gravity = Gravity.CENTER
-                setTextColor(context.getColor(R.color.title_color))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(context.getColor(R.color.status_bar_color_dialog))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                typeface = Typeface.DEFAULT_BOLD
             },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(53)),
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                context.resources.getDimensionPixelSize(R.dimen.revone_dialog_button_height),
+            ),
         )
-        root.addView(divider(context), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(1)))
 
+        val content = FrameLayout(context).apply {
+            setBackgroundResource(R.drawable.revone_global_dialog_message_background)
+        }
+        val editOuter = FrameLayout(context).apply {
+            setPadding(context.dpPx(18), context.dpPx(18), context.dpPx(18), context.dpPx(18))
+            minimumHeight = context.dpPx(44)
+        }
         val editFrame = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(context.dpPx(12), 0, context.dpPx(8), 0)
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(0xf7, 0xf8, 0xf9))
-                setStroke(context.dpPx(1), Color.rgb(0xe2, 0xe2, 0xe2))
-                cornerRadius = 6f * density
-            }
+            setBackgroundResource(R.drawable.edit_text_bg)
         }
         editText = EditText(context).apply {
             setSingleLine(true)
             setText(initialName)
             selectAll()
-            setTextColor(PlaylistPrimaryTextColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextColor(context.getColor(R.color.editor_text_color))
+            setHintTextColor(context.getColor(R.color.editor_hint_text_color))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             background = null
+            setPadding(0, 0, 0, 0)
         }
-        editFrame.addView(editText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+        editFrame.addView(
+            editText,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                leftMargin = context.dpPx(12)
+                topMargin = context.dpPx(6)
+                rightMargin = context.dpPx(12)
+                bottomMargin = context.dpPx(6)
+            },
+        )
         editFrame.addView(
             ImageView(context).apply {
-                setImageResource(R.drawable.clear_text)
+                setImageResource(R.drawable.quick_icon_delete)
                 setOnClickListener {
                     editText.text = null
                 }
             },
-            LinearLayout.LayoutParams(context.dpPx(32), LinearLayout.LayoutParams.MATCH_PARENT),
+            LinearLayout.LayoutParams(context.dpPx(32), context.dpPx(32)),
         )
-        root.addView(
+        editOuter.addView(
             editFrame,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(44)).apply {
-                leftMargin = context.dpPx(18)
-                rightMargin = context.dpPx(18)
-                topMargin = context.dpPx(18)
-                bottomMargin = context.dpPx(18)
-            },
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, context.dpPx(40), Gravity.CENTER),
         )
-        root.addView(divider(context), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(1)))
+        content.addView(editOuter, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        root.addView(content, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
         val buttons = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
         }
-        val cancelButton = dialogButton(context, context.getString(android.R.string.cancel), Color.rgb(0x99, 0x99, 0x99)).apply {
+        val cancelButton = dialogButton(context, context.getString(android.R.string.cancel), R.drawable.btn_text_color_selector).apply {
+            setBackgroundResource(R.drawable.revone_dialog_button_left_bg_selector)
             setOnClickListener {
                 dialog.dismiss()
                 onDismiss()
             }
         }
-        confirmButton = dialogButton(context, confirmText, context.getColor(R.color.btn_text_color_blue)).apply {
+        confirmButton = dialogButton(context, confirmText, R.color.blue_btn_text_color_selector).apply {
+            setBackgroundResource(R.drawable.revone_dialog_button_right_bg_selector)
             setOnClickListener {
                 onConfirm(editText.text.toString())
             }
         }
         buttons.addView(cancelButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-        buttons.addView(divider(context), LinearLayout.LayoutParams(context.dpPx(1), LinearLayout.LayoutParams.MATCH_PARENT))
+        buttons.addView(
+            View(context).apply {
+                setBackgroundResource(R.drawable.revone_button_dialog_vertical_divider)
+            },
+            LinearLayout.LayoutParams(context.dpPx(1), LinearLayout.LayoutParams.MATCH_PARENT),
+        )
         buttons.addView(confirmButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-        root.addView(buttons, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(53)))
+        root.addView(
+            buttons,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                context.resources.getDimensionPixelSize(R.dimen.revone_dialog_button_height),
+            ),
+        )
 
         editText.addTextChangedListener(
             object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                     confirmButton.isEnabled = !s.isNullOrBlank()
-                    confirmButton.alpha = if (confirmButton.isEnabled) 1f else 0.35f
+                    confirmButton.invalidate()
                 }
                 override fun afterTextChanged(s: Editable?) = Unit
             },
         )
+        confirmButton.isEnabled = editText.text?.isNotBlank() == true
     }
 
     fun show() {
@@ -221,8 +242,8 @@ private class LegacyPlaylistNameDialog(
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setDimAmount(0.54f)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            setLayout(context.dpPx(308), WindowManager.LayoutParams.WRAP_CONTENT)
-            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+            setLayout(context.resources.getDimensionPixelSize(R.dimen.revone_global_dialog_content_width), WindowManager.LayoutParams.WRAP_CONTENT)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         }
         editText.postDelayed(
             {
@@ -240,21 +261,19 @@ private class LegacyPlaylistNameDialog(
         }
     }
 
-    private fun divider(context: Context): View {
-        return View(context).apply {
-            setBackgroundColor(Color.rgb(0xe8, 0xe8, 0xe8))
-        }
-    }
-
-    private fun dialogButton(context: Context, text: String, color: Int): TextView {
-        return TextView(context).apply {
+    private fun dialogButton(context: Context, text: String, textColorSelector: Int): Button {
+        return Button(context).apply {
             gravity = Gravity.CENTER
             this.text = text
-            setTextColor(color)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            typeface = Typeface.DEFAULT
-            isClickable = true
-            isFocusable = true
+            setTextColor(context.getColorStateList(textColorSelector))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            typeface = Typeface.DEFAULT_BOLD
+            isAllCaps = false
+            minWidth = 0
+            minHeight = 0
+            minimumWidth = 0
+            minimumHeight = 0
+            setPadding(0, 0, 0, 0)
         }
     }
 }

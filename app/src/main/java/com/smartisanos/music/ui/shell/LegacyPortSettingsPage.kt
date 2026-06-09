@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -345,19 +346,15 @@ private class LegacyArtistSeparatorsDialog(
     private val onDismiss: () -> Unit,
     private val onConfirm: (Set<String>) -> Unit,
 ) {
-    private val dialog = Dialog(context)
+    private val dialog = Dialog(context, R.style.MmsDialogTheme)
     private val chipRow: LinearLayout
     private val input: EditText
     private var separators = initialSeparators.toCollection(linkedSetOf())
 
     init {
-        val density = context.resources.displayMetrics.density
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                cornerRadius = 10f * density
-            }
+            setBackgroundResource(R.drawable.revone_global_dialog_shape_background)
         }
         dialog.requestWindowFeature(1)
         dialog.setContentView(root)
@@ -370,29 +367,39 @@ private class LegacyArtistSeparatorsDialog(
             TextView(context).apply {
                 text = context.getString(R.string.artist_separators)
                 gravity = Gravity.CENTER
-                setTextColor(context.getColor(R.color.title_color))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(context.getColor(R.color.status_bar_color_dialog))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                typeface = Typeface.DEFAULT_BOLD
             },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(53)),
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                context.resources.getDimensionPixelSize(R.dimen.revone_dialog_button_height),
+            ),
         )
 
-        root.addView(
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.revone_global_dialog_message_background)
+            setPadding(context.dpPx(18), 0, context.dpPx(18), 0)
+        }
+        root.addView(content, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+
+        content.addView(
             TextView(context).apply {
                 text = context.getString(R.string.artist_separators_hint)
                 gravity = Gravity.CENTER
-                setTextColor(Color.rgb(0x99, 0x99, 0x99))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                setTextColor(context.getColor(R.color.setting_item_summary_text_color))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
                 typeface = Typeface.DEFAULT_BOLD
             },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(34)),
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(48)),
         )
 
         chipRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        root.addView(
+        content.addView(
             HorizontalScrollView(context).apply {
                 isHorizontalScrollBarEnabled = false
                 addView(
@@ -403,11 +410,7 @@ private class LegacyArtistSeparatorsDialog(
                     ),
                 )
             },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(50)).apply {
-                leftMargin = context.dpPx(18)
-                rightMargin = context.dpPx(18)
-                bottomMargin = context.dpPx(6)
-            },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(42)),
         )
 
         val addRow = LinearLayout(context).apply {
@@ -417,73 +420,72 @@ private class LegacyArtistSeparatorsDialog(
         input = EditText(context).apply {
             setSingleLine(true)
             hint = context.getString(R.string.artist_custom_separator_hint)
-            setTextColor(PlaylistPrimaryTextColor)
-            setHintTextColor(Color.rgb(0x99, 0x99, 0x99))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextColor(context.getColor(R.color.editor_text_color))
+            setHintTextColor(context.getColor(R.color.editor_hint_text_color))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             background = null
+            setPadding(0, 0, 0, 0)
         }
         val inputFrame = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(context.dpPx(12), 0, context.dpPx(8), 0)
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(0xf7, 0xf8, 0xf9))
-                setStroke(context.dpPx(1), Color.rgb(0xe2, 0xe2, 0xe2))
-                cornerRadius = 6f * density
-            }
-            addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+            setBackgroundResource(R.drawable.edit_text_bg)
+            addView(
+                input,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                    leftMargin = context.dpPx(12)
+                    topMargin = context.dpPx(6)
+                    rightMargin = context.dpPx(12)
+                    bottomMargin = context.dpPx(6)
+                },
+            )
             addView(
                 ImageView(context).apply {
-                    setImageResource(R.drawable.clear_text)
+                    setImageResource(R.drawable.quick_icon_delete)
                     setOnClickListener {
                         input.text = null
                     }
                 },
-                LinearLayout.LayoutParams(context.dpPx(32), LinearLayout.LayoutParams.MATCH_PARENT),
+                LinearLayout.LayoutParams(context.dpPx(32), context.dpPx(32)),
             )
         }
-        addRow.addView(inputFrame, LinearLayout.LayoutParams(0, context.dpPx(44), 1f))
         addRow.addView(
-            dialogButton(
+            FrameLayout(context).apply {
+                addView(inputFrame, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, context.dpPx(40), Gravity.CENTER))
+            },
+            LinearLayout.LayoutParams(0, context.dpPx(44), 1f),
+        )
+        addRow.addView(
+            inlineAddButton(
                 text = context.getString(R.string.add),
-                textColor = context.getColor(R.color.btn_text_color_blue),
-                backgroundColor = Color.rgb(0xee, 0xf4, 0xff),
-                strokeColor = Color.rgb(0xa9, 0xc1, 0xf5),
             ).apply {
                 setOnClickListener {
                     addSeparatorsFromInput()
                 }
             },
-            LinearLayout.LayoutParams(context.dpPx(78), context.dpPx(40)).apply {
-                leftMargin = context.dpPx(10)
+            LinearLayout.LayoutParams(context.dpPx(64), context.dpPx(40)).apply {
+                leftMargin = context.dpPx(8)
             },
         )
-        root.addView(
+        content.addView(
             addRow,
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(44)).apply {
-                leftMargin = context.dpPx(18)
-                rightMargin = context.dpPx(18)
-                bottomMargin = context.dpPx(24)
+                topMargin = context.dpPx(8)
+                bottomMargin = context.dpPx(18)
             },
         )
 
         root.addView(
-            dialogButton(
-                text = context.getString(R.string.done),
-                textColor = Color.WHITE,
-                backgroundColor = context.getColor(R.color.btn_text_color_blue),
-                strokeColor = darken(context.getColor(R.color.btn_text_color_blue)),
-            ).apply {
+            dialogActionButton(context.getString(R.string.done)).apply {
                 setOnClickListener {
                     addSeparatorsFromInput()
                     onConfirm(separators)
                 }
             },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(44)).apply {
-                leftMargin = context.dpPx(18)
-                rightMargin = context.dpPx(18)
-                bottomMargin = context.dpPx(18)
-            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                context.resources.getDimensionPixelSize(R.dimen.revone_dialog_button_height),
+            ),
         )
 
         renderChips()
@@ -495,8 +497,8 @@ private class LegacyArtistSeparatorsDialog(
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setDimAmount(0.54f)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            setLayout(context.dpPx(308), WindowManager.LayoutParams.WRAP_CONTENT)
-            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+            setLayout(context.resources.getDimensionPixelSize(R.dimen.revone_global_dialog_content_width), WindowManager.LayoutParams.WRAP_CONTENT)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         }
         input.postDelayed(
             {
@@ -541,8 +543,8 @@ private class LegacyArtistSeparatorsDialog(
                 TextView(context).apply {
                     text = context.getString(R.string.not_set)
                     gravity = Gravity.CENTER_VERTICAL
-                    setTextColor(Color.rgb(0x99, 0x99, 0x99))
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                    setTextColor(context.getColor(R.color.setting_item_summary_text_color))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
                 },
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -557,13 +559,13 @@ private class LegacyArtistSeparatorsDialog(
             text = "$separator  \u00D7"
             gravity = Gravity.CENTER
             setPadding(context.dpPx(16), 0, context.dpPx(14), 0)
-            setTextColor(Color.rgb(0x99, 0x99, 0x99))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextColor(context.getColor(R.color.setting_item_summary_text_color))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             typeface = Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 setColor(Color.rgb(0xf7, 0xf8, 0xf9))
                 setStroke(context.dpPx(1), Color.rgb(0xe2, 0xe2, 0xe2))
-                cornerRadius = 18f * context.resources.displayMetrics.density
+                cornerRadius = 5f * context.resources.displayMetrics.density
             }
             setOnClickListener {
                 separators -= separator
@@ -572,34 +574,34 @@ private class LegacyArtistSeparatorsDialog(
         }
     }
 
-    private fun dialogButton(
-        text: String,
-        textColor: Int,
-        backgroundColor: Int,
-        strokeColor: Int,
-    ): TextView {
+    private fun inlineAddButton(text: String): TextView {
         return TextView(context).apply {
             gravity = Gravity.CENTER
             this.text = text
-            setTextColor(textColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextColor(context.getColor(R.color.btn_text_color_blue))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             typeface = Typeface.DEFAULT
             isClickable = true
             isFocusable = true
             background = GradientDrawable().apply {
-                setColor(backgroundColor)
-                setStroke(context.dpPx(1), strokeColor)
-                cornerRadius = 6f * context.resources.displayMetrics.density
+                setColor(Color.rgb(0xfa, 0xfb, 0xfd))
+                setStroke(context.dpPx(1), Color.rgb(0xd7, 0xdc, 0xe8))
+                cornerRadius = 7f * context.resources.displayMetrics.density
             }
         }
     }
 
-    private fun darken(color: Int): Int {
-        return Color.rgb(
-            (Color.red(color) * 0.85f).toInt(),
-            (Color.green(color) * 0.85f).toInt(),
-            (Color.blue(color) * 0.85f).toInt(),
-        )
+    private fun dialogActionButton(text: String): TextView {
+        return TextView(context).apply {
+            gravity = Gravity.CENTER
+            this.text = text
+            setTextColor(context.getColorStateList(R.color.blue_btn_text_color_selector))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            typeface = Typeface.DEFAULT_BOLD
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(R.drawable.revone_dialog_button_bg_selector)
+        }
     }
 }
 

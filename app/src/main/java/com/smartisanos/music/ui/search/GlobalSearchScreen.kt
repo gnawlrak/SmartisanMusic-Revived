@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -50,8 +51,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -80,6 +82,7 @@ import com.smartisanos.music.ui.components.GlobalPlaybackBar
 import com.smartisanos.music.ui.components.SmartisanDrawableBackground
 import com.smartisanos.music.ui.components.hasAudioPermission
 import com.smartisanos.music.ui.components.loadArtworkThumbnail
+import com.smartisanos.music.ui.shell.titlebar.LegacyPortTitleBarShadow
 import kotlinx.coroutines.launch
 
 private val SearchPageBackground = Color.White
@@ -131,11 +134,18 @@ private val SearchResultRowHeight = 60.dp
 private val SearchResultArtworkFrameWidth = 48.dp
 private val SearchResultArtworkSize = 38.dp
 private val SearchResultActionWidth = 34.dp
+private val SearchResultMoreIconSize = 30.dp
+private val SearchResultSourceIconSize = 14.dp
 private val SearchPlaybackBarReservedHeight = 67.dp
 private val SearchTopHorizontalPadding = 6.dp
 private val SearchNoResultTopPadding = 85.dp
 private val SearchNoResultArtworkSize = 140.dp
 private val SearchArtworkDecodeSize = Size(128, 128)
+
+private enum class SearchEntityAction {
+    More,
+    Source,
+}
 
 @Composable
 fun GlobalSearchScreen(
@@ -349,16 +359,15 @@ private fun SearchTopBar(
     val topInset = with(density) {
         WindowInsets.safeDrawing.getTop(this).toDp()
     }
+    val shadowHeight = dimensionResource(R.dimen.title_bar_shadow_height)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(SearchTopBarHeight + topInset),
+            .height(SearchTopBarHeight + topInset)
+            .background(Color.White)
+            .zIndex(1f),
     ) {
-        SmartisanDrawableBackground(
-            drawableRes = R.drawable.search_bar_background,
-            modifier = Modifier.matchParentSize(),
-        )
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -376,6 +385,13 @@ private fun SearchTopBar(
             )
             SearchCancelButton(onDismiss = onDismiss)
         }
+        LegacyPortTitleBarShadow(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = shadowHeight)
+                .fillMaxWidth()
+                .height(shadowHeight),
+        )
     }
 }
 
@@ -638,6 +654,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.appendAlbumResults(
             representative = album.representative,
             titleColor = SearchResultHighlightColor,
             subtitleColor = SearchResultHighlightColor,
+            action = SearchEntityAction.Source,
             onClick = { onAlbumClick(album) },
         )
     }
@@ -653,25 +670,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.appendArtistResults(
         items = artists,
         key = { artist -> "artist-${artist.id}" },
     ) { artist ->
-        val albumCount = pluralStringResource(
-            R.plurals.legacy_album_count,
-            artist.albumCount,
-            artist.albumCount,
-        )
-        val trackCount = pluralStringResource(
-            R.plurals.track_count,
-            artist.trackCount,
-            artist.trackCount,
-        )
         SearchEntityRow(
             title = artist.name,
-            subtitle = stringResource(
-                R.string.artist_album_song_count,
-                albumCount,
-                trackCount,
-            ),
+            subtitle = null,
             representative = artist.representative,
             titleColor = SearchResultHighlightColor,
+            action = SearchEntityAction.Source,
             onClick = { onArtistClick(artist) },
         )
     }
@@ -728,11 +732,12 @@ private fun SearchSongRow(
 @Composable
 private fun SearchEntityRow(
     title: String,
-    subtitle: String,
+    subtitle: String?,
     representative: MediaItem,
     onClick: () -> Unit,
     titleColor: Color = SearchSongTitleColor,
     subtitleColor: Color = SearchSubtitleColor,
+    action: SearchEntityAction = SearchEntityAction.More,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -781,13 +786,15 @@ private fun SearchEntityRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = subtitle,
-                    style = SearchSecondaryTextStyle.copy(color = subtitleColor),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                if (!subtitle.isNullOrEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = SearchSecondaryTextStyle.copy(color = subtitleColor),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -795,16 +802,24 @@ private fun SearchEntityRow(
                     .height(SearchResultRowHeight),
                 contentAlignment = Alignment.CenterEnd,
             ) {
+                val iconRes = when (action) {
+                    SearchEntityAction.More -> if (pressed) R.drawable.btn_more_white else R.drawable.btn_more
+                    SearchEntityAction.Source -> if (pressed) {
+                        R.drawable.local_phone_icon_white
+                    } else {
+                        R.drawable.local_phone_icon
+                    }
+                }
                 Image(
-                    painter = painterResource(
-                        if (pressed) {
-                            R.drawable.btn_more_white
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(
+                        if (action == SearchEntityAction.More) {
+                            SearchResultMoreIconSize
                         } else {
-                            R.drawable.btn_more
+                            SearchResultSourceIconSize
                         },
                     ),
-                    contentDescription = null,
-                    modifier = Modifier.size(30.dp),
                 )
             }
         }

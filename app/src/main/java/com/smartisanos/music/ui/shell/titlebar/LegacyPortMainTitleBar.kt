@@ -65,6 +65,8 @@ internal fun LegacyPortSearchDetailTitleBar(
     albumDetailTitle: String?,
     artistTarget: LegacyArtistTarget?,
     onBack: () -> Unit,
+    artistAlbumViewMode: AlbumViewMode = AlbumViewMode.List,
+    onToggleArtistAlbumViewMode: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LegacyPortTitleBar(
@@ -76,7 +78,7 @@ internal fun LegacyPortSearchDetailTitleBar(
         albumDetailTitle = albumDetailTitle,
         albumViewMode = AlbumViewMode.List,
         artistTarget = artistTarget,
-        artistAlbumViewMode = AlbumViewMode.List,
+        artistAlbumViewMode = artistAlbumViewMode,
         onEnterSongsEditMode = {},
         onExitSongsEditMode = {},
         onRequestDeleteSelected = {},
@@ -85,7 +87,7 @@ internal fun LegacyPortSearchDetailTitleBar(
         onToggleAlbumViewMode = {},
         onAlbumDetailBack = onBack,
         onArtistBack = onBack,
-        onToggleArtistAlbumViewMode = {},
+        onToggleArtistAlbumViewMode = onToggleArtistAlbumViewMode,
         onSearchClick = {},
         modifier = modifier,
     )

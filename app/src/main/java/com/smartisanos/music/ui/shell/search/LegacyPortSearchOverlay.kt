@@ -51,6 +51,46 @@ internal sealed interface LegacySearchDrilldownTarget {
     ) : LegacySearchDrilldownTarget
 }
 
+private sealed interface LegacySearchDrilldownPageKey {
+    data class Album(
+        val albumId: String,
+        val albumTitle: String,
+    ) : LegacySearchDrilldownPageKey
+
+    data class Artist(
+        val artistId: String,
+        val artistName: String,
+    ) : LegacySearchDrilldownPageKey
+}
+
+private fun LegacySearchDrilldownTarget.toPageKey(): LegacySearchDrilldownPageKey {
+    return when (this) {
+        is LegacySearchDrilldownTarget.Album -> LegacySearchDrilldownPageKey.Album(
+            albumId = albumId,
+            albumTitle = albumTitle,
+        )
+        is LegacySearchDrilldownTarget.Artist -> LegacySearchDrilldownPageKey.Artist(
+            artistId = target.artistId,
+            artistName = target.artistName,
+        )
+    }
+}
+
+private fun LegacySearchDrilldownPageKey.toRootTarget(): LegacySearchDrilldownTarget {
+    return when (this) {
+        is LegacySearchDrilldownPageKey.Album -> LegacySearchDrilldownTarget.Album(
+            albumId = albumId,
+            albumTitle = albumTitle,
+        )
+        is LegacySearchDrilldownPageKey.Artist -> LegacySearchDrilldownTarget.Artist(
+            target = LegacyArtistTarget.Albums(
+                artistId = artistId,
+                artistName = artistName,
+            ),
+        )
+    }
+}
+
 private val LegacySearchDecelerateEasing = Easing { fraction ->
     1f - (1f - fraction) * (1f - fraction)
 }
@@ -72,6 +112,8 @@ internal fun LegacyPortSearchOverlay(
     onDrilldownTargetChanged: (LegacySearchDrilldownTarget?) -> Unit,
     onAlbumClick: (String, String) -> Unit,
     onArtistClick: (String, String) -> Unit,
+    artistAlbumViewMode: AlbumViewMode,
+    onToggleArtistAlbumViewMode: () -> Unit,
     artistSettings: ArtistSettings = ArtistSettings(),
     modifier: Modifier = Modifier,
 ) {
@@ -95,8 +137,9 @@ internal fun LegacyPortSearchOverlay(
             },
         ),
     ) {
+        val drilldownPageKey = drilldownTarget?.toPageKey()
         LegacyPortPageStackTransition(
-            secondaryKey = drilldownTarget,
+            secondaryKey = drilldownPageKey,
             modifier = Modifier.fillMaxSize(),
             label = "legacy search detail transition",
             primaryContent = {
@@ -112,11 +155,16 @@ internal fun LegacyPortSearchOverlay(
                     modifier = Modifier.fillMaxSize(),
                 )
             },
-            secondaryContent = { target ->
+            secondaryContent = { pageKey ->
+                val target = drilldownTarget
+                    ?.takeIf { currentTarget -> currentTarget.toPageKey() == pageKey }
+                    ?: pageKey.toRootTarget()
                 LegacyPortSearchDrilldownPage(
                     target = target,
                     mediaItems = mediaItems,
                     hiddenMediaIds = hiddenMediaIds,
+                    artistAlbumViewMode = artistAlbumViewMode,
+                    onToggleArtistAlbumViewMode = onToggleArtistAlbumViewMode,
                     onBack = {
                         when (target) {
                             is LegacySearchDrilldownTarget.Album -> onDrilldownTargetChanged(null)
@@ -149,6 +197,8 @@ private fun LegacyPortSearchDrilldownPage(
     target: LegacySearchDrilldownTarget,
     mediaItems: List<MediaItem>,
     hiddenMediaIds: Set<String>,
+    artistAlbumViewMode: AlbumViewMode,
+    onToggleArtistAlbumViewMode: () -> Unit,
     onBack: () -> Unit,
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit,
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
@@ -225,6 +275,8 @@ private fun LegacyPortSearchDrilldownPage(
                         albumDetailTitle = null,
                         artistTarget = artistTarget,
                         onBack = onBack,
+                        artistAlbumViewMode = artistAlbumViewMode,
+                        onToggleArtistAlbumViewMode = onToggleArtistAlbumViewMode,
                         modifier = titleModifier,
                     )
                 }
@@ -232,7 +284,7 @@ private fun LegacyPortSearchDrilldownPage(
                     mediaItems = visibleSongs,
                     active = true,
                     selectedTarget = target.target,
-                    albumViewMode = AlbumViewMode.List,
+                    albumViewMode = artistAlbumViewMode,
                     hiddenMediaIds = emptySet(),
                     onTargetChanged = onArtistTargetChanged,
                     onRequestAddToPlaylist = onRequestAddToPlaylist,

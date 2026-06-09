@@ -894,6 +894,7 @@ private fun LegacyPortMainShellContent(
             hiddenMediaIds = libraryExclusions.hiddenMediaIds,
             drilldownTarget = searchDrilldownTarget,
             libraryRefreshVersion = libraryRefreshVersion,
+            artistAlbumViewMode = artistAlbumViewMode,
             artistSettings = artistSettings,
             onQueryChange = { value ->
                 searchQuery = value
@@ -923,6 +924,16 @@ private fun LegacyPortMainShellContent(
                         artistName = artistName,
                     ),
                 )
+            },
+            onToggleArtistAlbumViewMode = {
+                val nextMode = if (artistAlbumViewMode == AlbumViewMode.List) {
+                    AlbumViewMode.Tile
+                } else {
+                    AlbumViewMode.List
+                }
+                scope.launch {
+                    libraryDisplaySettingsStore.setArtistAlbumViewMode(nextMode)
+                }
             },
             modifier = Modifier
                 .fillMaxSize()

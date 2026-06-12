@@ -2,13 +2,18 @@ package com.smartisanos.music.ui.shell
 
 import android.app.Dialog
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -39,12 +44,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.smartisanos.music.R
 import com.smartisanos.music.data.settings.ArtistSettings
+import com.smartisanos.music.data.settings.AudioFxMaxGainDb
+import com.smartisanos.music.data.settings.AudioFxMinGainDb
+import com.smartisanos.music.data.settings.AudioFxPreset
 import com.smartisanos.music.data.settings.PlaybackSettings
+import com.smartisanos.music.data.settings.equalizerGainDbPoints
+import com.smartisanos.music.data.settings.normalizeAudioFxGainDbPoints
 import com.smartisanos.music.data.settings.parseArtistSeparatorInput
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortSmartisanTitleBar
 import smartisanos.widget.ShadowDrawable
 import smartisanos.widget.SwitchEx
 import smartisanos.widget.TitleBar
+import kotlin.math.roundToInt
 
 @Composable
 internal fun LegacyPortSettingsPage(
@@ -55,16 +66,24 @@ internal fun LegacyPortSettingsPage(
     onScratchEnabledChange: (Boolean) -> Unit,
     onHidePlayerAxisEnabledChange: (Boolean) -> Unit,
     onPopcornSoundEnabledChange: (Boolean) -> Unit,
+    onAudioFxEnabledChange: (Boolean) -> Unit,
+    onAudioFxPresetChange: (AudioFxPreset) -> Unit,
+    onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var editingArtistSeparators by remember { mutableStateOf(false) }
     var artistSeparatorsInitialValues by remember { mutableStateOf(emptySet<String>()) }
+    var audioFxPageVisible by remember { mutableStateOf(false) }
     val latestOnArtistSeparatorsChange by rememberUpdatedState(onArtistSeparatorsChange)
 
     BackHandler(enabled = active) {
-        onClose()
+        if (audioFxPageVisible) {
+            audioFxPageVisible = false
+        } else {
+            onClose()
+        }
     }
 
     Column(
@@ -76,30 +95,62 @@ internal fun LegacyPortSettingsPage(
             modifier = Modifier.fillMaxWidth(),
             showShadow = true,
         ) { titleBar ->
-            titleBar.setupLegacySettingsTitleBar(onClose = onClose)
+            titleBar.setupLegacySettingsTitleBar(
+                titleRes = if (audioFxPageVisible) R.string.audio_fx else R.string.setting,
+                onClose = {
+                    if (audioFxPageVisible) {
+                        audioFxPageVisible = false
+                    } else {
+                        onClose()
+                    }
+                },
+            )
         }
-        AndroidView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            factory = { context ->
-                LegacySettingsContentView(context)
-            },
-            update = { view ->
-                view.visibility = if (active) View.VISIBLE else View.INVISIBLE
-                view.bind(
-                    settings = playbackSettings,
-                    artistSettings = artistSettings,
-                    onScratchEnabledChange = onScratchEnabledChange,
-                    onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
-                    onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
-                    onArtistSeparatorsClick = {
-                        artistSeparatorsInitialValues = artistSettings.separators
-                        editingArtistSeparators = true
-                    },
-                )
-            },
-        )
+        if (audioFxPageVisible) {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                factory = { context ->
+                    LegacyAudioFxContentView(context)
+                },
+                update = { view ->
+                    view.visibility = if (active) View.VISIBLE else View.INVISIBLE
+                    view.bind(
+                        settings = playbackSettings,
+                        onAudioFxEnabledChange = onAudioFxEnabledChange,
+                        onAudioFxPresetChange = onAudioFxPresetChange,
+                        onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
+                    )
+                },
+            )
+        } else {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                factory = { context ->
+                    LegacySettingsContentView(context)
+                },
+                update = { view ->
+                    view.visibility = if (active) View.VISIBLE else View.INVISIBLE
+                    view.bind(
+                        settings = playbackSettings,
+                        artistSettings = artistSettings,
+                        onScratchEnabledChange = onScratchEnabledChange,
+                        onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
+                        onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
+                        onAudioFxClick = {
+                            audioFxPageVisible = true
+                        },
+                        onArtistSeparatorsClick = {
+                            artistSeparatorsInitialValues = artistSettings.separators
+                            editingArtistSeparators = true
+                        },
+                    )
+                },
+            )
+        }
     }
 
     if (editingArtistSeparators) {
@@ -124,12 +175,13 @@ internal fun LegacyPortSettingsPage(
 }
 
 private fun TitleBar.setupLegacySettingsTitleBar(
+    titleRes: Int,
     onClose: () -> Unit,
 ) {
     removeAllLeftViews()
     removeAllRightViews()
     setShadowVisible(false)
-    setCenterText(R.string.setting)
+    setCenterText(titleRes)
     addLeftImageView(R.drawable.standard_icon_back_selector).apply {
         setOnClickListener {
             onClose()
@@ -147,6 +199,63 @@ private enum class LegacySettingsRowShape(
     Bottom(R.drawable.group_list_item_bg_bottom, R.drawable.list_content_item_bottom_shadow),
 }
 
+private val AudioFxFrequencyLabels = listOf("60", "230", "910", "4k", "14k")
+
+private fun PlaybackSettings.activeAudioFxPreset(): AudioFxPreset {
+    return if (audioFxEnabled) audioFxPreset else AudioFxPreset.Original
+}
+
+private fun PlaybackSettings.audioFxSummary(context: Context): String {
+    return if (audioFxEnabled) {
+        context.getString(audioFxPreset.labelRes())
+    } else {
+        context.getString(R.string.audio_fx_off)
+    }
+}
+
+private fun AudioFxPreset.labelRes(): Int {
+    return when (this) {
+        AudioFxPreset.Original -> R.string.audio_fx_original
+        AudioFxPreset.Bass -> R.string.audio_fx_bass
+        AudioFxPreset.Clear -> R.string.audio_fx_clear
+        AudioFxPreset.Vocal -> R.string.audio_fx_vocal
+        AudioFxPreset.Rock -> R.string.audio_fx_rock
+        AudioFxPreset.Custom -> R.string.audio_fx_custom
+    }
+}
+
+private fun AudioFxPreset.summaryRes(): Int {
+    return when (this) {
+        AudioFxPreset.Original -> R.string.audio_fx_original_summary
+        AudioFxPreset.Bass -> R.string.audio_fx_bass_summary
+        AudioFxPreset.Clear -> R.string.audio_fx_clear_summary
+        AudioFxPreset.Vocal -> R.string.audio_fx_vocal_summary
+        AudioFxPreset.Rock -> R.string.audio_fx_rock_summary
+        AudioFxPreset.Custom -> R.string.audio_fx_custom_summary
+    }
+}
+
+private fun View.applyLegacySettingsBackground(shape: LegacySettingsRowShape) {
+    val target = requireNotNull(context.getDrawable(shape.backgroundRes)).mutate()
+    val shadow = requireNotNull(context.getDrawable(shape.shadowRes)).mutate()
+    val shadowPadding = Rect()
+    shadow.getPadding(shadowPadding)
+    background = ShadowDrawable(
+        shadow = shadow,
+        target = target,
+        insetLeftRight = shadowPadding.left,
+        insetTopBottom = shadowPadding.top,
+    )
+}
+
+private fun Context.dpFloat(value: Float): Float {
+    return value * resources.displayMetrics.density
+}
+
+private fun Context.spFloat(value: Float): Float {
+    return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics)
+}
+
 private class LegacySettingsContentView(context: Context) : ScrollView(context) {
     private val content = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -156,6 +265,7 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
     private val scratchRow = LegacySettingsSwitchRow(context, R.string.djing)
     private val axisRow = LegacySettingsSwitchRow(context, R.string.player_axis_enabled)
     private val popcornRow = LegacySettingsSwitchRow(context, R.string.popcorn_sound)
+    private val audioFxRow = LegacySettingsValueRow(context, R.string.audio_fx)
     private val artistSeparatorsRow = LegacySettingsValueRow(context, R.string.artist_separators)
 
     init {
@@ -170,6 +280,13 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
             LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        content.addView(gapView(context))
+        content.addView(
+            settingsGroup(
+                context,
+                audioFxRow to LegacySettingsRowShape.Single,
             ),
         )
         content.addView(gapView(context))
@@ -196,11 +313,16 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         onScratchEnabledChange: (Boolean) -> Unit,
         onHidePlayerAxisEnabledChange: (Boolean) -> Unit,
         onPopcornSoundEnabledChange: (Boolean) -> Unit,
+        onAudioFxClick: () -> Unit,
         onArtistSeparatorsClick: () -> Unit,
     ) {
         scratchRow.bind(settings.scratchEnabled, onScratchEnabledChange)
         axisRow.bind(settings.hidePlayerAxisEnabled, onHidePlayerAxisEnabledChange)
         popcornRow.bind(settings.popcornSoundEnabled, onPopcornSoundEnabledChange)
+        audioFxRow.bind(
+            value = settings.audioFxSummary(context),
+            onClick = onAudioFxClick,
+        )
         artistSeparatorsRow.bind(
             value = artistSettings.separators.toSeparatorSummary(context),
             onClick = onArtistSeparatorsClick,
@@ -257,6 +379,513 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
     }
 }
 
+private class LegacyAudioFxContentView(context: Context) : ScrollView(context) {
+    private val content = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        clipChildren = false
+        clipToPadding = false
+    }
+    private val enabledRow = LegacySettingsSwitchRow(context, R.string.audio_fx_enabled)
+    private val previewPanel = LegacyAudioFxPreviewPanel(context)
+    private val presetRows = AudioFxPreset.entries.map { preset ->
+        preset to LegacyAudioFxPresetRow(context, preset)
+    }
+
+    init {
+        setBackgroundResource(R.drawable.account_background)
+        isFillViewport = true
+        isVerticalScrollBarEnabled = false
+        overScrollMode = OVER_SCROLL_ALWAYS
+        clipChildren = false
+        clipToPadding = false
+        addView(
+            content,
+            LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        content.addView(gapView(context))
+        content.addView(
+            settingsGroup(
+                context,
+                enabledRow to LegacySettingsRowShape.Single,
+            ),
+        )
+        content.addView(gapView(context))
+        content.addView(
+            previewPanel,
+            panelLayoutParams(context, context.dpPx(188)),
+        )
+        content.addView(gapView(context))
+        content.addView(
+            settingsGroup(
+                context,
+                *presetRows.mapIndexed { index, pair ->
+                    pair.second to when (index) {
+                        0 -> LegacySettingsRowShape.Top
+                        presetRows.lastIndex -> LegacySettingsRowShape.Bottom
+                        else -> LegacySettingsRowShape.Middle
+                    }
+                }.toTypedArray(),
+            ),
+        )
+        content.addView(gapView(context))
+    }
+
+    fun bind(
+        settings: PlaybackSettings,
+        onAudioFxEnabledChange: (Boolean) -> Unit,
+        onAudioFxPresetChange: (AudioFxPreset) -> Unit,
+        onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
+    ) {
+        val visiblePreset = settings.activeAudioFxPreset()
+        enabledRow.bind(settings.audioFxEnabled, onAudioFxEnabledChange)
+        previewPanel.bind(
+            preset = visiblePreset,
+            enabled = settings.audioFxEnabled,
+            customGainDbPoints = settings.audioFxCustomGainDbPoints,
+            onCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
+        )
+        presetRows.forEach { (preset, row) ->
+            row.bind(
+                selected = preset == visiblePreset,
+                enabled = settings.audioFxEnabled,
+                onClick = {
+                    onAudioFxPresetChange(preset)
+                },
+            )
+        }
+    }
+
+    private fun gapView(context: Context): View {
+        return View(context).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                resources.getDimensionPixelSize(R.dimen.list_item_vertical_gap),
+            )
+        }
+    }
+
+    private fun settingsGroup(
+        context: Context,
+        vararg rows: Pair<View, LegacySettingsRowShape>,
+    ): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            rows.forEach { (row, shape) ->
+                row.applyLegacySettingsBackground(shape)
+                addView(row, rowLayoutParams(context))
+            }
+        }
+    }
+
+    private fun rowLayoutParams(context: Context): LinearLayout.LayoutParams {
+        val margin = context.resources.getDimensionPixelSize(R.dimen.list_item_left_right_margin)
+        return LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            context.resources.getDimensionPixelSize(R.dimen.list_item_min_height),
+        ).apply {
+            leftMargin = margin
+            rightMargin = margin
+        }
+    }
+
+    private fun panelLayoutParams(context: Context, height: Int): LinearLayout.LayoutParams {
+        val margin = context.resources.getDimensionPixelSize(R.dimen.list_item_left_right_margin)
+        return LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            height,
+        ).apply {
+            leftMargin = margin
+            rightMargin = margin
+        }
+    }
+}
+
+private class LegacyAudioFxPreviewPanel(context: Context) : LinearLayout(context) {
+    private val titleView = TextView(context).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setText(R.string.audio_fx_curve)
+        setTextColor(context.getColorStateList(R.color.setting_item_text_colorlist))
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.primary_text_size))
+    }
+    private val valueView = TextView(context).apply {
+        gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+        setTextColor(context.getColorStateList(R.color.setting_item_summary_text_colorlist))
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.settings_item_tips_text_size))
+    }
+    private val curveView = LegacyAudioFxCurveView(context)
+
+    init {
+        orientation = VERTICAL
+        setPadding(context.dpPx(18), context.dpPx(10), context.dpPx(18), context.dpPx(12))
+        applyLegacySettingsBackground(LegacySettingsRowShape.Single)
+        val header = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(
+            titleView,
+            LinearLayout.LayoutParams(0, context.dpPx(34), 1f),
+        )
+        header.addView(
+            valueView,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, context.dpPx(34)),
+        )
+        addView(header, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dpPx(34)))
+        addView(curveView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+    }
+
+    fun bind(
+        preset: AudioFxPreset,
+        enabled: Boolean,
+        customGainDbPoints: List<Float>,
+        onCustomGainDbPointsChange: (List<Float>) -> Unit,
+    ) {
+        titleView.alpha = if (enabled) 1f else 0.72f
+        valueView.text = context.getString(preset.labelRes())
+        valueView.alpha = if (enabled) 1f else 0.72f
+        curveView.bind(
+            preset = preset,
+            enabled = enabled,
+            customGainDbPoints = customGainDbPoints,
+            onCustomGainDbPointsChange = onCustomGainDbPointsChange,
+        )
+    }
+}
+
+private class LegacyAudioFxPresetRow(
+    context: Context,
+    private val preset: AudioFxPreset,
+) : RelativeLayout(context) {
+    private val titleView = TextView(context).apply {
+        id = View.generateViewId()
+        gravity = Gravity.CENTER_VERTICAL
+        setSingleLine(true)
+        setText(preset.labelRes())
+        setTextColor(context.getColorStateList(R.color.setting_item_text_colorlist))
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.primary_text_size))
+        setDuplicateParentStateEnabled(true)
+    }
+    private val summaryView = TextView(context).apply {
+        id = View.generateViewId()
+        gravity = Gravity.CENTER_VERTICAL
+        setSingleLine(true)
+        setText(preset.summaryRes())
+        setTextColor(context.getColorStateList(R.color.setting_item_summary_text_colorlist))
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.settings_item_tips_text_size))
+        setDuplicateParentStateEnabled(true)
+    }
+    private val selectedView = ImageView(context).apply {
+        id = View.generateViewId()
+        setImageResource(R.drawable.selector_radio_choice)
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+    }
+
+    init {
+        isClickable = true
+        isFocusable = true
+        addView(
+            selectedView,
+            LayoutParams(context.dpPx(28), context.dpPx(28)).apply {
+                addRule(ALIGN_PARENT_RIGHT)
+                addRule(CENTER_VERTICAL)
+                rightMargin = context.dpPx(14)
+            },
+        )
+        val textColumn = LinearLayout(context).apply {
+            id = View.generateViewId()
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                titleView,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                summaryView,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        addView(
+            textColumn,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                addRule(CENTER_VERTICAL)
+                addRule(LEFT_OF, selectedView.id)
+                leftMargin = context.dpPx(18)
+                rightMargin = context.dpPx(10)
+            },
+        )
+    }
+
+    fun bind(
+        selected: Boolean,
+        enabled: Boolean,
+        onClick: () -> Unit,
+    ) {
+        val contentAlpha = if (enabled) 1f else 0.62f
+        selectedView.visibility = if (selected) View.VISIBLE else View.INVISIBLE
+        titleView.alpha = contentAlpha
+        summaryView.alpha = contentAlpha
+        selectedView.alpha = contentAlpha
+        isEnabled = enabled
+        setOnClickListener {
+            if (isEnabled) {
+                onClick()
+            }
+        }
+    }
+}
+
+private class LegacyAudioFxCurveView(context: Context) : View(context) {
+    private var preset: AudioFxPreset = AudioFxPreset.Original
+    private var audioFxEnabled = false
+    private var customGainDbPoints = normalizeAudioFxGainDbPoints(emptyList())
+    private var onCustomGainDbPointsChange: ((List<Float>) -> Unit)? = null
+    private var activeBandIndex = -1
+    private val graphBounds = RectF()
+    private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(0xe2, 0xe2, 0xe2)
+        strokeWidth = context.dpFloat(1f)
+        style = Paint.Style.STROKE
+    }
+    private val centerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(0xd8, 0xd8, 0xd8)
+        strokeWidth = context.dpFloat(1.2f)
+        style = Paint.Style.STROKE
+    }
+    private val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(0xdb, 0x3b, 0x3b)
+        strokeWidth = context.dpFloat(2.1f)
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        style = Paint.Style.STROKE
+    }
+    private val disabledCurvePaint = Paint(curvePaint).apply {
+        color = Color.rgb(0xa6, 0xa6, 0xa6)
+    }
+    private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(0xdb, 0x3b, 0x3b)
+        style = Paint.Style.FILL
+    }
+    private val disabledHandlePaint = Paint(handlePaint).apply {
+        color = Color.rgb(0xa6, 0xa6, 0xa6)
+    }
+    private val handleStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        strokeWidth = context.dpFloat(1.4f)
+        style = Paint.Style.STROKE
+    }
+    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = context.getColor(R.color.setting_item_summary_text_color)
+        textSize = context.spFloat(10.5f)
+        textAlign = Paint.Align.CENTER
+    }
+    private val path = Path()
+
+    fun bind(
+        preset: AudioFxPreset,
+        enabled: Boolean,
+        customGainDbPoints: List<Float>,
+        onCustomGainDbPointsChange: (List<Float>) -> Unit,
+    ) {
+        val normalizedCustomGains = normalizeAudioFxGainDbPoints(customGainDbPoints)
+        this.onCustomGainDbPointsChange = onCustomGainDbPointsChange
+        val changed = this.preset != preset ||
+            audioFxEnabled != enabled ||
+            this.customGainDbPoints != normalizedCustomGains
+        isClickable = enabled && preset == AudioFxPreset.Custom
+        if (changed) {
+            this.preset = preset
+            audioFxEnabled = enabled
+            this.customGainDbPoints = normalizedCustomGains
+            invalidate()
+        }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!audioFxEnabled || preset != AudioFxPreset.Custom || !updateGraphBounds()) {
+            return super.onTouchEvent(event)
+        }
+
+        return when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                if (!isTouchInsideGraph(event)) {
+                    false
+                } else {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    activeBandIndex = nearestBandIndex(event.x)
+                    updateCustomGainFromTouch(event.y)
+                    true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                updateCustomGainFromTouch(event.y)
+                true
+            }
+            MotionEvent.ACTION_UP -> {
+                updateCustomGainFromTouch(event.y)
+                parent?.requestDisallowInterceptTouchEvent(false)
+                activeBandIndex = -1
+                performClick()
+                true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
+                activeBandIndex = -1
+                true
+            }
+            else -> true
+        }
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (!updateGraphBounds()) {
+            return
+        }
+        val left = graphBounds.left
+        val top = graphBounds.top
+        val right = graphBounds.right
+        val bottom = graphBounds.bottom
+
+        val verticalCount = AudioFxFrequencyLabels.size
+        for (index in 0 until verticalCount) {
+            val x = left + (right - left) * index / (verticalCount - 1)
+            canvas.drawLine(x, top, x, bottom, gridPaint)
+            canvas.drawText(AudioFxFrequencyLabels[index], x, height - context.dpFloat(7f), labelPaint)
+        }
+        for (index in 0..4) {
+            val y = top + (bottom - top) * index / 4f
+            canvas.drawLine(left, y, right, y, gridPaint)
+        }
+        val centerY = top + (bottom - top) / 2f
+        canvas.drawLine(left, centerY, right, centerY, centerPaint)
+
+        val values = currentGainDbPoints()
+        path.reset()
+        values.forEachIndexed { index, value ->
+            val x = left + (right - left) * index / (values.size - 1)
+            val y = gainToY(value)
+            if (index == 0) {
+                path.moveTo(x, y)
+            } else {
+                path.lineTo(x, y)
+            }
+        }
+        canvas.drawPath(path, if (audioFxEnabled) curvePaint else disabledCurvePaint)
+
+        if (preset == AudioFxPreset.Custom) {
+            val radius = handleRadius()
+            values.forEachIndexed { index, value ->
+                val x = left + (right - left) * index / (values.size - 1)
+                val y = gainToY(value)
+                canvas.drawCircle(x, y, radius, if (audioFxEnabled) handlePaint else disabledHandlePaint)
+                canvas.drawCircle(x, y, radius, handleStrokePaint)
+            }
+        }
+    }
+
+    private fun currentGainDbPoints(): FloatArray {
+        return if (preset == AudioFxPreset.Custom) {
+            normalizeAudioFxGainDbPoints(customGainDbPoints).toFloatArray()
+        } else {
+            preset.equalizerGainDbPoints()
+        }
+    }
+
+    private fun updateGraphBounds(): Boolean {
+        val horizontalInset = horizontalGraphInset()
+        graphBounds.set(
+            paddingLeft + horizontalInset,
+            paddingTop + context.dpFloat(4f),
+            width - paddingRight - horizontalInset,
+            height - paddingBottom - context.dpFloat(24f),
+        )
+        return graphBounds.right > graphBounds.left && graphBounds.bottom > graphBounds.top
+    }
+
+    private fun horizontalGraphInset(): Float {
+        val labelInset = AudioFxFrequencyLabels.maxOf { label ->
+            labelPaint.measureText(label)
+        } / 2f
+        return maxOf(labelInset, handleRadius()) + context.dpFloat(2f)
+    }
+
+    private fun handleRadius(): Float {
+        return context.dpFloat(5.6f)
+    }
+
+    private fun isTouchInsideGraph(event: MotionEvent): Boolean {
+        val slop = context.dpFloat(22f)
+        return event.x >= graphBounds.left - slop &&
+            event.x <= graphBounds.right + slop &&
+            event.y >= graphBounds.top - slop &&
+            event.y <= graphBounds.bottom + slop
+    }
+
+    private fun nearestBandIndex(x: Float): Int {
+        val gains = currentGainDbPoints()
+        if (gains.isEmpty()) {
+            return 0
+        }
+        var nearestIndex = 0
+        var nearestDistance = Float.MAX_VALUE
+        gains.indices.forEach { index ->
+            val bandX = graphBounds.left + graphBounds.width() * index / (gains.size - 1)
+            val distance = kotlin.math.abs(x - bandX)
+            if (distance < nearestDistance) {
+                nearestDistance = distance
+                nearestIndex = index
+            }
+        }
+        return nearestIndex
+    }
+
+    private fun updateCustomGainFromTouch(y: Float) {
+        val index = activeBandIndex
+        if (index !in 0 until customGainDbPoints.size) {
+            return
+        }
+        val nextGain = yToGain(y)
+        if (customGainDbPoints[index] == nextGain) {
+            return
+        }
+        customGainDbPoints = customGainDbPoints.toMutableList().also { gains ->
+            gains[index] = nextGain
+        }
+        invalidate()
+        onCustomGainDbPointsChange?.invoke(customGainDbPoints)
+    }
+
+    private fun gainToY(gain: Float): Float {
+        val centerY = graphBounds.centerY()
+        val gainRange = AudioFxMaxGainDb.coerceAtLeast(1f)
+        return centerY - gain.coerceIn(AudioFxMinGainDb, AudioFxMaxGainDb) / gainRange * (graphBounds.height() / 2f)
+    }
+
+    private fun yToGain(y: Float): Float {
+        val centerY = graphBounds.centerY()
+        val gainRange = AudioFxMaxGainDb.coerceAtLeast(1f)
+        val rawGain = (centerY - y) / (graphBounds.height() / 2f) * gainRange
+        return ((rawGain.coerceIn(AudioFxMinGainDb, AudioFxMaxGainDb) * 2f).roundToInt() / 2f)
+    }
+}
+
 private class LegacySettingsValueRow(
     context: Context,
     titleRes: Int,
@@ -266,15 +895,17 @@ private class LegacySettingsValueRow(
         gravity = Gravity.CENTER_VERTICAL
         setSingleLine(true)
         setText(titleRes)
-        setTextColor(context.getColor(R.color.setting_item_text_color))
+        setTextColor(context.getColorStateList(R.color.setting_item_text_colorlist))
         setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.primary_text_size))
+        setDuplicateParentStateEnabled(true)
     }
     private val valueView = TextView(context).apply {
         id = View.generateViewId()
         gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         setSingleLine(true)
-        setTextColor(context.getColor(R.color.setting_item_summary_text_color))
+        setTextColor(context.getColorStateList(R.color.setting_item_summary_text_colorlist))
         setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.settings_item_tips_text_size))
+        setDuplicateParentStateEnabled(true)
     }
 
     init {
@@ -330,8 +961,9 @@ private class LegacySettingsSwitchRow(
         gravity = Gravity.CENTER_VERTICAL
         setSingleLine(true)
         setText(titleRes)
-        setTextColor(context.getColor(R.color.setting_item_text_color))
+        setTextColor(context.getColorStateList(R.color.setting_item_text_colorlist))
         setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.primary_text_size))
+        setDuplicateParentStateEnabled(true)
     }
     private val switchView = SwitchEx(context).apply {
         id = View.generateViewId()

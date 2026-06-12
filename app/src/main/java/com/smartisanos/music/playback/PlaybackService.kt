@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.session.MediaLibraryService
@@ -27,6 +28,7 @@ import com.smartisanos.music.MainActivity
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
+import com.smartisanos.music.data.settings.PlaybackSettingsStore
 import com.smartisanos.music.isExternalAudioLaunchItem
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -49,16 +51,23 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var libraryExecutor: ListeningExecutorService
     private lateinit var libraryRefreshExecutor: ListeningExecutorService
     private lateinit var libraryExclusionsStore: LibraryExclusionsStore
+    private lateinit var playbackSettingsStore: PlaybackSettingsStore
     private lateinit var playbackStatsRepository: PlaybackStatsRepository
     private lateinit var playbackSessionStateStore: PlaybackSessionStateStore
     private var playbackSessionStateCoordinator: PlaybackSessionStateCoordinator? = null
     private var playbackPlayCountTracker: PlaybackPlayCountTracker? = null
+    private var playbackAudioFxController: PlaybackAudioFxController? = null
     private var mediaSessionArtworkBitmapLoader: MediaSessionArtworkBitmapLoader? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
     private var pendingRatingLibraryRefreshJob: Job? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     @Volatile private var exclusionsSnapshot: LibraryExclusions = LibraryExclusions()
     private val exclusionsReady = CompletableDeferred<LibraryExclusions>()
+    private val audioFxPlayerListener = object : Player.Listener {
+        override fun onAudioSessionIdChanged(audioSessionId: Int) {
+            playbackAudioFxController?.setAudioSessionId(audioSessionId)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -69,6 +78,7 @@ class PlaybackService : MediaLibraryService() {
             playbackStatsByIdsProvider = playbackStatsRepository::getStats,
         )
         libraryExclusionsStore = LibraryExclusionsStore(this)
+        playbackSettingsStore = PlaybackSettingsStore(this)
         playbackSessionStateStore = PlaybackSessionStateStore(this)
         libraryExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
         libraryRefreshExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
@@ -85,6 +95,10 @@ class PlaybackService : MediaLibraryService() {
         val artworkBitmapLoader = MediaSessionArtworkBitmapLoader(this)
 
         player = exoPlayer
+        playbackAudioFxController = PlaybackAudioFxController().also { controller ->
+            controller.setAudioSessionId(exoPlayer.audioSessionId)
+        }
+        exoPlayer.addListener(audioFxPlayerListener)
         mediaSessionArtworkBitmapLoader = artworkBitmapLoader
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
@@ -133,6 +147,11 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
         }
+        serviceScope.launch(Dispatchers.Main.immediate) {
+            playbackSettingsStore.settings.collect { settings ->
+                playbackAudioFxController?.setSettings(settings)
+            }
+        }
     }
 
     override fun onGetSession(
@@ -162,6 +181,9 @@ class PlaybackService : MediaLibraryService() {
         pendingRatingLibraryRefreshJob = null
         serviceScope.cancel()
         PlaybackSleepTimer.cancel()
+        player?.removeListener(audioFxPlayerListener)
+        playbackAudioFxController?.release()
+        playbackAudioFxController = null
         mediaLibrarySession?.release()
         mediaLibrarySession = null
 

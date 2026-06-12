@@ -51,6 +51,7 @@ import androidx.media3.common.Player
 import com.smartisanos.music.R
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
 import com.smartisanos.music.data.settings.ArtistSettings
+import com.smartisanos.music.data.settings.AudioFxPreset
 import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
@@ -112,6 +113,9 @@ internal fun LegacyPortMorePage(
     onScratchEnabledChange: (Boolean) -> Unit,
     onHidePlayerAxisEnabledChange: (Boolean) -> Unit,
     onPopcornSoundEnabledChange: (Boolean) -> Unit,
+    onAudioFxEnabledChange: (Boolean) -> Unit,
+    onAudioFxPresetChange: (AudioFxPreset) -> Unit,
+    onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
@@ -218,6 +222,9 @@ internal fun LegacyPortMorePage(
                     onScratchEnabledChange = onScratchEnabledChange,
                     onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
                     onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
+                    onAudioFxEnabledChange = onAudioFxEnabledChange,
+                    onAudioFxPresetChange = onAudioFxPresetChange,
+                    onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
                     onArtistSeparatorsChange = onArtistSeparatorsChange,
                     modifier = Modifier.fillMaxSize(),
                 )

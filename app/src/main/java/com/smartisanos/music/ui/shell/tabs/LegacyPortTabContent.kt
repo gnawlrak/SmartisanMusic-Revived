@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
 import com.smartisanos.music.data.settings.ArtistSettings
+import com.smartisanos.music.data.settings.AudioFxPreset
 import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.ui.album.AlbumViewMode
 import com.smartisanos.music.ui.navigation.MusicDestination
@@ -60,6 +61,9 @@ internal fun LegacyPortTabContent(
     onScratchEnabledChange: (Boolean) -> Unit,
     onHidePlayerAxisEnabledChange: (Boolean) -> Unit,
     onPopcornSoundEnabledChange: (Boolean) -> Unit,
+    onAudioFxEnabledChange: (Boolean) -> Unit,
+    onAudioFxPresetChange: (AudioFxPreset) -> Unit,
+    onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
@@ -173,6 +177,9 @@ internal fun LegacyPortTabContent(
                 onScratchEnabledChange = onScratchEnabledChange,
                 onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
                 onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
+                onAudioFxEnabledChange = onAudioFxEnabledChange,
+                onAudioFxPresetChange = onAudioFxPresetChange,
+                onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
                 onArtistSeparatorsChange = onArtistSeparatorsChange,
                 onMediaIdsHidden = onMediaIdsHidden,
                 onRequestDeleteMediaIds = onRequestDeleteMediaIds,

@@ -917,20 +917,24 @@ private class PlaybackCenterTitle(context: Context) : RelativeLayout(context) {
             id = R.id.title_view
             ellipsize = TextUtils.TruncateAt.MARQUEE
             gravity = Gravity.CENTER
-            isFocusable = true
-            isFocusableInTouchMode = true
             isSelected = true
             marqueeRepeatLimit = -1
-            maxLines = 1
             setSingleLine(true)
+            setHorizontallyScrolling(true)
             setTextColor(context.getColor(R.color.title_color))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, PlaybackTitleTextMaxSp.toFloat())
+            setAutoSizeTextTypeUniformWithConfiguration(
+                PlaybackTitleTextMinSp,
+                PlaybackTitleTextMaxSp,
+                PlaybackTitleTextStepSp,
+                TypedValue.COMPLEX_UNIT_SP,
+            )
             typeface = Typeface.create(paint.typeface, Typeface.BOLD)
         }
         addView(
             titleView,
             LayoutParams(
-                LayoutParams.WRAP_CONTENT,
+                LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
             ).apply {
                 addRule(CENTER_IN_PARENT)
@@ -939,8 +943,9 @@ private class PlaybackCenterTitle(context: Context) : RelativeLayout(context) {
 
         subTitleView = TextView(context).apply {
             gravity = Gravity.CENTER
+            ellipsize = TextUtils.TruncateAt.END
             maxLines = 1
-            setSingleLine(true)
+            setHorizontallyScrolling(false)
             setTextColor(context.getColor(R.color.sub_title_text_color))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
             visibility = View.GONE
@@ -948,7 +953,7 @@ private class PlaybackCenterTitle(context: Context) : RelativeLayout(context) {
         addView(
             subTitleView,
             LayoutParams(
-                LayoutParams.WRAP_CONTENT,
+                LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
             ).apply {
                 addRule(BELOW, R.id.title_view)
@@ -965,12 +970,6 @@ private class PlaybackCenterTitle(context: Context) : RelativeLayout(context) {
         val hasSubTitle = !subTitle.isNullOrBlank()
         subTitleView.text = subTitle ?: ""
         subTitleView.visibility = if (hasSubTitle) View.VISIBLE else View.GONE
-        titleView.maxWidth = if (hasSubTitle) {
-            resources.getDimensionPixelSize(R.dimen.max_title_view_width)
-        } else {
-            resources.displayMetrics.widthPixels
-        }
-        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
         val params = titleView.layoutParams as LayoutParams
         params.removeRule(CENTER_IN_PARENT)
         params.removeRule(CENTER_VERTICAL)
@@ -984,3 +983,6 @@ private class PlaybackCenterTitle(context: Context) : RelativeLayout(context) {
 
 private const val LegacyQueueRevealDurationMillis = 300
 private const val LegacyQueueHistoryLimit = 2
+private const val PlaybackTitleTextMinSp = 16
+private const val PlaybackTitleTextMaxSp = 20
+private const val PlaybackTitleTextStepSp = 1

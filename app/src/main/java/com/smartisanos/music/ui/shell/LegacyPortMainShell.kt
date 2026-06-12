@@ -681,6 +681,21 @@ private fun LegacyPortMainShellContent(
                         playbackSettingsStore.setPopcornSoundEnabled(enabled)
                     }
                 },
+                onAudioFxEnabledChange = { enabled ->
+                    scope.launch {
+                        playbackSettingsStore.setAudioFxEnabled(enabled)
+                    }
+                },
+                onAudioFxPresetChange = { preset ->
+                    scope.launch {
+                        playbackSettingsStore.setAudioFxPreset(preset)
+                    }
+                },
+                onAudioFxCustomGainDbPointsChange = { gains ->
+                    scope.launch {
+                        playbackSettingsStore.setAudioFxCustomGainDbPoints(gains)
+                    }
+                },
                 onArtistSeparatorsChange = { separators ->
                     scope.launch {
                         artistSettingsStore.setSeparators(separators)

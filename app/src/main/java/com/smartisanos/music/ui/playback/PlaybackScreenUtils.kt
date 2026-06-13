@@ -12,7 +12,6 @@ import androidx.annotation.DrawableRes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.smartisanos.music.R
@@ -61,55 +60,6 @@ internal fun MediaItem.resolveDeleteTarget(): PlaybackDeleteTargetResult {
 
 private fun Uri.isMediaStoreUri(): Boolean {
     return scheme == ContentResolver.SCHEME_CONTENT && authority == MediaStore.AUTHORITY
-}
-
-internal fun Player.upcomingQueueTracks(context: Context): List<PlaybackQueueTrack> {
-    val currentIndex = currentMediaItemIndex
-    if (currentIndex !in 0 until mediaItemCount || mediaItemCount <= 1 || currentTimeline.isEmpty) {
-        return emptyList()
-    }
-
-    val timeline = currentTimeline
-    val effectiveRepeatMode = repeatMode.takeUnless { it == Player.REPEAT_MODE_ONE }
-        ?: Player.REPEAT_MODE_OFF
-    val visitedIndexes = mutableSetOf(currentIndex)
-    return buildList {
-        var nextIndex = timeline.getNextWindowIndex(
-            currentIndex,
-            effectiveRepeatMode,
-            shuffleModeEnabled,
-        )
-        while (
-            nextIndex != C.INDEX_UNSET &&
-            nextIndex in 0 until mediaItemCount &&
-            nextIndex !in visitedIndexes
-        ) {
-            visitedIndexes += nextIndex
-            add(getMediaItemAt(nextIndex).toPlaybackQueueTrack(context, queueIndex = nextIndex))
-            nextIndex = timeline.getNextWindowIndex(
-                nextIndex,
-                effectiveRepeatMode,
-                shuffleModeEnabled,
-            )
-        }
-    }
-}
-
-internal fun MediaItem.toPlaybackQueueTrack(
-    context: Context,
-    queueIndex: Int = -1,
-): PlaybackQueueTrack {
-    return PlaybackQueueTrack(
-        id = mediaId,
-        title = mediaMetadata.displayTitle?.toString()
-            ?: mediaMetadata.title?.toString()
-            ?: context.getString(R.string.unknown_song_title),
-        artist = mediaMetadata.subtitle?.toString()
-            ?: mediaMetadata.artist?.toString()
-            ?: context.getString(R.string.unknown_artist),
-        mediaItem = this,
-        queueIndex = queueIndex,
-    )
 }
 
 internal fun nextPlaybackRepeatMode(repeatMode: Int): Int {

@@ -1,5 +1,6 @@
 package com.smartisanos.music.data.online
 
+import android.net.Uri
 import androidx.media3.common.MediaItem
 
 internal enum class OnlineMusicProvider(
@@ -16,6 +17,7 @@ internal const val OnlineTrackIdExtraKey = "com.smartisanos.music.extra.ONLINE_T
 internal const val OnlineLyricsExtraKey = "com.smartisanos.music.extra.ONLINE_LYRICS"
 internal const val OnlineTranslatedLyricsExtraKey = "com.smartisanos.music.extra.ONLINE_TRANSLATED_LYRICS"
 internal const val OnlinePlaybackResolvedAtExtraKey = "com.smartisanos.music.extra.ONLINE_PLAYBACK_RESOLVED_AT"
+internal const val OnlinePlaybackUriScheme = "smartisan-online"
 
 internal data class OnlineAccountPlaylist(
     val provider: OnlineMusicProvider,
@@ -211,4 +213,32 @@ internal interface OnlineMusicProviderRepository {
             resolvePlayableMediaItem(item)
         }
     }
+}
+
+internal fun MediaItem.withOnlinePlaybackPlaceholderUri(): MediaItem {
+    if (!isOnlineMediaItem() || localConfiguration?.uri != null) {
+        return this
+    }
+    val identity = onlineIdentityOrNull() ?: return this
+    return buildUpon()
+        .setUri(identity.toOnlinePlaybackUri())
+        .setMimeType("audio/mpeg")
+        .build()
+}
+
+internal fun Uri.onlinePlaybackUriIdentityOrNull(): OnlineTrackIdentity? {
+    if (scheme != OnlinePlaybackUriScheme) {
+        return null
+    }
+    val source = authority?.takeIf(String::isNotBlank) ?: return null
+    val trackId = pathSegments.firstOrNull()?.takeIf(String::isNotBlank) ?: return null
+    return OnlineTrackIdentity(source = source, trackId = trackId)
+}
+
+private fun OnlineTrackIdentity.toOnlinePlaybackUri(): Uri {
+    return Uri.Builder()
+        .scheme(OnlinePlaybackUriScheme)
+        .authority(source)
+        .appendPath(trackId)
+        .build()
 }

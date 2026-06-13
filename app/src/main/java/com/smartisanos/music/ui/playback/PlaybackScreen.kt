@@ -141,7 +141,6 @@ fun PlaybackScreen(
     var showSleepTimerDialog by rememberSaveable { mutableStateOf(false) }
     var showSetRingtoneDialog by rememberSaveable { mutableStateOf(false) }
     var showWriteSettingsDialog by rememberSaveable { mutableStateOf(false) }
-    var showQueueOverlay by rememberSaveable { mutableStateOf(false) }
     var currentVisualPage by rememberSaveable { mutableStateOf(PlaybackVisualPage.Cover) }
     var keepLyricsScreenAwake by rememberSaveable { mutableStateOf(false) }
     var pendingRingtoneUriString by rememberSaveable { mutableStateOf<String?>(null) }
@@ -249,8 +248,6 @@ fun PlaybackScreen(
     BackHandler {
         if (showSleepTimerDialog) {
             showSleepTimerDialog = false
-        } else if (showQueueOverlay) {
-            showQueueOverlay = false
         } else if (showMorePanel) {
             showMorePanel = false
         } else {
@@ -712,7 +709,6 @@ fun PlaybackScreen(
                     title = title,
                     artist = artist,
                     topInset = topInset,
-                    onQueueClick = { showQueueOverlay = true },
                     onCollapse = onCollapse,
                 )
             }
@@ -1034,75 +1030,8 @@ fun PlaybackScreen(
             },
         )
 
-        PlaybackQueueOverlayHost(
-            showQueueOverlay = showQueueOverlay,
-            currentTrackProvider = {
-                state.mediaItem?.toPlaybackQueueTrack(
-                    context = context,
-                    queueIndex = controller?.currentMediaItemIndex ?: -1,
-                )
-            },
-            upcomingItemsProvider = {
-                controller?.upcomingQueueTracks(context).orEmpty()
-            },
-            isCurrentFavorite = favoriteEnabled,
-            reorderEnabled = state.canReorderUpcomingQueue,
-            onExitFullScreenClick = {
-                showQueueOverlay = false
-                onCollapse()
-            },
-            onReturnToPlaybackClick = {
-                showQueueOverlay = false
-            },
-            onItemClick = { queueIndex ->
-                val playbackController = controller ?: return@PlaybackQueueOverlayHost
-                if (queueIndex in 0 until playbackController.mediaItemCount) {
-                    playbackController.seekToDefaultPosition(queueIndex)
-                }
-                showQueueOverlay = false
-            },
-            onFavoriteCurrentClick = {
-                val mediaId = currentMediaId ?: return@PlaybackQueueOverlayHost
-                if (currentIsExternalAudio) {
-                    return@PlaybackQueueOverlayHost
-                }
-                scope.launch {
-                    favoriteRepository.toggle(mediaId)
-                }
-            },
-            onClearUpcomingClick = {
-                val playbackController = controller ?: return@PlaybackQueueOverlayHost
-                val currentIndex = playbackController.currentMediaItemIndex
-                val upcomingIndexes = playbackController.upcomingQueueTracks(context)
-                    .map { track -> track.queueIndex }
-                    .filter { index -> index >= 0 && index != currentIndex }
-                    .distinct()
-                    .sortedDescending()
-                upcomingIndexes.forEach { index ->
-                    if (index in 0 until playbackController.mediaItemCount) {
-                        playbackController.removeMediaItem(index)
-                    }
-                }
-            },
-            onMoveRequest = { fromIndex, toIndex ->
-                if (!state.canReorderUpcomingQueue) {
-                    return@PlaybackQueueOverlayHost
-                }
-                if (fromIndex == toIndex) {
-                    return@PlaybackQueueOverlayHost
-                }
-                val playbackController = controller ?: return@PlaybackQueueOverlayHost
-                val itemCount = playbackController.mediaItemCount
-                if (fromIndex in 0 until itemCount && toIndex in 0 until itemCount) {
-                    playbackController.moveMediaItem(fromIndex, toIndex)
-                }
-            },
-        )
     }
 }
-
-private val PlaybackScreenState.canReorderUpcomingQueue: Boolean
-    get() = !shuffleEnabled && repeatMode != Player.REPEAT_MODE_ALL
 
 private tailrec fun Context.findActivity(): Activity? {
     return when (this) {

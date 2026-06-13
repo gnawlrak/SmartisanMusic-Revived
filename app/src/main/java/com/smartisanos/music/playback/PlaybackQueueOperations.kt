@@ -3,7 +3,6 @@ package com.smartisanos.music.playback
 import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import com.smartisanos.music.data.online.isOnlineMediaItem
 import com.smartisanos.music.isExternalAudioLaunchItem
 import kotlin.random.Random
 
@@ -13,9 +12,12 @@ internal fun Player?.replaceQueueAndPlay(
     shuffleModeEnabled: Boolean = false,
 ) {
     val player = this ?: return
-    val playableQueue = mediaItems.filterPlayableQueueItems(startIndex) ?: return
+    val safeStartIndex = playbackQueueStartIndex(
+        itemCount = mediaItems.size,
+        startIndex = startIndex,
+    ) ?: return
     player.shuffleModeEnabled = shuffleModeEnabled
-    player.setMediaItems(playableQueue.mediaItems, playableQueue.startIndex, 0L)
+    player.setMediaItems(mediaItems, safeStartIndex, 0L)
     player.prepare()
     player.play()
 }
@@ -35,64 +37,14 @@ internal fun Player?.replaceQueueAndPlayShuffled(
     )
 }
 
-internal data class PlaybackQueueFilterState(
-    val keptIndices: List<Int>,
-    val startIndex: Int,
-)
-
-internal data class PlaybackQueueItemFilterState(
-    val isOnline: Boolean,
-    val hasPlaybackUri: Boolean,
-)
-
-internal fun filterPlayableQueueItemStates(
-    itemStates: List<PlaybackQueueItemFilterState>,
+internal fun playbackQueueStartIndex(
+    itemCount: Int,
     startIndex: Int,
-): PlaybackQueueFilterState? {
-    if (itemStates.isEmpty()) {
+): Int? {
+    if (itemCount <= 0) {
         return null
     }
-    val safeStartIndex = startIndex.coerceIn(0, itemStates.lastIndex)
-    val keptIndices = mutableListOf<Int>()
-    var mappedStartIndex = -1
-    itemStates.forEachIndexed { index, itemState ->
-        val keepItem = !itemState.isOnline || itemState.hasPlaybackUri
-        if (!keepItem) {
-            return@forEachIndexed
-        }
-        if (index == safeStartIndex) {
-            mappedStartIndex = keptIndices.size
-        }
-        keptIndices += index
-    }
-    if (mappedStartIndex < 0) {
-        return null
-    }
-    return PlaybackQueueFilterState(
-        keptIndices = keptIndices,
-        startIndex = mappedStartIndex,
-    )
-}
-
-private data class PlayableQueueItems(
-    val mediaItems: List<MediaItem>,
-    val startIndex: Int,
-)
-
-private fun List<MediaItem>.filterPlayableQueueItems(startIndex: Int): PlayableQueueItems? {
-    val filterState = filterPlayableQueueItemStates(
-        itemStates = map { item ->
-            PlaybackQueueItemFilterState(
-                isOnline = item.isOnlineMediaItem(),
-                hasPlaybackUri = item.localConfiguration?.uri != null,
-            )
-        },
-        startIndex = startIndex,
-    ) ?: return null
-    return PlayableQueueItems(
-        mediaItems = filterState.keptIndices.map(::get),
-        startIndex = filterState.startIndex,
-    )
+    return startIndex.coerceIn(0, itemCount - 1)
 }
 
 internal val MediaItem.stableKey: String?

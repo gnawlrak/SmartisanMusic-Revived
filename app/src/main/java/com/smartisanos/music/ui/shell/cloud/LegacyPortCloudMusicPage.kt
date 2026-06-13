@@ -122,6 +122,7 @@ import com.smartisanos.music.ui.shell.legacyWrappedAdapter
 import com.smartisanos.music.ui.shell.songs.LegacySongsAdapter
 import com.smartisanos.music.ui.shell.songs.LegacySongsSectionMode
 import com.smartisanos.music.ui.shell.songs.LegacySongsSortDisplayMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -270,14 +271,14 @@ internal fun LegacyPortCloudMusicPage(
     }
 
     LaunchedEffect(authRevision) {
-        bannerItems = runCatching {
+        bannerItems = runSuspendCatching {
             activeRepository.featuredBanners()
         }.getOrDefault(emptyList())
     }
 
     LaunchedEffect(authRevision) {
         featuredHomeState = CloudFeaturedHomeState.Loading
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.featuredHome()
         }
         featuredHomeState = result.fold(
@@ -299,7 +300,7 @@ internal fun LegacyPortCloudMusicPage(
             return@LaunchedEffect
         }
         radioHomeState = CloudRadioHomeState.Loading
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.featuredRadioHome()
         }
         radioHomeState = result.fold(
@@ -350,7 +351,7 @@ internal fun LegacyPortCloudMusicPage(
         }
 
         homeState = CloudMusicState.LoadingAccount
-        val playlistResult = runCatching {
+        val playlistResult = runSuspendCatching {
             activeRepository.accountPlaylists()
         }
         val cloudPlaylists = playlistResult.getOrNull()
@@ -380,7 +381,7 @@ internal fun LegacyPortCloudMusicPage(
             return@LaunchedEffect
         }
 
-        val tracksResult = runCatching {
+        val tracksResult = runSuspendCatching {
             activeRepository.accountPlaylistTracks(selectedPlaylist)
         }
         homeState = tracksResult.fold(
@@ -402,7 +403,7 @@ internal fun LegacyPortCloudMusicPage(
             return@LaunchedEffect
         }
         artistState = CloudArtistState.Loading
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.featuredArtists()
         }
         artistState = result.fold(
@@ -427,7 +428,7 @@ internal fun LegacyPortCloudMusicPage(
         artistTracksState = CloudMusicState.LoadingFeatured
         artistAlbums = emptyList()
         artistIntroductions = emptyList()
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.artistTopTracks(artist)
         }
         artistTracksState = result.fold(
@@ -442,10 +443,10 @@ internal fun LegacyPortCloudMusicPage(
                 CloudMusicState.FeaturedError
             },
         )
-        artistAlbums = runCatching {
+        artistAlbums = runSuspendCatching {
             activeRepository.artistAlbums(artist)
         }.getOrDefault(emptyList())
-        artistIntroductions = runCatching {
+        artistIntroductions = runSuspendCatching {
             activeRepository.artistIntroduction(artist)
         }.getOrDefault(emptyList())
     }
@@ -478,7 +479,7 @@ internal fun LegacyPortCloudMusicPage(
             return@LaunchedEffect
         }
         radioTrackState = CloudMusicState.LoadingRadio
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.radioTracks(radio)
         }
         radioTrackState = result.fold(
@@ -508,7 +509,7 @@ internal fun LegacyPortCloudMusicPage(
             return@LaunchedEffect
         }
         bannerTrackState = CloudMusicState.LoadingFeatured
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.track(trackId)
         }
         bannerTrackState = result.fold(
@@ -530,7 +531,7 @@ internal fun LegacyPortCloudMusicPage(
             CloudHomeMode.OnlinePlaylistTracks -> {
                 val playlist = selectedOnlinePlaylist ?: return@LaunchedEffect
                 onlinePlaylistTracksState = CloudMusicState.LoadingFeatured
-                val result = runCatching {
+                val result = runSuspendCatching {
                     activeRepository.playlistTracks(playlist)
                 }
                 onlinePlaylistTracksState = result.fold(
@@ -549,7 +550,7 @@ internal fun LegacyPortCloudMusicPage(
             CloudHomeMode.OnlineAlbumTracks -> {
                 val album = selectedOnlineAlbum ?: return@LaunchedEffect
                 onlineAlbumTracksState = CloudMusicState.LoadingFeatured
-                val result = runCatching {
+                val result = runSuspendCatching {
                     activeRepository.albumTracks(album)
                 }
                 onlineAlbumTracksState = result.fold(
@@ -574,7 +575,7 @@ internal fun LegacyPortCloudMusicPage(
             return@LaunchedEffect
         }
         hotSearchState = CloudHotSearchState.Loading
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.searchHotKeywords()
         }
         hotSearchState = result.fold(
@@ -599,7 +600,7 @@ internal fun LegacyPortCloudMusicPage(
         }
         searchResultsState = CloudSearchResultsState.Loading
         delay(CloudSearchDebounceMs)
-        val result = runCatching {
+        val result = runSuspendCatching {
             activeRepository.searchAll(normalizedQuery)
         }
         searchResultsState = result.fold(
@@ -3547,7 +3548,7 @@ private fun CloudMusicResultList(
                 runCatching {
                     repository.resolvePlayableMediaItems(
                         mediaItems = listOf(mediaItems[safeStartIndex]),
-                        includeLyrics = false,
+                        includeLyrics = true,
                     ).firstOrNull()
                 }.getOrNull()
             }
@@ -3559,34 +3560,14 @@ private fun CloudMusicResultList(
                 showPlayFailed()
                 return@launch
             }
+            val queueItems = mediaItems.toMutableList().apply {
+                this[safeStartIndex] = startItem
+            }
             browser.replaceQueueAndPlay(
-                mediaItems = listOf(startItem),
-                startIndex = 0,
+                mediaItems = queueItems,
+                startIndex = safeStartIndex,
                 shuffleModeEnabled = shuffle,
             )
-            mediaItems.drop(safeStartIndex + 1)
-                .chunked(CloudQueueResolveChunkSize)
-                .forEach { chunk ->
-                    val resolvedItems = resolveQueueChunk(repository, chunk)
-                    if (queuePopulateToken != requestToken) {
-                        return@launch
-                    }
-                    if (resolvedItems.isNotEmpty()) {
-                        browser?.addMediaItems(resolvedItems)
-                    }
-                }
-            mediaItems.take(safeStartIndex)
-                .chunked(CloudQueueResolveChunkSize)
-                .asReversed()
-                .forEach { chunk ->
-                    val resolvedItems = resolveQueueChunk(repository, chunk)
-                    if (queuePopulateToken != requestToken) {
-                        return@launch
-                    }
-                    if (resolvedItems.isNotEmpty()) {
-                        browser?.addMediaItems(0, resolvedItems)
-                    }
-                }
         }
     }
 
@@ -3711,23 +3692,6 @@ private fun CloudMusicResultList(
                 }
             },
         )
-    }
-}
-
-private suspend fun resolveQueueChunk(
-    repository: OnlineMusicProviderRepository,
-    mediaItems: List<MediaItem>,
-): List<MediaItem> {
-    if (mediaItems.isEmpty()) {
-        return emptyList()
-    }
-    return withContext(Dispatchers.IO) {
-        runCatching {
-            repository.resolvePlayableMediaItems(
-                mediaItems = mediaItems,
-                includeLyrics = false,
-            )
-        }.getOrDefault(emptyList())
     }
 }
 
@@ -4019,7 +3983,16 @@ private const val CloudCoverArtworkSizePx = 260
 private const val CloudHomeTrackPreviewCount = 5
 private const val CloudHomeCoverPreviewCount = 6
 private const val CloudArtistIntroMaxLines = 5
-private const val CloudQueueResolveChunkSize = 6
+
+private suspend inline fun <T> runSuspendCatching(block: suspend () -> T): Result<T> {
+    return try {
+        Result.success(block())
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }
+}
 
 private fun OnlineMusicHome.isEmpty(): Boolean {
     return tracks.isEmpty() &&

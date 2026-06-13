@@ -5,6 +5,7 @@ package com.smartisanos.music.playback
 import android.Manifest
 import android.app.PendingIntent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Build
 import android.os.SystemClock
@@ -13,8 +14,12 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaSession
@@ -30,10 +35,13 @@ import com.smartisanos.music.MainActivity
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
 import com.smartisanos.music.data.online.OnlineMusicRepositoryRouter
+import com.smartisanos.music.data.online.OnlineTrackIdentity
 import com.smartisanos.music.data.online.isOnlineMediaItem
 import com.smartisanos.music.data.online.isNeteasePreviewDuration
+import com.smartisanos.music.data.online.onlinePlaybackUriIdentityOrNull
 import com.smartisanos.music.data.online.onlineTrackIdentityOrNull
 import com.smartisanos.music.data.online.shouldRefreshOnlinePlaybackUrl
+import com.smartisanos.music.data.online.withOnlinePlaybackPlaceholderUri
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
 import com.smartisanos.music.isExternalAudioLaunchItem
@@ -48,6 +56,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 class PlaybackService : MediaLibraryService() {
@@ -115,7 +125,13 @@ class PlaybackService : MediaLibraryService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
+        val dataSourceFactory = ResolvingDataSource.Factory(
+            DefaultDataSource.Factory(this),
+            OnlinePlaybackDataSpecResolver(onlineMusicRepository),
+        )
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         val exoPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
@@ -601,12 +617,6 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
             return libraryExecutor.submit<MutableList<MediaItem>> {
-                val resolvedOnlineItemsById = runBlocking {
-                    onlineMusicRepository.resolvePlayableMediaItems(
-                        mediaItems = mediaItems.filter(MediaItem::isOnlineMediaItem),
-                        includeLyrics = false,
-                    )
-                }.associateBy(MediaItem::mediaId)
                 val itemsById = getAudioItemsByIds(
                     mediaItems
                         .filterNot(MediaItem::isOnlineMediaItem)
@@ -615,7 +625,7 @@ class PlaybackService : MediaLibraryService() {
                     .associateBy { it.mediaId }
                 mediaItems.mapNotNullTo(mutableListOf()) { item ->
                     when {
-                        item.isOnlineMediaItem() -> resolvedOnlineItemsById[item.mediaId]
+                        item.isOnlineMediaItem() -> item.withOnlinePlaybackPlaceholderUri()
                         item.isExternalAudioLaunchItem() -> item
                         else -> itemsById[item.mediaId]
                     }
@@ -761,3 +771,53 @@ class PlaybackService : MediaLibraryService() {
         private const val OnlineMediaRefreshCooldownMs = 30_000L
     }
 }
+
+private class OnlinePlaybackDataSpecResolver(
+    private val onlineMusicRepository: OnlineMusicRepositoryRouter,
+) : ResolvingDataSource.Resolver {
+
+    private val resolvedUris = ConcurrentHashMap<OnlineTrackIdentity, CachedOnlinePlaybackUri>()
+
+    override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
+        val identity = dataSpec.uri.onlinePlaybackUriIdentityOrNull() ?: return dataSpec
+        return dataSpec.withUri(resolvePlaybackUri(identity))
+    }
+
+    override fun resolveReportedUri(uri: Uri): Uri {
+        return uri.onlinePlaybackUriIdentityOrNull()
+            ?.let { identity -> resolvedUris[identity]?.uri }
+            ?: uri
+    }
+
+    private fun resolvePlaybackUri(identity: OnlineTrackIdentity): Uri {
+        val nowMs = SystemClock.elapsedRealtime()
+        resolvedUris[identity]
+            ?.takeIf { cached -> cached.expiresAtMs > nowMs }
+            ?.let { cached -> return cached.uri }
+
+        val resolvedUri = runBlocking(Dispatchers.IO) {
+            onlineMusicRepository.resolvePlayableItems(
+                identities = listOf(identity),
+                includeLyrics = false,
+            )
+                .firstOrNull()
+                ?.localConfiguration
+                ?.uri
+        } ?: throw IOException(
+            "Unable to resolve online playback uri for ${identity.source}/${identity.trackId}",
+        )
+
+        resolvedUris[identity] = CachedOnlinePlaybackUri(
+            uri = resolvedUri,
+            expiresAtMs = nowMs + OnlinePlaybackDataSpecCacheTtlMs,
+        )
+        return resolvedUri
+    }
+}
+
+private data class CachedOnlinePlaybackUri(
+    val uri: Uri,
+    val expiresAtMs: Long,
+)
+
+private const val OnlinePlaybackDataSpecCacheTtlMs = 10 * 60 * 1000L

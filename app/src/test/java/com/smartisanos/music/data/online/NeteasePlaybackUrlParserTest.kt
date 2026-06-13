@@ -211,4 +211,43 @@ class NeteasePlaybackUrlParserTest {
         assertFalse(playlists.last().isLikedSongs)
     }
 
+    @Test
+    fun playlistDetailResponsePreservesTrackIdsBeyondEmbeddedTracks() {
+        val trackIds = (1..105).joinToString(",") { id -> """{"id":$id}""" }
+
+        val detail = parseNeteasePlaylistDetailResponse(
+            """
+            {
+              "code": 200,
+              "playlist": {
+                "trackCount": 105,
+                "tracks": [
+                  {
+                    "id": 1,
+                    "name": "First song",
+                    "duration": 180000,
+                    "artists": [{"name": "Artist A"}],
+                    "album": {"name": "Album A", "picUrl": "https://p1.music.126.net/a.jpg"}
+                  },
+                  {
+                    "id": 2,
+                    "name": "Second song",
+                    "duration": 210000,
+                    "artists": [{"name": "Artist B"}],
+                    "album": {"name": "Album B"}
+                  }
+                ],
+                "trackIds": [$trackIds]
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(105, detail.trackCount)
+        assertEquals(105, detail.trackIds.size)
+        assertEquals("1", detail.trackIds.first())
+        assertEquals("105", detail.trackIds.last())
+        assertEquals(listOf("1", "2"), detail.tracks.map(OnlineTrack::trackId))
+    }
+
 }

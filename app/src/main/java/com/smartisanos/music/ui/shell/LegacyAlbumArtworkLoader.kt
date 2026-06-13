@@ -11,6 +11,7 @@ import android.widget.ImageView
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.R
 import com.smartisanos.music.playback.LocalAudioLibrary
+import com.smartisanos.music.playback.loadArtworkUriBitmap
 import com.smartisanos.music.ui.album.AlbumSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -153,26 +154,7 @@ internal class LegacyAlbumArtworkLoader(context: Context) {
     }
 
     private fun loadBitmapFromUri(uri: Uri, size: Size): Bitmap? {
-        return runCatching {
-            decodeStreamSampled(uri, size)
-        }.getOrNull() ?: runCatching {
-            appContext.contentResolver.loadThumbnail(uri, size, null)
-        }.getOrNull()
-    }
-
-    private fun decodeStreamSampled(uri: Uri, size: Size): Bitmap? {
-        val boundsOptions = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        appContext.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, boundsOptions)
-        } ?: return null
-        val sampleOptions = BitmapFactory.Options().apply {
-            inSampleSize = calculateInSampleSize(boundsOptions, size)
-        }
-        return appContext.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, sampleOptions)
-        }
+        return loadArtworkUriBitmap(appContext, uri, size)
     }
 
     private fun loadEmbeddedPicture(mediaItem: MediaItem, size: Size): Bitmap? {

@@ -53,7 +53,6 @@ internal fun PlaybackTopBar(
     title: String,
     artist: String,
     topInset: Dp,
-    onQueueClick: () -> Unit,
     onCollapse: () -> Unit,
 ) {
     SmartisanTitleBarSurface(
@@ -95,14 +94,10 @@ internal fun PlaybackTopBar(
                     modifier = Modifier.padding(top = 1.dp),
                 )
             }
-            PressedDrawableButton(
-                normalRes = R.drawable.btn_playing_list,
-                pressedRes = R.drawable.btn_playing_list_down,
-                contentDescription = stringResource(R.string.playback_queue),
+            Box(
                 modifier = Modifier
                     .width(40.dp)
                     .height(30.dp),
-                onClick = onQueueClick,
             )
         }
     }

@@ -14,6 +14,8 @@ import androidx.media3.extractor.metadata.id3.CommentFrame
 import androidx.media3.extractor.metadata.id3.InternalFrame
 import androidx.media3.extractor.metadata.id3.TextInformationFrame
 import androidx.media3.extractor.metadata.vorbis.VorbisComment
+import com.smartisanos.music.data.online.OnlineLyricsExtraKey
+import com.smartisanos.music.data.online.OnlineTranslatedLyricsExtraKey
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import kotlin.math.max
@@ -52,6 +54,12 @@ internal suspend fun loadEmbeddedLyrics(
     context: Context,
     mediaItem: MediaItem,
 ): EmbeddedLyrics? {
+    mediaItem.onlineLyricsText()?.let { lyricsText ->
+        parseEmbeddedLyricsText(
+            rawText = lyricsText,
+            hintedByKey = true,
+        )?.let { lyrics -> return lyrics }
+    }
     mediaItem.localConfiguration?.uri ?: return null
 
     return runCatching {
@@ -70,6 +78,12 @@ internal suspend fun loadEmbeddedLyrics(
             bestLyrics
         }
     }.getOrNull()
+}
+
+private fun MediaItem.onlineLyricsText(): String? {
+    val extras = mediaMetadata.extras ?: return null
+    return extras.getString(OnlineLyricsExtraKey)?.takeIf(String::isNotBlank)
+        ?: extras.getString(OnlineTranslatedLyricsExtraKey)?.takeIf(String::isNotBlank)
 }
 
 internal fun extractEmbeddedLyrics(

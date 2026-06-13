@@ -98,7 +98,7 @@ internal class PlaybackSessionStateCoordinator(
                 player.repeatMode = snapshot.repeatMode.sanitizedRepeatMode()
                 player.shuffleModeEnabled = snapshot.shuffleModeEnabled
                 if (snapshot.mediaIds.isNotEmpty()) {
-                    val restoredItems = restoreItems(snapshot)
+                    val restoredItems = restoreItems(snapshot).filterRestorablePlaybackItems()
                     if (restoredItems.isEmpty() && !canLoadLibraryItems()) {
                         shouldPersistAfterRestore = false
                     } else if (restoredItems.isNotEmpty() && player.mediaItemCount == 0) {
@@ -232,4 +232,16 @@ private fun Player.restoreQueuePaused(
     pause()
     setMediaItems(mediaItems, startIndex, startPositionMs)
     prepare()
+}
+
+internal fun List<MediaItem>.filterRestorablePlaybackItems(): List<MediaItem> {
+    return filter { item ->
+        isRestorablePlaybackItemState(
+            hasPlaybackUri = item.localConfiguration?.uri != null,
+        )
+    }
+}
+
+internal fun isRestorablePlaybackItemState(hasPlaybackUri: Boolean): Boolean {
+    return hasPlaybackUri
 }

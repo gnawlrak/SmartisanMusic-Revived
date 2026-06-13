@@ -12,6 +12,8 @@ import android.util.Size
 import androidx.media3.common.MediaItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 internal data class ArtworkRequestKey(
     val mediaId: String?,
@@ -64,6 +66,9 @@ internal fun loadArtworkUriBitmap(
     size: Size,
 ): Bitmap? {
     uri ?: return null
+    if (uri.isNetworkUri()) {
+        return loadNetworkArtworkBitmap(uri, size)
+    }
     return runCatching {
         context.contentResolver.loadThumbnail(uri, size, null).scaledToFit(size)
     }.getOrNull() ?: runCatching {
@@ -115,6 +120,28 @@ internal fun localAudioMediaUri(mediaId: String): Uri? {
         MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
         numericMediaId,
     )
+}
+
+private fun loadNetworkArtworkBitmap(
+    uri: Uri,
+    size: Size,
+): Bitmap? {
+    return runCatching {
+        val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
+            connectTimeout = NetworkArtworkTimeoutMs
+            readTimeout = NetworkArtworkTimeoutMs
+            setRequestProperty("User-Agent", NetworkArtworkUserAgent)
+        }
+        try {
+            if (connection.responseCode !in 200..299) {
+                return@runCatching null
+            }
+            val bytes = connection.inputStream.use { stream -> stream.readBytes() }
+            decodeByteArraySampled(bytes, size)?.scaledToFit(size)
+        } finally {
+            connection.disconnect()
+        }
+    }.getOrNull()
 }
 
 private fun loadMediaThumbnail(
@@ -172,6 +199,10 @@ private fun decodeStreamSampled(
     }
 }
 
+private fun Uri.isNetworkUri(): Boolean {
+    return scheme == "http" || scheme == "https"
+}
+
 private fun decodeByteArraySampled(
     bytes: ByteArray,
     size: Size,
@@ -221,3 +252,8 @@ private fun Bitmap.scaledToFit(size: Size): Bitmap {
     val scaledHeight = (height * scale).toInt().coerceAtLeast(1)
     return Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
 }
+
+private const val NetworkArtworkTimeoutMs = 12_000
+private const val NetworkArtworkUserAgent =
+    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"

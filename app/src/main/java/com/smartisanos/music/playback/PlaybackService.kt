@@ -7,9 +7,11 @@ import android.app.PendingIntent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
@@ -27,6 +29,11 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.smartisanos.music.MainActivity
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
+import com.smartisanos.music.data.online.OnlineMusicRepositoryRouter
+import com.smartisanos.music.data.online.isOnlineMediaItem
+import com.smartisanos.music.data.online.isNeteasePreviewDuration
+import com.smartisanos.music.data.online.onlineTrackIdentityOrNull
+import com.smartisanos.music.data.online.shouldRefreshOnlinePlaybackUrl
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
 import com.smartisanos.music.isExternalAudioLaunchItem
@@ -54,18 +61,37 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var playbackSettingsStore: PlaybackSettingsStore
     private lateinit var playbackStatsRepository: PlaybackStatsRepository
     private lateinit var playbackSessionStateStore: PlaybackSessionStateStore
+    private lateinit var onlineMusicRepository: OnlineMusicRepositoryRouter
     private var playbackSessionStateCoordinator: PlaybackSessionStateCoordinator? = null
     private var playbackPlayCountTracker: PlaybackPlayCountTracker? = null
     private var playbackAudioFxController: PlaybackAudioFxController? = null
     private var mediaSessionArtworkBitmapLoader: MediaSessionArtworkBitmapLoader? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
     private var pendingRatingLibraryRefreshJob: Job? = null
+    private var onlineMediaRefreshJob: Job? = null
+    private var lastOnlineMediaRefreshKey: String? = null
+    private var lastOnlineMediaRefreshAtMs: Long = 0L
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     @Volatile private var exclusionsSnapshot: LibraryExclusions = LibraryExclusions()
     private val exclusionsReady = CompletableDeferred<LibraryExclusions>()
     private val audioFxPlayerListener = object : Player.Listener {
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
             playbackAudioFxController?.setAudioSessionId(audioSessionId)
+        }
+    }
+    private val onlineMediaRefreshListener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            resolveAdjacentOnlineMediaItem()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_ENDED) {
+                refreshCurrentOnlineMediaUrlAfterPreviewEnd()
+            }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            refreshCurrentOnlineMediaUrlAfterError()
         }
     }
 
@@ -80,6 +106,7 @@ class PlaybackService : MediaLibraryService() {
         libraryExclusionsStore = LibraryExclusionsStore(this)
         playbackSettingsStore = PlaybackSettingsStore(this)
         playbackSessionStateStore = PlaybackSessionStateStore(this)
+        onlineMusicRepository = OnlineMusicRepositoryRouter(applicationContext)
         libraryExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
         libraryRefreshExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
 
@@ -99,6 +126,7 @@ class PlaybackService : MediaLibraryService() {
             controller.setAudioSessionId(exoPlayer.audioSessionId)
         }
         exoPlayer.addListener(audioFxPlayerListener)
+        exoPlayer.addListener(onlineMediaRefreshListener)
         mediaSessionArtworkBitmapLoader = artworkBitmapLoader
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
@@ -182,6 +210,9 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.cancel()
         PlaybackSleepTimer.cancel()
         player?.removeListener(audioFxPlayerListener)
+        player?.removeListener(onlineMediaRefreshListener)
+        onlineMediaRefreshJob?.cancel()
+        onlineMediaRefreshJob = null
         playbackAudioFxController?.release()
         playbackAudioFxController = null
         mediaLibrarySession?.release()
@@ -245,22 +276,56 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun getAudioItemsByQueueKeys(queueKeys: List<PlaybackQueueSnapshotItem>): List<MediaItem> {
-        if (!hasAudioPermission() || queueKeys.isEmpty()) {
+        if (queueKeys.isEmpty()) {
             return emptyList()
         }
-        val exclusions = if (exclusionsReady.isCompleted) {
-            exclusionsSnapshot
-        } else {
-            runBlocking { exclusionsReady.await() }
+        val localQueueKeys = queueKeys.filterNot { key ->
+            key.mediaId.onlineTrackIdentityOrNull() != null
         }
-        return localAudioLibrary.getAudioItemsByQueueKeys(queueKeys)
-            .asSequence()
-            .filter { item ->
-                val relativePath = item.mediaMetadata.extras
-                    ?.getString(LocalAudioLibrary.RelativePathExtraKey)
-                !exclusions.isMediaHidden(item.mediaId, relativePath)
+        val onlineItems = runBlocking {
+            restoreOnlineItemsByQueueKeys(queueKeys)
+        }
+        val localItems = if (hasAudioPermission() && localQueueKeys.isNotEmpty()) {
+            val exclusions = if (exclusionsReady.isCompleted) {
+                exclusionsSnapshot
+            } else {
+                runBlocking { exclusionsReady.await() }
             }
+            localAudioLibrary.getAudioItemsByQueueKeys(localQueueKeys)
+                .asSequence()
+                .filter { item ->
+                    val relativePath = item.mediaMetadata.extras
+                        ?.getString(LocalAudioLibrary.RelativePathExtraKey)
+                    !exclusions.isMediaHidden(item.mediaId, relativePath)
+                }
+                .toList()
+        } else {
+            emptyList()
+        }
+        val itemsById = (localItems + onlineItems).associateBy(MediaItem::mediaId)
+        val itemsByStableKey = (localItems + onlineItems).associateBy { item -> item.stableKey.orEmpty() }
+        return queueKeys.mapNotNull { key ->
+            itemsById[key.mediaId] ?: itemsByStableKey[key.stableKey]
+        }
+    }
+
+    private suspend fun restoreOnlineItemsByQueueKeys(
+        queueKeys: List<PlaybackQueueSnapshotItem>,
+    ): List<MediaItem> {
+        val identities = queueKeys
+            .asSequence()
+            .mapNotNull { key -> key.mediaId.onlineTrackIdentityOrNull() }
+            .distinct()
             .toList()
+        if (identities.isEmpty()) {
+            return emptyList()
+        }
+        return runCatching {
+            onlineMusicRepository.resolvePlayableItems(
+                identities = identities,
+                includeLyrics = false,
+            )
+        }.getOrDefault(emptyList())
     }
 
     private fun createSessionActivityPendingIntent(): PendingIntent {
@@ -278,6 +343,166 @@ class PlaybackService : MediaLibraryService() {
                 ?.getString(LocalAudioLibrary.RelativePathExtraKey)
             exclusions.isMediaHidden(item.mediaId, relativePath)
         }
+    }
+
+    private fun refreshCurrentOnlineMediaUrlAfterError() {
+        val playbackPlayer = player ?: return
+        val currentItem = playbackPlayer.currentMediaItem ?: return
+        if (!currentItem.isOnlineMediaItem()) {
+            return
+        }
+        if (onlineMediaRefreshJob?.isActive == true) {
+            return
+        }
+
+        val refreshKey = currentItem.mediaId.takeIf(String::isNotBlank) ?: return
+        if (!recordOnlineMediaRefreshAttempt(refreshKey)) {
+            return
+        }
+
+        resolveOnlineMediaItemAt(
+            item = currentItem,
+            itemIndex = playbackPlayer.currentMediaItemIndex,
+            resumePositionMs = playbackPlayer.currentPosition.coerceAtLeast(0L),
+            resumePlayback = playbackPlayer.playWhenReady,
+            prepareAfterReplace = true,
+            forceRefresh = true,
+        )
+    }
+
+    private fun refreshCurrentOnlineMediaUrlAfterPreviewEnd() {
+        val playbackPlayer = player ?: return
+        val currentItem = playbackPlayer.currentMediaItem ?: return
+        if (!currentItem.isOnlineMediaItem()) {
+            return
+        }
+        val originalDurationMs = currentItem.mediaMetadata.durationMs ?: return
+        val playedDurationMs = playbackPlayer.duration
+            .takeIf { duration -> duration > 0L && duration != C.TIME_UNSET }
+            ?: playbackPlayer.currentPosition.coerceAtLeast(0L)
+        if (!isNeteasePreviewDuration(playedDurationMs, originalDurationMs)) {
+            return
+        }
+        val refreshKey = currentItem.mediaId.takeIf(String::isNotBlank) ?: return
+        if (!recordOnlineMediaRefreshAttempt(refreshKey)) {
+            return
+        }
+        resolveOnlineMediaItemAt(
+            item = currentItem,
+            itemIndex = playbackPlayer.currentMediaItemIndex,
+            resumePositionMs = 0L,
+            resumePlayback = true,
+            prepareAfterReplace = true,
+            forceRefresh = true,
+        )
+    }
+
+    private fun resolveAdjacentOnlineMediaItem() {
+        val playbackPlayer = player ?: return
+        val currentIndex = playbackPlayer.currentMediaItemIndex
+        if (currentIndex == C.INDEX_UNSET) {
+            return
+        }
+        val currentItem = playbackPlayer.currentMediaItem
+        if (
+            currentItem?.isOnlineMediaItem() == true &&
+            currentItem.shouldRefreshOnlinePlaybackUrl()
+        ) {
+            if (currentItem.localConfiguration?.uri != null) {
+                val refreshKey = currentItem.mediaId.takeIf(String::isNotBlank) ?: return
+                if (!recordOnlineMediaRefreshAttempt(refreshKey)) {
+                    return
+                }
+            }
+            resolveOnlineMediaItemAt(
+                item = currentItem,
+                itemIndex = currentIndex,
+                resumePositionMs = playbackPlayer.currentPosition.coerceAtLeast(0L),
+                resumePlayback = playbackPlayer.playWhenReady,
+                prepareAfterReplace = true,
+                forceRefresh = false,
+            )
+            return
+        }
+
+        val nextIndex = currentIndex + 1
+        if (nextIndex !in 0 until playbackPlayer.mediaItemCount) {
+            return
+        }
+        val nextItem = playbackPlayer.getMediaItemAt(nextIndex)
+        if (!nextItem.isOnlineMediaItem() || !nextItem.shouldRefreshOnlinePlaybackUrl()) {
+            return
+        }
+        resolveOnlineMediaItemAt(
+            item = nextItem,
+            itemIndex = nextIndex,
+            resumePositionMs = 0L,
+            resumePlayback = false,
+            prepareAfterReplace = false,
+            forceRefresh = false,
+        )
+    }
+
+    private fun resolveOnlineMediaItemAt(
+        item: MediaItem,
+        itemIndex: Int,
+        resumePositionMs: Long,
+        resumePlayback: Boolean,
+        prepareAfterReplace: Boolean,
+        forceRefresh: Boolean,
+    ) {
+        if (onlineMediaRefreshJob?.isActive == true) {
+            return
+        }
+        if (!item.isOnlineMediaItem()) {
+            return
+        }
+        if (!forceRefresh && item.localConfiguration?.uri != null) {
+            return
+        }
+        onlineMediaRefreshJob = serviceScope.launch {
+            val refreshedItem = runCatching {
+                onlineMusicRepository.resolvePlayableMediaItem(item)
+            }.getOrNull() ?: return@launch
+            val activePlayer = player ?: return@launch
+            val targetIndex = itemIndex.takeIf { it in 0 until activePlayer.mediaItemCount }
+                ?: return@launch
+            if (activePlayer.getMediaItemAt(targetIndex).mediaId != item.mediaId) {
+                return@launch
+            }
+            activePlayer.replaceMediaItem(targetIndex, refreshedItem)
+            if (activePlayer.currentMediaItemIndex == targetIndex) {
+                val targetPositionMs = if (prepareAfterReplace) {
+                    resumePositionMs
+                } else {
+                    activePlayer.currentPosition.coerceAtLeast(0L)
+                }
+                val targetPlayWhenReady = if (prepareAfterReplace) {
+                    resumePlayback
+                } else {
+                    activePlayer.playWhenReady
+                }
+                activePlayer.seekTo(targetIndex, targetPositionMs)
+                activePlayer.prepare()
+                activePlayer.playWhenReady = targetPlayWhenReady
+                if (targetPlayWhenReady) {
+                    activePlayer.play()
+                }
+            }
+        }
+    }
+
+    private fun recordOnlineMediaRefreshAttempt(refreshKey: String): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (
+            lastOnlineMediaRefreshKey == refreshKey &&
+            now - lastOnlineMediaRefreshAtMs < OnlineMediaRefreshCooldownMs
+        ) {
+            return false
+        }
+        lastOnlineMediaRefreshKey = refreshKey
+        lastOnlineMediaRefreshAtMs = now
+        return true
     }
 
     private inner class PlaybackLibrarySessionCallback : MediaLibrarySession.Callback {
@@ -344,12 +569,21 @@ class PlaybackService : MediaLibraryService() {
             mediaId: String,
         ): ListenableFuture<LibraryResult<MediaItem>> {
             return libraryExecutor.submit<LibraryResult<MediaItem>> {
-                if (!hasAudioPermission() && mediaId != LocalAudioLibrary.ROOT_ID) {
+                if (
+                    !hasAudioPermission() &&
+                    mediaId != LocalAudioLibrary.ROOT_ID &&
+                    mediaId.onlineTrackIdentityOrNull() == null
+                ) {
                     return@submit LibraryResult.ofError(SessionError.ERROR_PERMISSION_DENIED)
                 }
 
                 val item = if (mediaId == LocalAudioLibrary.ROOT_ID) {
                     localAudioLibrary.getRootItem()
+                } else if (mediaId.onlineTrackIdentityOrNull() != null) {
+                    val identity = mediaId.onlineTrackIdentityOrNull()
+                    runBlocking {
+                        identity?.let { onlineMusicRepository.getMediaItem(it) }
+                    }
                 } else {
                     getAudioItemsByIds(listOf(mediaId)).firstOrNull()
                 }
@@ -367,10 +601,24 @@ class PlaybackService : MediaLibraryService() {
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
             return libraryExecutor.submit<MutableList<MediaItem>> {
-                val itemsById = getAudioItemsByIds(mediaItems.map { item -> item.mediaId })
+                val resolvedOnlineItemsById = runBlocking {
+                    onlineMusicRepository.resolvePlayableMediaItems(
+                        mediaItems = mediaItems.filter(MediaItem::isOnlineMediaItem),
+                        includeLyrics = false,
+                    )
+                }.associateBy(MediaItem::mediaId)
+                val itemsById = getAudioItemsByIds(
+                    mediaItems
+                        .filterNot(MediaItem::isOnlineMediaItem)
+                        .map { item -> item.mediaId },
+                )
                     .associateBy { it.mediaId }
                 mediaItems.mapNotNullTo(mutableListOf()) { item ->
-                    itemsById[item.mediaId] ?: item.takeIf { it.isExternalAudioLaunchItem() }
+                    when {
+                        item.isOnlineMediaItem() -> resolvedOnlineItemsById[item.mediaId]
+                        item.isExternalAudioLaunchItem() -> item
+                        else -> itemsById[item.mediaId]
+                    }
                 }
             }
         }
@@ -510,5 +758,6 @@ class PlaybackService : MediaLibraryService() {
         private const val PlaybackSessionActivityRequestCode = 1001
         private const val StatsLibraryRefreshDebounceMs = 600L
         private const val RatingLibraryRefreshDebounceMs = 250L
+        private const val OnlineMediaRefreshCooldownMs = 30_000L
     }
 }

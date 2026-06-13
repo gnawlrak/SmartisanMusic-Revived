@@ -205,8 +205,7 @@
     <string name="netease_login_title">Log in to NetEase Cloud Music</string>
     <string name="netease_login_action">Log in to NetEase</string>
     <string name="netease_login_subtitle">Log in to play songs available to your account</string>
-    <string name="netease_logged_in">NetEase is logged in</string>
-    <string name="netease_logged_in_as">Logged in as %1$s</string>
+    <string name="netease_logged_in">Logged in</string>
     <string name="netease_logout_action">Log out</string>
     <string name="netease_login_cookie_missing">Tap Done after logging in</string>
     <string name="netease_login_validating">Validating NetEase login</string>

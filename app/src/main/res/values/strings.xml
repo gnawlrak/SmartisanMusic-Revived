@@ -199,8 +199,7 @@
     <string name="netease_login_title">登录网易云音乐</string>
     <string name="netease_login_action">登录网易云</string>
     <string name="netease_login_subtitle">登录后播放账号可用的会员歌曲</string>
-    <string name="netease_logged_in">网易云已登录</string>
-    <string name="netease_logged_in_as">已登录：%1$s</string>
+    <string name="netease_logged_in">已登录</string>
     <string name="netease_logout_action">退出</string>
     <string name="netease_login_cookie_missing">登录后请点完成</string>
     <string name="netease_login_validating">正在验证网易云登录</string>

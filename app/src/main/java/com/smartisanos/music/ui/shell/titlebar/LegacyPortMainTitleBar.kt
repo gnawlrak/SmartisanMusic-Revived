@@ -32,7 +32,6 @@ internal fun LegacyPortTitleBar(
     onArtistBack: () -> Unit,
     onToggleArtistAlbumViewMode: () -> Unit,
     onSearchClick: () -> Unit,
-    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LegacyPortSmartisanTitleBar(modifier = modifier) { titleBar ->
@@ -56,7 +55,6 @@ internal fun LegacyPortTitleBar(
             onArtistBack = onArtistBack,
             onToggleArtistAlbumViewMode = onToggleArtistAlbumViewMode,
             onSearchClick = onSearchClick,
-            onSettingsClick = onSettingsClick,
         )
     }
 }
@@ -115,7 +113,6 @@ private fun TitleBar.setupLegacyMainTitleBar(
     onArtistBack: () -> Unit,
     onToggleArtistAlbumViewMode: () -> Unit,
     onSearchClick: () -> Unit,
-    onSettingsClick: () -> Unit,
 ) {
     removeAllLeftViews()
     removeAllRightViews()
@@ -190,11 +187,6 @@ private fun TitleBar.setupLegacyMainTitleBar(
             }
         }
         MusicDestination.CloudMusic -> {
-            addLeftImageView(R.drawable.standard_icon_settings_selector).apply {
-                setOnClickListener {
-                    onSettingsClick()
-                }
-            }
             addRightImageView(R.drawable.search_btn_selector).apply {
                 setOnClickListener {
                     onSearchClick()

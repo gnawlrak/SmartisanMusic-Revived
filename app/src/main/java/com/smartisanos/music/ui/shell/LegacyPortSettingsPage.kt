@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
@@ -102,7 +103,7 @@ internal fun LegacyPortSettingsPage(
     }
     var editingArtistSeparators by remember { mutableStateOf(false) }
     var artistSeparatorsInitialValues by remember { mutableStateOf(emptySet<String>()) }
-    var audioFxPageVisible by remember { mutableStateOf(false) }
+    var audioFxPageVisible by rememberSaveable { mutableStateOf(false) }
     var neteaseAuthState by remember { mutableStateOf(authStore.load()) }
     var neteaseAuthRevision by remember { mutableStateOf(0) }
     var logoutConfirmVisible by remember { mutableStateOf(false) }
@@ -143,95 +144,78 @@ internal fun LegacyPortSettingsPage(
         }
     }
 
-    BackHandler(enabled = active) {
-        if (audioFxPageVisible) {
-            audioFxPageVisible = false
-        } else {
-            onClose()
-        }
+    val audioFxPredictiveBackState = rememberLegacyPortPredictiveBackState()
+    val secondaryPage = if (audioFxPageVisible) LegacySettingsSecondaryPage.AudioFx else null
+
+    LegacyPortPredictiveBackHandler(
+        enabled = active && audioFxPageVisible,
+        state = audioFxPredictiveBackState,
+    ) {
+        audioFxPageVisible = false
+    }
+    BackHandler(enabled = active && !audioFxPageVisible) {
+        onClose()
     }
 
-    Column(
+    LegacyPortPageStackTransition(
+        secondaryKey = secondaryPage,
         modifier = modifier
             .fillMaxSize()
             .background(ComposeColor.White),
-    ) {
-        LegacyPortSmartisanTitleBar(
-            modifier = Modifier.fillMaxWidth(),
-            showShadow = true,
-        ) { titleBar ->
-            titleBar.setupLegacySettingsTitleBar(
-                titleRes = if (audioFxPageVisible) R.string.audio_fx else R.string.setting,
-                onClose = {
-                    if (audioFxPageVisible) {
-                        audioFxPageVisible = false
+        label = "legacy settings audio fx page stack",
+        predictiveBackProgress = audioFxPredictiveBackState.progress,
+        predictiveBackExitConsumed = audioFxPredictiveBackState.exitConsumed,
+        onPredictiveBackExitConsumedReset = audioFxPredictiveBackState::reset,
+        primaryContent = {
+            LegacySettingsRootPage(
+                active = active,
+                playbackSettings = playbackSettings,
+                artistSettings = artistSettings,
+                onlineMusicSettings = onlineMusicSettings,
+                neteaseAuthState = neteaseAuthState,
+                onClose = onClose,
+                onNeteaseAccountClick = {
+                    if (neteaseAuthState.isLoggedIn) {
+                        logoutConfirmVisible = true
                     } else {
-                        onClose()
+                        loginLauncher.launch(NeteaseWebLoginActivity.createIntent(context))
                     }
                 },
+                onNeteasePlaybackQualityClick = {
+                    qualityDialogTarget = LegacyOnlineQualityTarget.Playback
+                },
+                onNeteaseDownloadQualityClick = {
+                    qualityDialogTarget = LegacyOnlineQualityTarget.Download
+                },
+                onScratchEnabledChange = onScratchEnabledChange,
+                onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
+                onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
+                onAudioFxClick = {
+                    audioFxPageVisible = true
+                },
+                onArtistSeparatorsClick = {
+                    artistSeparatorsInitialValues = artistSettings.separators
+                    editingArtistSeparators = true
+                },
+                modifier = Modifier.fillMaxSize(),
             )
-        }
-        if (audioFxPageVisible) {
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                factory = { context ->
-                    LegacyAudioFxContentView(context)
-                },
-                update = { view ->
-                    view.visibility = if (active) View.VISIBLE else View.INVISIBLE
-                    view.bind(
-                        settings = playbackSettings,
-                        onAudioFxEnabledChange = onAudioFxEnabledChange,
-                        onAudioFxPresetChange = onAudioFxPresetChange,
-                        onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
-                    )
-                },
-            )
-        } else {
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                factory = { context ->
-                    LegacySettingsContentView(context)
-                },
-                update = { view ->
-                    view.visibility = if (active) View.VISIBLE else View.INVISIBLE
-                    view.bind(
-                        settings = playbackSettings,
-                        artistSettings = artistSettings,
-                        onlineMusicSettings = onlineMusicSettings,
-                        neteaseAuthState = neteaseAuthState,
-                        onNeteaseAccountClick = {
-                            if (neteaseAuthState.isLoggedIn) {
-                                logoutConfirmVisible = true
-                            } else {
-                                loginLauncher.launch(NeteaseWebLoginActivity.createIntent(context))
-                            }
-                        },
-                        onNeteasePlaybackQualityClick = {
-                            qualityDialogTarget = LegacyOnlineQualityTarget.Playback
-                        },
-                        onNeteaseDownloadQualityClick = {
-                            qualityDialogTarget = LegacyOnlineQualityTarget.Download
-                        },
-                        onScratchEnabledChange = onScratchEnabledChange,
-                        onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
-                        onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
-                        onAudioFxClick = {
-                            audioFxPageVisible = true
-                        },
-                        onArtistSeparatorsClick = {
-                            artistSeparatorsInitialValues = artistSettings.separators
-                            editingArtistSeparators = true
-                        },
-                    )
-                },
-            )
-        }
-    }
+        },
+        secondaryContent = { page ->
+            when (page) {
+                LegacySettingsSecondaryPage.AudioFx -> LegacyAudioFxSettingsPage(
+                    active = active,
+                    playbackSettings = playbackSettings,
+                    onClose = {
+                        audioFxPageVisible = false
+                    },
+                    onAudioFxEnabledChange = onAudioFxEnabledChange,
+                    onAudioFxPresetChange = onAudioFxPresetChange,
+                    onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        },
+    )
 
     LegacyOnlineLogoutDialog(
         visible = logoutConfirmVisible,
@@ -318,6 +302,110 @@ private fun TitleBar.setupLegacySettingsTitleBar(
     }
 }
 
+@Composable
+private fun LegacySettingsRootPage(
+    active: Boolean,
+    playbackSettings: PlaybackSettings,
+    artistSettings: ArtistSettings,
+    onlineMusicSettings: OnlineMusicSettings,
+    neteaseAuthState: NeteaseAuthState,
+    onClose: () -> Unit,
+    onNeteaseAccountClick: () -> Unit,
+    onNeteasePlaybackQualityClick: () -> Unit,
+    onNeteaseDownloadQualityClick: () -> Unit,
+    onScratchEnabledChange: (Boolean) -> Unit,
+    onHidePlayerAxisEnabledChange: (Boolean) -> Unit,
+    onPopcornSoundEnabledChange: (Boolean) -> Unit,
+    onAudioFxClick: () -> Unit,
+    onArtistSeparatorsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ComposeColor.White),
+    ) {
+        LegacyPortSmartisanTitleBar(
+            modifier = Modifier.fillMaxWidth(),
+            showShadow = true,
+        ) { titleBar ->
+            titleBar.setupLegacySettingsTitleBar(
+                titleRes = R.string.setting,
+                onClose = onClose,
+            )
+        }
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            factory = { context ->
+                LegacySettingsContentView(context)
+            },
+            update = { view ->
+                view.visibility = if (active) View.VISIBLE else View.INVISIBLE
+                view.bind(
+                    settings = playbackSettings,
+                    artistSettings = artistSettings,
+                    onlineMusicSettings = onlineMusicSettings,
+                    neteaseAuthState = neteaseAuthState,
+                    onNeteaseAccountClick = onNeteaseAccountClick,
+                    onNeteasePlaybackQualityClick = onNeteasePlaybackQualityClick,
+                    onNeteaseDownloadQualityClick = onNeteaseDownloadQualityClick,
+                    onScratchEnabledChange = onScratchEnabledChange,
+                    onHidePlayerAxisEnabledChange = onHidePlayerAxisEnabledChange,
+                    onPopcornSoundEnabledChange = onPopcornSoundEnabledChange,
+                    onAudioFxClick = onAudioFxClick,
+                    onArtistSeparatorsClick = onArtistSeparatorsClick,
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun LegacyAudioFxSettingsPage(
+    active: Boolean,
+    playbackSettings: PlaybackSettings,
+    onClose: () -> Unit,
+    onAudioFxEnabledChange: (Boolean) -> Unit,
+    onAudioFxPresetChange: (AudioFxPreset) -> Unit,
+    onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ComposeColor.White),
+    ) {
+        LegacyPortSmartisanTitleBar(
+            modifier = Modifier.fillMaxWidth(),
+            showShadow = true,
+        ) { titleBar ->
+            titleBar.setupLegacySettingsTitleBar(
+                titleRes = R.string.audio_fx,
+                onClose = onClose,
+            )
+        }
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            factory = { context ->
+                LegacyAudioFxContentView(context)
+            },
+            update = { view ->
+                view.visibility = if (active) View.VISIBLE else View.INVISIBLE
+                view.bind(
+                    settings = playbackSettings,
+                    onAudioFxEnabledChange = onAudioFxEnabledChange,
+                    onAudioFxPresetChange = onAudioFxPresetChange,
+                    onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
+                )
+            },
+        )
+    }
+}
+
 private enum class LegacySettingsRowShape(
     val backgroundRes: Int,
     val shadowRes: Int,
@@ -331,6 +419,10 @@ private enum class LegacySettingsRowShape(
 private enum class LegacyOnlineQualityTarget {
     Playback,
     Download,
+}
+
+private enum class LegacySettingsSecondaryPage {
+    AudioFx,
 }
 
 private val AudioFxFrequencyLabels = listOf("60", "230", "910", "4k", "14k")
@@ -370,11 +462,10 @@ private fun AudioFxPreset.summaryRes(): Int {
 }
 
 private fun NeteaseAuthState.toAccountSummary(context: Context): String {
-    val nickname = profile?.nickname?.trim().orEmpty()
-    return when {
-        nickname.isNotEmpty() -> context.getString(R.string.netease_logged_in_as, nickname)
-        isLoggedIn -> context.getString(R.string.netease_logged_in)
-        else -> context.getString(R.string.cloud_music_account_not_logged_in)
+    return if (isLoggedIn) {
+        context.getString(R.string.netease_logged_in)
+    } else {
+        context.getString(R.string.cloud_music_account_not_logged_in)
     }
 }
 

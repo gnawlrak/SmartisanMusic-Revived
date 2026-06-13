@@ -90,7 +90,6 @@ import com.smartisanos.music.ui.shell.tabs.LegacyPortTabContent
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortTitleBarShadow
 import com.smartisanos.music.ui.shell.titlebar.LegacyPortTitleBar
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -99,10 +98,6 @@ private enum class LegacyTrackActionSource {
     CloudMusic,
     Loved,
     Playlist,
-}
-
-private enum class LegacyMainOverlay {
-    Settings,
 }
 
 @Composable
@@ -174,8 +169,6 @@ private fun LegacyPortMainShellContent(
     var currentDestination by remember { mutableStateOf(MusicDestination.Playlist) }
     var playlistAddModeActive by remember { mutableStateOf(false) }
     var moreSettingsPageActive by remember { mutableStateOf(false) }
-    var mainOverlay by remember { mutableStateOf<LegacyMainOverlay?>(null) }
-    var mainOverlayChromeHidden by remember { mutableStateOf(false) }
     var cloudMusicSearchOpenRequest by remember { mutableStateOf(0) }
     var songsEditMode by remember { mutableStateOf(false) }
     var selectedSongIds by remember { mutableStateOf(emptySet<String>()) }
@@ -567,17 +560,7 @@ private fun LegacyPortMainShellContent(
         bottomNavigationHeight
     }
     val playbackBarOverlayHeight = if (playbackBarComposed) playbackBarHeight else 0.dp
-    val hideBottomChrome = mainOverlayChromeHidden ||
-        (currentDestination == MusicDestination.More && moreSettingsPageActive)
-
-    LaunchedEffect(mainOverlay) {
-        if (mainOverlay == LegacyMainOverlay.Settings) {
-            mainOverlayChromeHidden = true
-        } else {
-            delay(LegacyPageStackSlideMillis.toLong())
-            mainOverlayChromeHidden = false
-        }
-    }
+    val hideBottomChrome = currentDestination == MusicDestination.More && moreSettingsPageActive
 
     LaunchedEffect(currentDestination) {
         if (currentDestination != MusicDestination.More) {
@@ -664,11 +647,6 @@ private fun LegacyPortMainShellContent(
                         }
                     },
                     onSearchClick = ::openCurrentSearch,
-                    onSettingsClick = {
-                        dismissTrackActions()
-                        searchVisible = false
-                        mainOverlay = LegacyMainOverlay.Settings
-                    },
                     modifier = titleModifier,
                 )
             }
@@ -1131,76 +1109,6 @@ private fun LegacyPortMainShellContent(
                     .zIndex(2f),
             )
         }
-        LegacyPortPageStackTransition(
-            secondaryKey = mainOverlay,
-            axis = LegacyPortPageStackAxis.VerticalPush,
-            label = "global settings page stack",
-            primaryContent = {},
-            secondaryContent = { overlay ->
-                when (overlay) {
-                    LegacyMainOverlay.Settings -> LegacyPortSettingsPage(
-                        active = true,
-                        playbackSettings = playbackSettings,
-                        artistSettings = artistSettings,
-                        onlineMusicSettings = onlineMusicSettings,
-                        onClose = {
-                            mainOverlay = null
-                        },
-                        onScratchEnabledChange = { enabled ->
-                            scope.launch {
-                                playbackSettingsStore.setScratchEnabled(enabled)
-                            }
-                        },
-                        onHidePlayerAxisEnabledChange = { enabled ->
-                            scope.launch {
-                                playbackSettingsStore.setHidePlayerAxisEnabled(enabled)
-                            }
-                        },
-                        onPopcornSoundEnabledChange = { enabled ->
-                            scope.launch {
-                                playbackSettingsStore.setPopcornSoundEnabled(enabled)
-                            }
-                        },
-                        onAudioFxEnabledChange = { enabled ->
-                            scope.launch {
-                                playbackSettingsStore.setAudioFxEnabled(enabled)
-                            }
-                        },
-                        onAudioFxPresetChange = { preset ->
-                            scope.launch {
-                                playbackSettingsStore.setAudioFxPreset(preset)
-                            }
-                        },
-                        onAudioFxCustomGainDbPointsChange = { gains ->
-                            scope.launch {
-                                playbackSettingsStore.setAudioFxCustomGainDbPoints(gains)
-                            }
-                        },
-                        onArtistSeparatorsChange = { separators ->
-                            scope.launch {
-                                artistSettingsStore.setSeparators(separators)
-                            }
-                            selectedArtistTarget = null
-                            searchDrilldownTarget = null
-                        },
-                        onNeteasePlaybackQualityChange = { quality ->
-                            scope.launch {
-                                onlineMusicSettingsStore.setNeteasePlaybackQuality(quality)
-                            }
-                        },
-                        onNeteaseDownloadQualityChange = { quality ->
-                            scope.launch {
-                                onlineMusicSettingsStore.setNeteaseDownloadQuality(quality)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(5f),
-        )
     }
 }
 

@@ -827,7 +827,7 @@ internal fun LegacyPortCloudMusicPage(
             selectedOnlineAlbum?.title ?: stringResource(R.string.cloud_music_section_new_albums)
         !accountLibraryVisible || homeMode == CloudHomeMode.Featured ->
             stringResource(R.string.cloud_music_section_netease_picks)
-        selectedAccountPlaylist != null -> selectedAccountPlaylist.title
+        selectedAccountPlaylist != null -> selectedAccountPlaylist.displayTitle(context)
         else -> stringResource(R.string.cloud_music_liked_songs_entry)
     }
     val featuredHomeVisible = !searchActive &&
@@ -3483,7 +3483,7 @@ private class CloudMusicPlaylistAdapter : BaseAdapter() {
     private fun bindPlaylistRow(view: View, playlist: OnlineAccountPlaylist) {
         val context = view.context
         view.findViewById<TextView>(R.id.listview_item_line_one)?.apply {
-            text = playlist.title
+            text = playlist.displayTitle(context)
             setTextColor(
                 if (playlist.playlistId == selectedPlaylistId) {
                     Color.rgb(177, 36, 32)
@@ -3494,6 +3494,14 @@ private class CloudMusicPlaylistAdapter : BaseAdapter() {
         }
         view.findViewById<TextView>(R.id.listview_item_line_two)?.text =
             context.getString(R.string.cloud_music_playlist_track_count, playlist.trackCount)
+    }
+}
+
+private fun OnlineAccountPlaylist.displayTitle(context: Context): String {
+    return if (isLikedSongs) {
+        context.getString(R.string.cloud_music_liked_songs_entry)
+    } else {
+        title
     }
 }
 

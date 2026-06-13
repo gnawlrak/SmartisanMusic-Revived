@@ -157,6 +157,7 @@ private fun LegacyPortMainShellContent(
     var currentDestination by remember { mutableStateOf(MusicDestination.Playlist) }
     var playlistAddModeActive by remember { mutableStateOf(false) }
     var moreSettingsPageActive by remember { mutableStateOf(false) }
+    var cloudMusicSearchOpenRequest by remember { mutableStateOf(0) }
     var songsEditMode by remember { mutableStateOf(false) }
     var selectedSongIds by remember { mutableStateOf(emptySet<String>()) }
     var albumEditMode by remember { mutableStateOf(false) }
@@ -211,6 +212,13 @@ private fun LegacyPortMainShellContent(
         searchQuery = ""
         searchDrilldownTarget = null
         searchVisible = true
+    }
+    fun openCurrentSearch() {
+        if (currentDestination == MusicDestination.CloudMusic) {
+            cloudMusicSearchOpenRequest += 1
+        } else {
+            openSearchOverlay()
+        }
     }
     val closeSearchOverlay = {
         searchVisible = false
@@ -594,7 +602,7 @@ private fun LegacyPortMainShellContent(
                             libraryDisplaySettingsStore.setArtistAlbumViewMode(nextMode)
                         }
                     },
-                    onSearchClick = openSearchOverlay,
+                    onSearchClick = ::openCurrentSearch,
                     modifier = titleModifier,
                 )
             }
@@ -663,6 +671,10 @@ private fun LegacyPortMainShellContent(
                 libraryRefreshing = libraryRefreshing,
                 playbackSettings = playbackSettings,
                 artistSettings = artistSettings,
+                cloudMusicSearchOpenRequest = cloudMusicSearchOpenRequest,
+                onCloudMusicSearchOpenRequestHandled = {
+                    cloudMusicSearchOpenRequest = 0
+                },
                 onRefreshLibrary = ::refreshLegacyLibrary,
                 onRequestAddToPlaylist = ::requestAddToPlaylist,
                 onRequestAddToQueue = ::enqueueMediaItems,
@@ -742,7 +754,7 @@ private fun LegacyPortMainShellContent(
                 onLibraryNeeded = {
                     libraryLoadRequested = true
                 },
-                onSearchClick = openSearchOverlay,
+                onSearchClick = ::openCurrentSearch,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -1053,6 +1065,7 @@ private fun MusicDestination.requiresFullLibraryItems(): Boolean {
         MusicDestination.Artist,
         -> true
         MusicDestination.Playlist,
+        MusicDestination.CloudMusic,
         MusicDestination.More,
         -> false
     }

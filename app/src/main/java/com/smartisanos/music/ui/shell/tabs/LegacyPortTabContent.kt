@@ -20,6 +20,7 @@ import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.ui.album.AlbumViewMode
 import com.smartisanos.music.ui.navigation.MusicDestination
 import com.smartisanos.music.ui.shell.LegacyArtistTarget
+import com.smartisanos.music.ui.shell.cloud.LegacyPortCloudMusicPage
 import com.smartisanos.music.ui.shell.LegacyPortAlbumPage
 import com.smartisanos.music.ui.shell.LegacyPortArtistPage
 import com.smartisanos.music.ui.shell.LegacyPortMorePage
@@ -50,6 +51,8 @@ internal fun LegacyPortTabContent(
     artistNestedPredictiveBackExitConsumed: Boolean,
     onArtistNestedPredictiveBackExitConsumedReset: () -> Unit,
     playbackBarOverlayHeight: Dp = 0.dp,
+    cloudMusicSearchOpenRequest: Int = 0,
+    onCloudMusicSearchOpenRequestHandled: () -> Unit = {},
     hiddenMediaIds: Set<String>,
     libraryRefreshVersion: Int,
     libraryRefreshing: Boolean,
@@ -69,6 +72,7 @@ internal fun LegacyPortTabContent(
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
     onRequestSongDeleteConfirmation: (Set<String>, (() -> Unit)?) -> Unit,
     onLibraryTrackMoreClick: (MediaItem) -> Unit,
+    onCloudMusicTrackMoreClick: (MediaItem) -> Unit = {},
     onLovedSongsTrackMoreClick: (MediaItem) -> Unit,
     onPlaylistTrackMoreClick: (MediaItem) -> Unit,
     onRemoveFavoriteMediaIds: (Set<String>) -> Unit,
@@ -108,6 +112,16 @@ internal fun LegacyPortTabContent(
 
         when (destination) {
             MusicDestination.Songs -> Unit
+            MusicDestination.CloudMusic -> LegacyPortCloudMusicPage(
+                active = true,
+                playbackBarOverlayHeight = 0.dp,
+                searchOpenRequest = cloudMusicSearchOpenRequest,
+                onSearchOpenRequestHandled = onCloudMusicSearchOpenRequestHandled,
+                onTrackMoreClick = onCloudMusicTrackMoreClick,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = playbackBarOverlayHeight),
+            )
             MusicDestination.Album -> LegacyPortAlbumPage(
                 mediaItems = mediaItems,
                 active = true,

@@ -16,6 +16,12 @@ enum class MusicDestination(
         iconRes = R.drawable.tabbar_playlist,
         selectedIconRes = R.drawable.tabbar_playlist_down,
     ),
+    CloudMusic(
+        route = "cloud_music",
+        labelRes = R.string.tab_cloud_music,
+        iconRes = R.drawable.tabbar_cloud_music,
+        selectedIconRes = R.drawable.tabbar_cloud_music_down,
+    ),
     Artist(
         route = "artist",
         labelRes = R.string.tab_artist,

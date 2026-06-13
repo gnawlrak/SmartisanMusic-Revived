@@ -39,7 +39,6 @@ class TabSwitcher @JvmOverloads constructor(
         tabContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            weightSum = 5f
         }
         addView(
             tabContainer,
@@ -112,6 +111,7 @@ class TabSwitcher @JvmOverloads constructor(
     fun setDestinations(destinations: List<MusicDestination>) {
         tabContainer.removeAllViews()
         destinationViews.clear()
+        tabContainer.weightSum = destinations.size.toFloat().coerceAtLeast(1f)
 
         destinations.forEach { destination ->
             val label = context.getString(destination.labelRes)
@@ -167,6 +167,7 @@ class TabSwitcher @JvmOverloads constructor(
     private fun MusicDestination.tabIconSelectorRes(): Int {
         return when (this) {
             MusicDestination.Playlist -> R.drawable.tabbar_playlist_selector
+            MusicDestination.CloudMusic -> R.drawable.tabbar_cloud_music_selector
             MusicDestination.Artist -> R.drawable.tabbar_artist_selector
             MusicDestination.Album -> R.drawable.tabbar_album_selector
             MusicDestination.Songs -> R.drawable.tabbar_song_selector

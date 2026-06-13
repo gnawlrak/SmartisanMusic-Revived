@@ -16,6 +16,8 @@ import androidx.media3.common.MediaItem
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.data.settings.AudioFxPreset
+import com.smartisanos.music.data.settings.NeteaseAudioQuality
+import com.smartisanos.music.data.settings.OnlineMusicSettings
 import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.ui.album.AlbumViewMode
 import com.smartisanos.music.ui.navigation.MusicDestination
@@ -57,6 +59,7 @@ internal fun LegacyPortTabContent(
     libraryRefreshVersion: Int,
     libraryRefreshing: Boolean,
     playbackSettings: PlaybackSettings,
+    onlineMusicSettings: OnlineMusicSettings,
     artistSettings: ArtistSettings,
     onRefreshLibrary: () -> Unit,
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit,
@@ -68,6 +71,8 @@ internal fun LegacyPortTabContent(
     onAudioFxPresetChange: (AudioFxPreset) -> Unit,
     onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
+    onNeteasePlaybackQualityChange: (NeteaseAudioQuality) -> Unit,
+    onNeteaseDownloadQualityChange: (NeteaseAudioQuality) -> Unit,
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
     onRequestSongDeleteConfirmation: (Set<String>, (() -> Unit)?) -> Unit,
@@ -183,6 +188,7 @@ internal fun LegacyPortTabContent(
                 favoriteRecords = favoriteRecords,
                 hiddenMediaIds = hiddenMediaIds,
                 playbackSettings = playbackSettings,
+                onlineMusicSettings = onlineMusicSettings,
                 artistSettings = artistSettings,
                 libraryLoaded = libraryLoaded,
                 libraryRefreshVersion = libraryRefreshVersion,
@@ -195,6 +201,8 @@ internal fun LegacyPortTabContent(
                 onAudioFxPresetChange = onAudioFxPresetChange,
                 onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
                 onArtistSeparatorsChange = onArtistSeparatorsChange,
+                onNeteasePlaybackQualityChange = onNeteasePlaybackQualityChange,
+                onNeteaseDownloadQualityChange = onNeteaseDownloadQualityChange,
                 onMediaIdsHidden = onMediaIdsHidden,
                 onRequestDeleteMediaIds = onRequestDeleteMediaIds,
                 onLovedSongsTrackMoreClick = onLovedSongsTrackMoreClick,

@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
-private const val LegacyPageStackSlideMillis = 300
+internal const val LegacyPageStackSlideMillis = 300
 private val LegacyPageStackEasing = Easing { fraction ->
     ((cos((fraction + 1f) * Math.PI) / 2.0) + 0.5).toFloat()
 }

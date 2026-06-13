@@ -52,6 +52,8 @@ import com.smartisanos.music.R
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.data.settings.AudioFxPreset
+import com.smartisanos.music.data.settings.NeteaseAudioQuality
+import com.smartisanos.music.data.settings.OnlineMusicSettings
 import com.smartisanos.music.data.settings.PlaybackSettings
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
@@ -105,6 +107,7 @@ internal fun LegacyPortMorePage(
     favoriteRecords: List<FavoriteSongRecord>,
     hiddenMediaIds: Set<String>,
     playbackSettings: PlaybackSettings,
+    onlineMusicSettings: OnlineMusicSettings,
     artistSettings: ArtistSettings,
     libraryLoaded: Boolean,
     libraryRefreshVersion: Int,
@@ -117,6 +120,8 @@ internal fun LegacyPortMorePage(
     onAudioFxPresetChange: (AudioFxPreset) -> Unit,
     onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
+    onNeteasePlaybackQualityChange: (NeteaseAudioQuality) -> Unit,
+    onNeteaseDownloadQualityChange: (NeteaseAudioQuality) -> Unit,
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
     onLovedSongsTrackMoreClick: (MediaItem) -> Unit,
@@ -138,7 +143,7 @@ internal fun LegacyPortMorePage(
             }
             active && secondaryTarget == LegacyMoreSecondaryTarget.Settings -> onSettingsPageActiveChanged(true)
             secondaryTarget == null -> {
-                delay(300L)
+                delay(LegacyPageStackSlideMillis.toLong())
                 onSettingsPageActiveChanged(false)
             }
             else -> onSettingsPageActiveChanged(false)
@@ -216,6 +221,7 @@ internal fun LegacyPortMorePage(
                     active = active,
                     playbackSettings = playbackSettings,
                     artistSettings = artistSettings,
+                    onlineMusicSettings = onlineMusicSettings,
                     onClose = {
                         secondaryTarget = null
                     },
@@ -226,6 +232,8 @@ internal fun LegacyPortMorePage(
                     onAudioFxPresetChange = onAudioFxPresetChange,
                     onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
                     onArtistSeparatorsChange = onArtistSeparatorsChange,
+                    onNeteasePlaybackQualityChange = onNeteasePlaybackQualityChange,
+                    onNeteaseDownloadQualityChange = onNeteaseDownloadQualityChange,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

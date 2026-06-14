@@ -89,6 +89,7 @@ internal fun LegacyPortSettingsPage(
     onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
     onNeteasePlaybackQualityChange: (NeteaseAudioQuality) -> Unit,
+    onNeteaseAuthChanged: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -121,6 +122,7 @@ internal fun LegacyPortSettingsPage(
         if (cookieJson.isNotBlank() && authStore.saveCookieJson(cookieJson)) {
             neteaseAuthState = authStore.load()
             neteaseAuthRevision += 1
+            onNeteaseAuthChanged()
             Toast.makeText(context, R.string.netease_login_success, Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, R.string.netease_login_cookie_missing, Toast.LENGTH_SHORT).show()
@@ -222,6 +224,7 @@ internal fun LegacyPortSettingsPage(
             authStore.clear()
             neteaseAuthState = authStore.load()
             neteaseAuthRevision += 1
+            onNeteaseAuthChanged()
             Toast.makeText(context, R.string.netease_logout_success, Toast.LENGTH_SHORT).show()
         },
     )

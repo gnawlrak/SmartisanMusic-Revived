@@ -196,11 +196,24 @@ internal interface OnlineMusicProviderRepository {
 
     suspend fun accountPlaylists(): List<OnlineAccountPlaylist>? = null
 
+    suspend fun accountAlbums(): List<OnlineAlbum>? = null
+
+    suspend fun accountRadios(): List<OnlineRadio>? = null
+
     suspend fun accountLikedTrackIds(): Set<String>? = null
 
     suspend fun addTracksToAccountPlaylist(
         playlist: OnlineAccountPlaylist,
         trackIds: List<String>,
+    ): NeteaseAccountActionResult = NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+
+    suspend fun removeTracksFromAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        trackIds: List<String>,
+    ): NeteaseAccountActionResult = NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+
+    suspend fun deleteAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
     ): NeteaseAccountActionResult = NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
 
     suspend fun createAccountPlaylist(name: String): OnlineAccountPlaylistCreateResult {

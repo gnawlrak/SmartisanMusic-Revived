@@ -51,6 +51,9 @@
     <plurals name="playlists_count">
         <item quantity="other">%1$d 个播放列表</item>
     </plurals>
+    <plurals name="cloud_music_account_library_count">
+        <item quantity="other">%1$d 项内容</item>
+    </plurals>
     <string name="delete_track">移除歌曲</string>
     <string name="s_random_play">随机播放</string>
     <string name="s_remove_track_list">删除列表</string>
@@ -117,9 +120,13 @@
     <string name="cloud_music_current_playlist">当前：%1$s</string>
     <string name="cloud_music_playlist_count">%1$d 个歌单</string>
     <string name="cloud_music_playlist_track_count">%1$d 首歌曲</string>
-    <string name="cloud_music_playlists_empty">暂无云音乐歌单</string>
-    <string name="cloud_music_account_playlists_loading">正在载入我的歌单</string>
-    <string name="cloud_music_account_playlists_error">我的歌单暂时无法载入</string>
+    <string name="cloud_music_account_playlist_label">歌单</string>
+    <string name="cloud_music_account_album_label">专辑</string>
+    <string name="cloud_music_account_radio_label">播客</string>
+    <string name="cloud_music_select_all">全选</string>
+    <string name="cloud_music_playlists_empty">暂无云音乐内容</string>
+    <string name="cloud_music_account_playlists_loading">正在载入我的音乐</string>
+    <string name="cloud_music_account_playlists_error">我的音乐暂时无法载入</string>
     <string name="cloud_music_featured_loading">正在载入云音乐</string>
     <string name="cloud_music_featured_error">云音乐暂时无法载入</string>
     <string name="cloud_music_loading">正在搜索</string>
@@ -151,6 +158,7 @@
     <string name="cloud_music_section_featured">推荐歌曲</string>
     <string name="cloud_music_section_daily_recommend">今日推荐歌曲</string>
     <string name="cloud_music_section_playlists">我的歌单</string>
+    <string name="cloud_music_section_account_library">我的音乐</string>
     <string name="cloud_music_section_search">搜索网易云音乐</string>
     <string name="cloud_music_section_search_results">搜索结果</string>
     <string name="cloud_music_section_search_artists">搜索歌手</string>
@@ -209,6 +217,20 @@
     <string name="netease_online_music_play_failed">无法播放，请确认网易云账号可播放</string>
     <string name="netease_online_music_like_failed">网易云喜欢操作失败</string>
     <string name="netease_online_music_playlist_add_failed">添加到网易云歌单失败</string>
+    <string name="netease_online_music_playlist_remove_success">已从网易云歌单移除</string>
+    <string name="netease_online_music_playlist_remove_failed">从网易云歌单移除失败</string>
+    <string name="netease_online_music_playlist_delete_success">网易云歌单已删除</string>
+    <string name="netease_online_music_playlist_delete_failed">删除网易云歌单失败</string>
+    <string name="netease_new_playlist">新建歌单</string>
+    <string name="netease_playlist_default_name">未命名歌单</string>
+    <string name="netease_playlist_picker_title">选择你要添加的歌单</string>
+    <string name="netease_playlist_duplicate_name">歌单已存在</string>
+    <string name="netease_playlist_create_failed">创建歌单失败</string>
+    <string name="netease_playlist_added">已添加到歌单</string>
+    <string name="netease_playlist_song_exists">该歌曲已经在歌单中</string>
+    <string name="netease_playlist_delete_action">删除歌单</string>
+    <string name="netease_playlist_edit_action">编辑歌单</string>
+    <string name="netease_playlist_delete_single_confirm">确认删除此歌单？</string>
     <string name="online_music_play_failed">无法播放该在线音乐</string>
     <string name="search_no_result">无搜索结果</string>
     <string name="search_no_result_subtitle">没有找到相关歌曲、专辑或艺术家</string>
@@ -260,6 +282,7 @@
     <string name="not_set">未设置</string>
     <string name="add">添加</string>
     <string name="add_to_playlist">加到播放列表</string>
+    <string name="add_to_netease_playlist">加到歌单</string>
     <string name="add_to_queue">加到播放队列</string>
     <string name="add_to_queue_success">已添加至播放队列</string>
     <string name="can_not_add_to_queue_single_repeat">单曲循环下不能添加歌曲至播放队列</string>

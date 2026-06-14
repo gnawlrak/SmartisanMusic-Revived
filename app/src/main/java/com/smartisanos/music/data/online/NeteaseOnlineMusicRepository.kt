@@ -44,6 +44,8 @@ private const val RadioTracksLimit = 80
 private const val FeaturedPlaylistId = "3778678"
 private const val FeaturedLimit = 30
 private const val AccountPlaylistLimit = 50
+private const val AccountAlbumLimit = 50
+private const val AccountRadioLimit = 50
 private const val CompletePlaylistTrackRequestLimit = 100_000
 private const val PlaylistSongDetailBatchSize = 300
 private const val PlaylistSongDetailParallelism = 4
@@ -53,6 +55,7 @@ private const val MinSongDurationForPreviewDetectionMs = 60_000L
 private const val MaxKnownPreviewDurationMs = 45_000L
 private const val MaxPreviewDurationRatio = 0.5
 private const val OnlinePlaybackUrlMaxAgeMs = 15 * 60 * 1000L
+private const val NeteaseLoginCookieName = "MUSIC_U"
 private const val UserAgent =
     "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
@@ -144,6 +147,7 @@ internal data class NeteaseDailyRecommendedTracksResult(
 
 internal enum class NeteasePlaylistTrackOperation(val apiValue: String) {
     Add("add"),
+    Remove("del"),
 }
 
 internal class NeteaseOnlineMusicRepository(
@@ -371,7 +375,24 @@ internal class NeteaseOnlineMusicRepository(
         val result = runCatching {
             client.getUserLikedTrackIds(profile.userId)
         }.getOrDefault(NeteaseLikedTrackIdsResult(NeteaseAccountActionStatus.Failed))
-        return result.trackIds.takeIf { result.status == NeteaseAccountActionStatus.Success }
+        if (result.status == NeteaseAccountActionStatus.Success && result.trackIds.isNotEmpty()) {
+            return result.trackIds
+        }
+        val playlistTrackIds = runCatching {
+            currentUserLikedPlaylistTrackIds(profile.userId)
+        }.getOrNull()
+        return resolveNeteaseLikedTrackIds(result, playlistTrackIds)
+    }
+
+    private suspend fun currentUserLikedPlaylistTrackIds(userId: Long): Set<String>? {
+        val likedPlaylist = client.getUserPlaylists(
+            userId = userId,
+            limit = AccountPlaylistLimit,
+        ).firstOrNull(NeteasePlaylistSummary::isLikedSongs) ?: return null
+        return client.getPlaylistTrackIds(
+            playlistId = likedPlaylist.playlistId,
+            limit = likedPlaylist.trackFetchLimit(),
+        ).toSet()
     }
 
     suspend fun setTrackLiked(trackId: String, liked: Boolean): NeteaseAccountActionResult {
@@ -395,12 +416,7 @@ internal class NeteaseOnlineMusicRepository(
     ): NeteaseAccountActionResult {
         val normalizedPlaylistId = playlistId.trim().takeIf(String::isNotEmpty)
             ?: return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
-        val normalizedTrackIds = trackIds
-            .asSequence()
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-            .distinct()
-            .toList()
+        val normalizedTrackIds = normalizeNeteasePlaylistTrackIds(trackIds)
         if (normalizedTrackIds.isEmpty()) {
             return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
         }
@@ -414,6 +430,41 @@ internal class NeteaseOnlineMusicRepository(
                 trackIds = normalizedTrackIds,
                 operation = NeteasePlaylistTrackOperation.Add,
             )
+        }.getOrDefault(NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    suspend fun removeTracksFromPlaylist(
+        playlistId: String,
+        trackIds: List<String>,
+    ): NeteaseAccountActionResult {
+        val normalizedPlaylistId = playlistId.trim().takeIf(String::isNotEmpty)
+            ?: return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        val normalizedTrackIds = normalizeNeteasePlaylistTrackIds(trackIds)
+        if (normalizedTrackIds.isEmpty()) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        val state = authStore?.load()
+        if (state?.isLoggedIn != true) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.RequiresLogin, code = 301)
+        }
+        return runCatching {
+            client.manipulatePlaylistTracks(
+                playlistId = normalizedPlaylistId,
+                trackIds = normalizedTrackIds,
+                operation = NeteasePlaylistTrackOperation.Remove,
+            )
+        }.getOrDefault(NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    suspend fun deletePlaylist(playlistId: String): NeteaseAccountActionResult {
+        val normalizedPlaylistId = playlistId.trim().takeIf(String::isNotEmpty)
+            ?: return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        val state = authStore?.load()
+        if (state?.isLoggedIn != true) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.RequiresLogin, code = 301)
+        }
+        return runCatching {
+            client.deletePlaylist(normalizedPlaylistId)
         }.getOrDefault(NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed))
     }
 
@@ -450,6 +501,30 @@ internal class NeteaseOnlineMusicRepository(
         }
     }
 
+    override suspend fun accountAlbums(): List<OnlineAlbum>? {
+        val state = authStore?.load() ?: return null
+        if (!state.isLoggedIn) {
+            return null
+        }
+        val profile = currentUserProfile() ?: state.profile ?: return null
+        return client.getUserAlbums(
+            userId = profile.userId,
+            limit = AccountAlbumLimit,
+        )
+    }
+
+    override suspend fun accountRadios(): List<OnlineRadio>? {
+        val state = authStore?.load() ?: return null
+        if (!state.isLoggedIn) {
+            return null
+        }
+        val profile = currentUserProfile() ?: state.profile ?: return null
+        return client.getUserRadios(
+            userId = profile.userId,
+            limit = AccountRadioLimit,
+        )
+    }
+
     override suspend fun accountLikedTrackIds(): Set<String>? {
         return currentUserLikedTrackIds()
     }
@@ -465,6 +540,28 @@ internal class NeteaseOnlineMusicRepository(
             playlistId = playlist.playlistId,
             trackIds = trackIds,
         )
+    }
+
+    override suspend fun removeTracksFromAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        trackIds: List<String>,
+    ): NeteaseAccountActionResult {
+        if (playlist.provider != provider || !playlist.isEditable) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        return removeTracksFromPlaylist(
+            playlistId = playlist.playlistId,
+            trackIds = trackIds,
+        )
+    }
+
+    override suspend fun deleteAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+    ): NeteaseAccountActionResult {
+        if (playlist.provider != provider || !playlist.isEditable) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        return deletePlaylist(playlist.playlistId)
     }
 
     override suspend fun createAccountPlaylist(name: String): OnlineAccountPlaylistCreateResult {
@@ -880,6 +977,14 @@ internal class NeteaseCloudMusicClient(
         }
     }
 
+    suspend fun getPlaylistTrackIds(playlistId: String, limit: Int): List<String> = withContext(Dispatchers.IO) {
+        val id = playlistId.trim().takeIf(String::isNotEmpty) ?: return@withContext emptyList()
+        val safeLimit = limit.coerceAtLeast(1)
+        val url = "https://music.163.com/api/v6/playlist/detail" +
+            "?id=${id.urlEncoded()}&n=$safeLimit&s=$PlaylistDetailSubscriberCount"
+        parseNeteasePlaylistDetailResponse(readText(url)).trackIds.take(safeLimit)
+    }
+
     suspend fun getUserPlaylists(userId: Long, limit: Int): List<NeteasePlaylistSummary> = withContext(Dispatchers.IO) {
         if (userId <= 0L) {
             return@withContext emptyList()
@@ -889,6 +994,43 @@ internal class NeteaseCloudMusicClient(
             "?uid=$userId&limit=$safeLimit&offset=0"
         val response = readText(url)
         parseNeteaseUserPlaylistsResponse(response)
+    }
+
+    suspend fun getUserAlbums(userId: Long, limit: Int): List<OnlineAlbum> = withContext(Dispatchers.IO) {
+        if (userId <= 0L) {
+            return@withContext emptyList()
+        }
+        val safeLimit = limit.coerceIn(1, AccountAlbumLimit)
+        val response = callEApi(
+            path = "/mine/rn/resource/list",
+            params = mapOf(
+                "userId" to userId.toString(),
+                "offset" to "0",
+                "limit" to safeLimit.toString(),
+                "pageType" to "3",
+                "needRcmd" to "0",
+                "isVistor" to "false",
+                "includeStarPodcast" to "true",
+            ),
+            host = "interface3.music.163.com",
+        )
+        parseNeteaseAccountAlbumsResponse(response).take(safeLimit)
+    }
+
+    suspend fun getUserRadios(userId: Long, limit: Int): List<OnlineRadio> = withContext(Dispatchers.IO) {
+        if (userId <= 0L) {
+            return@withContext emptyList()
+        }
+        val safeLimit = limit.coerceIn(1, AccountRadioLimit)
+        val response = callWeApi(
+            path = "/user/djradio/get/subed",
+            params = mapOf(
+                "uid" to userId.toString(),
+                "offset" to "0",
+                "limit" to safeLimit.toString(),
+            ),
+        )
+        parseNeteaseAccountRadiosResponse(response).take(safeLimit)
     }
 
     suspend fun getSongs(trackIds: List<String>): List<OnlineTrack> = withContext(Dispatchers.IO) {
@@ -1040,27 +1182,17 @@ internal class NeteaseCloudMusicClient(
     ): NeteaseAccountActionResult = withContext(Dispatchers.IO) {
         val id = playlistId.trim().takeIf(String::isNotEmpty)
             ?: return@withContext NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
-        val ids = trackIds
-            .asSequence()
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-            .distinct()
-            .toList()
+        val ids = normalizeNeteasePlaylistTrackIds(trackIds)
         if (ids.isEmpty()) {
             return@withContext NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
         }
-        val trackIdsJson = JSONArray().also { array ->
-            ids.forEach { trackId ->
-                array.put(trackId.toLongOrNull() ?: trackId)
-            }
-        }.toString()
         requestAccountActionWithSessionRetry {
             callWeApi(
                 path = "/playlist/manipulate/tracks",
                 params = mapOf(
                     "op" to operation.apiValue,
                     "pid" to id,
-                    "trackIds" to trackIdsJson,
+                    "trackIds" to buildNeteasePlaylistTrackIdsJson(ids),
                     "imme" to "true",
                 ),
             )
@@ -1078,6 +1210,17 @@ internal class NeteaseCloudMusicClient(
                     "privacy" to "0",
                     "type" to "NORMAL",
                 ),
+            )
+        }
+    }
+
+    suspend fun deletePlaylist(playlistId: String): NeteaseAccountActionResult = withContext(Dispatchers.IO) {
+        val id = playlistId.trim().takeIf(String::isNotEmpty)
+            ?: return@withContext NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        requestAccountActionWithSessionRetry {
+            callWeApi(
+                path = "/playlist/remove",
+                params = mapOf("ids" to buildNeteasePlaylistIdsJson(listOf(id))),
             )
         }
     }
@@ -1122,11 +1265,12 @@ internal class NeteaseCloudMusicClient(
     private fun callEApi(
         path: String,
         params: Map<String, String>,
+        host: String = "interface.music.163.com",
     ): String {
         val normalizedPath = if (path.startsWith("/")) path else "/$path"
         val eapiPath = "/eapi$normalizedPath"
         val apiPath = "/api$normalizedPath"
-        val url = "https://interface.music.163.com$eapiPath"
+        val url = "https://$host$eapiPath"
         val encryptedParams = NeteaseCrypto.encryptEApiParams(apiPath, params.toJsonObjectString())
         val body = "params=${encryptedParams.urlEncoded()}"
         val connection = openConnection(url, followRedirects = true).apply {
@@ -1315,26 +1459,17 @@ internal class NeteaseCloudMusicClient(
     }
 
     private fun hasLogin(): Boolean {
-        return !effectiveCookies()["MUSIC_U"].isNullOrBlank()
+        return !effectiveCookies()[NeteaseLoginCookieName].isNullOrBlank()
     }
 
     private fun effectiveCookies(): Map<String, String> {
-        val cookies = linkedMapOf<String, String>()
-        cookieProvider().forEach { (key, value) ->
-            val safeKey = key.trim()
-            val safeValue = value.trim()
-            if (safeKey.isNotEmpty() && safeValue.isNotEmpty()) {
-                cookies[safeKey] = safeValue
-            }
+        val currentSessionCookies = synchronized(sessionCookieLock) {
+            sessionCookies.toMap()
         }
-        synchronized(sessionCookieLock) {
-            sessionCookies.forEach { (key, value) ->
-                if (key.isNotBlank() && value.isNotBlank()) {
-                    cookies[key] = value
-                }
-            }
-        }
-        return cookies
+        return buildNeteaseEffectiveCookies(
+            persistedCookies = cookieProvider(),
+            sessionCookies = currentSessionCookies,
+        )
     }
 
     private fun buildCookieHeader(): String {
@@ -1432,28 +1567,7 @@ internal class NeteaseCloudMusicClient(
     }
 
     private fun parseRadio(radio: JSONObject): OnlineRadio? {
-        val id = radio.optLong("id", 0L)
-            .takeIf { radioId -> radioId > 0L }
-            ?.toString()
-            ?: return null
-        val title = radio.optNonBlankString("name") ?: return null
-        val dj = radio.optJSONObject("dj")
-        val category = radio.optNonBlankString("category")
-        val creator = dj?.optNonBlankString("nickname")
-        return OnlineRadio(
-            provider = OnlineMusicProvider.Netease,
-            radioId = id,
-            title = title,
-            subtitle = radio.optNonBlankString("rcmdtext")
-                ?: radio.optNonBlankString("copywriter")
-                ?: creator
-                ?: category,
-            category = category,
-            creator = creator,
-            artworkUrl = radio.optNonBlankString("picUrl"),
-            programCount = radio.optInt("programCount", 0).coerceAtLeast(0),
-            playCount = radio.optDouble("playCount", 0.0).toLong().coerceAtLeast(0L),
-        )
+        return parseNeteaseRadio(radio)
     }
 
     private fun parseBanner(banner: JSONObject, index: Int): OnlineBanner? {
@@ -1534,27 +1648,7 @@ internal class NeteaseCloudMusicClient(
     }
 
     private fun parseAlbum(album: JSONObject): OnlineAlbum? {
-        val id = album.optLong("id", 0L)
-            .takeIf { albumId -> albumId > 0L }
-            ?.toString()
-            ?: album.optNonBlankString("idStr")
-            ?: return null
-        val title = album.optNonBlankString("name") ?: return null
-        val artist = album.optJSONObject("artist")?.optNonBlankString("name")
-            ?: album.optJSONArray("artists")
-                ?.toJsonObjects()
-                ?.mapNotNull { artist -> artist.optNonBlankString("name") }
-                ?.takeIf(List<String>::isNotEmpty)
-                ?.joinToString("/")
-        return OnlineAlbum(
-            provider = OnlineMusicProvider.Netease,
-            albumId = id,
-            title = title,
-            artist = artist,
-            artworkUrl = album.optArtworkUrl(),
-            trackCount = album.optInt("size", 0).coerceAtLeast(0),
-            publishTimeMs = album.optLong("publishTime", 0L).coerceAtLeast(0L),
-        )
+        return parseNeteaseAlbum(album)
     }
 
     private fun parseArtistIntroduction(section: JSONObject): OnlineArtistIntroduction? {
@@ -1585,6 +1679,39 @@ internal fun parseNeteaseUserPlaylistsResponse(response: String): List<NeteasePl
         ?.toJsonObjects()
         ?.mapNotNull(::parseNeteasePlaylistSummary)
         .orEmpty()
+}
+
+internal fun parseNeteaseAccountAlbumsResponse(response: String): List<OnlineAlbum> {
+    val root = JSONObject(response)
+    if (root.has("code") && root.optInt("code", 200) != 200) {
+        return emptyList()
+    }
+    val albums = root.optJSONArray("playlist")
+        ?: root.optJSONObject("data")
+            ?.optJSONObject("mainCollectInfo")
+            ?.optJSONObject("mineAllTabDto")
+            ?.optJSONArray("dataList")
+        ?: root.optJSONObject("data")?.optJSONArray("dataList")
+        ?: root.optJSONArray("data")
+        ?: return emptyList()
+    return albums
+        .toJsonObjects()
+        .mapNotNull(::parseNeteaseAccountAlbumItem)
+}
+
+internal fun parseNeteaseAccountRadiosResponse(response: String): List<OnlineRadio> {
+    val root = JSONObject(response)
+    if (root.has("code") && root.optInt("code", 200) != 200) {
+        return emptyList()
+    }
+    val radios = root.optJSONArray("djRadios")
+        ?: root.optJSONObject("data")?.optJSONArray("djRadios")
+        ?: root.optJSONObject("data")?.optJSONArray("radios")
+        ?: root.optJSONArray("radios")
+        ?: return emptyList()
+    return radios
+        .toJsonObjects()
+        .mapNotNull(::parseNeteaseRadio)
 }
 
 internal fun parseNeteasePlaylistDetailResponse(response: String): NeteasePlaylistDetail {
@@ -1794,6 +1921,68 @@ private fun parseNeteasePlaylistSummary(playlist: JSONObject): NeteasePlaylistSu
     )
 }
 
+private fun parseNeteaseAccountAlbumItem(item: JSONObject): OnlineAlbum? {
+    val dataInfo = item.optJSONObject("dataInfo")
+    val album = dataInfo?.optJSONObject("data")
+        ?: item.optJSONObject("album")
+        ?: item
+    val parsed = parseNeteaseAlbum(album) ?: return null
+    val coverUrl = dataInfo?.optNonBlankString("picUrl")
+        ?: parsed.artworkUrl
+    return parsed.copy(
+        artworkUrl = coverUrl?.normalizedPlayableUrl(),
+    )
+}
+
+private fun parseNeteaseAlbum(album: JSONObject): OnlineAlbum? {
+    val id = album.optLong("id", 0L)
+        .takeIf { albumId -> albumId > 0L }
+        ?.toString()
+        ?: album.optNonBlankString("idStr")
+        ?: return null
+    val title = album.optNonBlankString("name") ?: return null
+    val artist = album.optJSONObject("artist")?.optNonBlankString("name")
+        ?: album.optJSONArray("artists")
+            ?.toJsonObjects()
+            ?.mapNotNull { artist -> artist.optNonBlankString("name") }
+            ?.takeIf(List<String>::isNotEmpty)
+            ?.joinToString("/")
+    return OnlineAlbum(
+        provider = OnlineMusicProvider.Netease,
+        albumId = id,
+        title = title,
+        artist = artist,
+        artworkUrl = album.optArtworkUrl(),
+        trackCount = album.optInt("size", 0).coerceAtLeast(0),
+        publishTimeMs = album.optLong("publishTime", 0L).coerceAtLeast(0L),
+    )
+}
+
+private fun parseNeteaseRadio(radio: JSONObject): OnlineRadio? {
+    val id = radio.optLong("id", 0L)
+        .takeIf { radioId -> radioId > 0L }
+        ?.toString()
+        ?: return null
+    val title = radio.optNonBlankString("name") ?: return null
+    val dj = radio.optJSONObject("dj")
+    val category = radio.optNonBlankString("category")
+    val creator = dj?.optNonBlankString("nickname")
+    return OnlineRadio(
+        provider = OnlineMusicProvider.Netease,
+        radioId = id,
+        title = title,
+        subtitle = radio.optNonBlankString("rcmdtext")
+            ?: radio.optNonBlankString("copywriter")
+            ?: creator
+            ?: category,
+        category = category,
+        creator = creator,
+        artworkUrl = radio.optNonBlankString("picUrl"),
+        programCount = radio.optInt("programCount", 0).coerceAtLeast(0),
+        playCount = radio.optDouble("playCount", 0.0).toLong().coerceAtLeast(0L),
+    )
+}
+
 private fun NeteasePlaylistSummary.trackFetchLimit(maxLimit: Int = Int.MAX_VALUE): Int {
     return playlistTrackFetchLimit(trackCount = trackCount, maxLimit = maxLimit)
 }
@@ -1942,6 +2131,45 @@ internal fun parseNeteaseLikedTrackIdsResponse(response: String): NeteaseLikedTr
     )
 }
 
+internal fun resolveNeteaseLikedTrackIds(
+    directResult: NeteaseLikedTrackIdsResult,
+    playlistTrackIds: Set<String>?,
+): Set<String>? {
+    if (directResult.status == NeteaseAccountActionStatus.Success && directResult.trackIds.isNotEmpty()) {
+        return directResult.trackIds
+    }
+    return when {
+        playlistTrackIds != null -> playlistTrackIds
+        directResult.status == NeteaseAccountActionStatus.Success -> directResult.trackIds
+        else -> null
+    }
+}
+
+internal fun normalizeNeteasePlaylistTrackIds(trackIds: List<String>): List<String> {
+    return trackIds
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .distinct()
+        .toList()
+}
+
+internal fun buildNeteasePlaylistTrackIdsJson(trackIds: List<String>): String {
+    return buildNeteaseNumericIdsJson(normalizeNeteasePlaylistTrackIds(trackIds))
+}
+
+internal fun buildNeteasePlaylistIdsJson(playlistIds: List<String>): String {
+    return buildNeteaseNumericIdsJson(normalizeNeteasePlaylistTrackIds(playlistIds))
+}
+
+private fun buildNeteaseNumericIdsJson(ids: List<String>): String {
+    return JSONArray().also { array ->
+        ids.forEach { id ->
+            array.put(id.toLongOrNull() ?: id)
+        }
+    }.toString()
+}
+
 internal fun parseNeteaseDailyRecommendedTracksResponse(response: String): NeteaseDailyRecommendedTracksResult {
     val root = JSONObject(response)
     val code = root.optInt("code", -1)
@@ -2015,6 +2243,32 @@ internal fun isNeteasePreviewDuration(
     val durationRatio = returnedDurationMs.toDouble() / originalDurationMs.toDouble()
     return returnedDurationMs <= MaxKnownPreviewDurationMs &&
         durationRatio <= MaxPreviewDurationRatio
+}
+
+internal fun buildNeteaseEffectiveCookies(
+    persistedCookies: Map<String, String>,
+    sessionCookies: Map<String, String>,
+): Map<String, String> {
+    val cookies = linkedMapOf<String, String>()
+    persistedCookies.addSanitizedCookiesTo(cookies)
+    val hasPersistedLogin = !cookies[NeteaseLoginCookieName].isNullOrBlank()
+    sessionCookies.addSanitizedCookiesTo(cookies) { key ->
+        key != NeteaseLoginCookieName || hasPersistedLogin
+    }
+    return cookies
+}
+
+private inline fun Map<String, String>.addSanitizedCookiesTo(
+    target: MutableMap<String, String>,
+    keyFilter: (String) -> Boolean = { true },
+) {
+    forEach { (key, value) ->
+        val safeKey = key.trim()
+        val safeValue = value.trim()
+        if (safeKey.isNotEmpty() && safeValue.isNotEmpty() && keyFilter(safeKey)) {
+            target[safeKey] = safeValue
+        }
+    }
 }
 
 private fun Map<String, String>.toJsonObjectString(): String {

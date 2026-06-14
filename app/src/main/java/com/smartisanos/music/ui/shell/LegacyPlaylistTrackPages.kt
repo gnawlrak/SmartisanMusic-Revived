@@ -279,11 +279,11 @@ private class LegacyPlaylistDetailHeader(context: Context) : FrameLayout(context
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             isBaselineAligned = false
-            addView(detailActionButton(context, R.drawable.btn_shuffle2_selector, R.string.s_random_play), LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-            addView(detailActionButton(context, R.drawable.btn_deletelist2_selector, R.string.s_remove_track_list), LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply {
+            addView(legacyPlaylistDetailActionButton(context, R.drawable.btn_shuffle2_selector, R.string.s_random_play), LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+            addView(legacyPlaylistDetailActionButton(context, R.drawable.btn_deletelist2_selector, R.string.s_remove_track_list), LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply {
                 leftMargin = -dpPx(6)
             })
-            addView(detailActionButton(context, R.drawable.btn_editlist2_selector, R.string.s_edit_track_list), LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply {
+            addView(legacyPlaylistDetailActionButton(context, R.drawable.btn_editlist2_selector, R.string.s_edit_track_list), LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply {
                 leftMargin = -dpPx(6)
             })
         }
@@ -710,7 +710,7 @@ private fun bindPlaylistTrackEditState(
     }
 }
 
-private fun detailActionButton(
+internal fun legacyPlaylistDetailActionButton(
     context: Context,
     iconRes: Int,
     textRes: Int,
@@ -727,7 +727,7 @@ private fun detailActionButton(
                 isDuplicateParentStateEnabled = true
             },
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                rightMargin = dpPx(10)
+                rightMargin = context.dpPx(10)
             },
         )
         addView(

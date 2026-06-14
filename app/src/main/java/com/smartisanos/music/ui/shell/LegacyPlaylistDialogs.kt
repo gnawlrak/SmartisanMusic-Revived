@@ -37,7 +37,7 @@ internal fun LegacyPlaylistNameDialogOverlay(
     val latestOnDismiss by rememberUpdatedState(onDismiss)
     val latestOnConfirm by rememberUpdatedState(onConfirm)
     val title = when (request) {
-        is LegacyPlaylistNameDialogRequest.Create -> stringResource(R.string.new_playlist)
+        is LegacyPlaylistNameDialogRequest.Create -> stringResource(request.titleRes)
         is LegacyPlaylistNameDialogRequest.Rename -> stringResource(R.string.playlist_rename_title)
         null -> ""
     }
@@ -81,6 +81,7 @@ internal fun LegacyPlaylistDeleteDialog(
                 when (activeRequest) {
                     LegacyPlaylistDeleteRequest.RootSelected -> R.string.playlist_delete_confirm
                     LegacyPlaylistDeleteRequest.DetailPlaylist -> R.string.playlist_delete_single_confirm
+                    LegacyPlaylistDeleteRequest.NeteaseDetailPlaylist -> R.string.netease_playlist_delete_single_confirm
                     LegacyPlaylistDeleteRequest.DetailTracks -> R.string.playlist_remove_song_confirm
                 },
             )

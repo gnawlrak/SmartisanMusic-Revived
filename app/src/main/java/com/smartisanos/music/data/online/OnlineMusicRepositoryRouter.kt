@@ -91,6 +91,32 @@ internal class OnlineMusicRepositoryRouter(
         )
     }
 
+    suspend fun removeTracksFromAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        identities: List<OnlineTrackIdentity>,
+    ): NeteaseAccountActionResult {
+        val trackIds = identities
+            .asSequence()
+            .filter { identity -> identity.source == playlist.provider.sourceId }
+            .map(OnlineTrackIdentity::trackId)
+            .filter(String::isNotBlank)
+            .distinct()
+            .toList()
+        if (trackIds.isEmpty()) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        return repositoryFor(playlist.provider).removeTracksFromAccountPlaylist(
+            playlist = playlist,
+            trackIds = trackIds,
+        )
+    }
+
+    suspend fun deleteAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+    ): NeteaseAccountActionResult {
+        return repositoryFor(playlist.provider).deleteAccountPlaylist(playlist)
+    }
+
     private suspend fun resolveNeteaseItems(
         trackIds: List<String>,
         includeLyrics: Boolean,

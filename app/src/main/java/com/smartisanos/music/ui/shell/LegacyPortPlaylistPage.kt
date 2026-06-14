@@ -29,6 +29,7 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.tween
@@ -119,6 +120,7 @@ internal sealed interface LegacyPlaylistNameDialogRequest {
 
     data class Create(
         override val initialName: String,
+        @param:StringRes val titleRes: Int = R.string.new_playlist,
     ) : LegacyPlaylistNameDialogRequest
 
     data class Rename(
@@ -130,6 +132,7 @@ internal sealed interface LegacyPlaylistNameDialogRequest {
 internal enum class LegacyPlaylistDeleteRequest {
     RootSelected,
     DetailPlaylist,
+    NeteaseDetailPlaylist,
     DetailTracks,
 }
 
@@ -606,6 +609,7 @@ internal fun LegacyPortPlaylistPage(
                         selectedTrackIds = emptySet()
                         detailEditMode = false
                     }
+                    LegacyPlaylistDeleteRequest.NeteaseDetailPlaylist -> Unit
                 }
                 deleteRequest = null
             }

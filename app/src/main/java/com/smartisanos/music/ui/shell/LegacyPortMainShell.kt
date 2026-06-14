@@ -175,6 +175,7 @@ private fun LegacyPortMainShellContent(
     var playlistAddModeActive by remember { mutableStateOf(false) }
     var moreSettingsPageActive by remember { mutableStateOf(false) }
     var cloudMusicSearchOpenRequest by remember { mutableStateOf(0) }
+    var cloudMusicAccountRefreshRequest by remember { mutableStateOf(0) }
     var songsEditMode by remember { mutableStateOf(false) }
     var selectedSongIds by remember { mutableStateOf(emptySet<String>()) }
     var albumEditMode by remember { mutableStateOf(false) }
@@ -419,7 +420,10 @@ private fun LegacyPortMainShellContent(
                     liked = shouldLike,
                 )
                 when (result.status) {
-                    NeteaseAccountActionStatus.Success -> setLocalFavoriteState(mediaId, shouldLike)
+                    NeteaseAccountActionStatus.Success -> {
+                        setLocalFavoriteState(mediaId, shouldLike)
+                        cloudMusicAccountRefreshRequest += 1
+                    }
                     NeteaseAccountActionStatus.RequiresLogin -> {
                         Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
                     }
@@ -789,6 +793,7 @@ private fun LegacyPortMainShellContent(
                 onCloudMusicSearchOpenRequestHandled = {
                     cloudMusicSearchOpenRequest = 0
                 },
+                cloudMusicAccountRefreshRequest = cloudMusicAccountRefreshRequest,
                 onRefreshLibrary = ::refreshLegacyLibrary,
                 onRequestAddToPlaylist = ::requestAddToPlaylist,
                 onRequestAddToQueue = ::enqueueMediaItems,
@@ -833,6 +838,9 @@ private fun LegacyPortMainShellContent(
                     scope.launch {
                         onlineMusicSettingsStore.setNeteasePlaybackQuality(quality)
                     }
+                },
+                onNeteaseAuthChanged = {
+                    cloudMusicAccountRefreshRequest += 1
                 },
                 onMediaIdsHidden = ::reclaimHiddenMediaIds,
                 onRequestDeleteMediaIds = ::requestSystemDeleteMediaIds,
@@ -946,17 +954,22 @@ private fun LegacyPortMainShellContent(
         val trackActionItems = pendingTrackActionItem?.let { actionItem ->
             val mediaId = actionItem.mediaId
             val isFavorite = mediaId in favoriteIds
+            val isNeteaseOnlineItem = actionItem.onlineIdentityOrNull()?.source == OnlineMusicProvider.Netease.sourceId
             val canAddToPlaylist = mediaId.isNotBlank() &&
                 !actionItem.isExternalAudioLaunchItem() &&
                 (
                     !actionItem.isOnlineMediaItem() ||
-                        actionItem.onlineIdentityOrNull()?.source == OnlineMusicProvider.Netease.sourceId
+                        isNeteaseOnlineItem
                     )
             val canFavorite = mediaId.isNotBlank() &&
                 !actionItem.isExternalAudioLaunchItem()
             val actions = mutableListOf(
                 LegacyTrackActionItem(
-                    labelRes = R.string.add_to_playlist,
+                    labelRes = if (isNeteaseOnlineItem) {
+                        R.string.add_to_netease_playlist
+                    } else {
+                        R.string.add_to_playlist
+                    },
                     iconRes = R.drawable.more_select_icon_addlist,
                     pressedIconRes = R.drawable.more_select_icon_addlist_down,
                     enabled = canAddToPlaylist,
@@ -1131,7 +1144,8 @@ private fun LegacyPortMainShellContent(
             onCreateNewPlaylist = {
                 playbackPlaylistCreateTarget = LegacyPlaybackPlaylistCreateTarget.Netease
                 playbackPlaylistCreateRequest = LegacyPlaylistNameDialogRequest.Create(
-                    initialName = context.getString(R.string.playlist_default_name),
+                    initialName = context.getString(R.string.netease_playlist_default_name),
+                    titleRes = R.string.netease_new_playlist,
                 )
             },
             onPlaylistSelected = { playlistId ->
@@ -1148,13 +1162,14 @@ private fun LegacyPortMainShellContent(
                     )
                     when {
                         result.status == NeteaseAccountActionStatus.Success -> {
-                            Toast.makeText(context, R.string.playlist_added, Toast.LENGTH_SHORT).show()
+                            cloudMusicAccountRefreshRequest += 1
+                            Toast.makeText(context, R.string.netease_playlist_added, Toast.LENGTH_SHORT).show()
                         }
                         result.status == NeteaseAccountActionStatus.RequiresLogin -> {
                             Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
                         }
                         result.code.isNeteasePlaylistDuplicateCode() -> {
-                            Toast.makeText(context, R.string.playlist_song_exists, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.netease_playlist_song_exists, Toast.LENGTH_SHORT).show()
                         }
                         else -> {
                             Toast.makeText(
@@ -1168,6 +1183,8 @@ private fun LegacyPortMainShellContent(
                     neteasePlaylistPickerPlaylists = emptyList()
                 }
             },
+            titleRes = R.string.netease_playlist_picker_title,
+            createNewPlaylistTitleRes = R.string.netease_new_playlist,
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(4f),
@@ -1210,13 +1227,14 @@ private fun LegacyPortMainShellContent(
                                     Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
                                 }
                                 createResult.code.isNeteasePlaylistDuplicateNameCode() -> {
-                                    Toast.makeText(context, R.string.playlist_duplicate_name, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, R.string.netease_playlist_duplicate_name, Toast.LENGTH_SHORT).show()
                                 }
                                 createResult.status != NeteaseAccountActionStatus.Success ||
                                     createResult.playlist == null -> {
-                                    Toast.makeText(context, R.string.playlist_create_failed, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, R.string.netease_playlist_create_failed, Toast.LENGTH_SHORT).show()
                                 }
                                 else -> {
+                                    cloudMusicAccountRefreshRequest += 1
                                     val addResult = onlineMusicRepository.addTracksToAccountPlaylist(
                                         playlist = createResult.playlist,
                                         identities = identities,
@@ -1226,7 +1244,7 @@ private fun LegacyPortMainShellContent(
                                             playbackPlaylistCreateRequest = null
                                             pendingNeteasePlaylistPickerMediaItems = null
                                             neteasePlaylistPickerPlaylists = emptyList()
-                                            Toast.makeText(context, R.string.playlist_added, Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, R.string.netease_playlist_added, Toast.LENGTH_SHORT).show()
                                         }
                                         addResult.status == NeteaseAccountActionStatus.RequiresLogin -> {
                                             Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
@@ -1235,7 +1253,7 @@ private fun LegacyPortMainShellContent(
                                             playbackPlaylistCreateRequest = null
                                             pendingNeteasePlaylistPickerMediaItems = null
                                             neteasePlaylistPickerPlaylists = emptyList()
-                                            Toast.makeText(context, R.string.playlist_song_exists, Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, R.string.netease_playlist_song_exists, Toast.LENGTH_SHORT).show()
                                         }
                                         else -> {
                                             Toast.makeText(

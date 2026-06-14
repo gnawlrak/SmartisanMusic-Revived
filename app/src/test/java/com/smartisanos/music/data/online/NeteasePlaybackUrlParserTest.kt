@@ -229,6 +229,126 @@ class NeteasePlaybackUrlParserTest {
     }
 
     @Test
+    fun likedTrackIdsResolverPrefersNonEmptyDirectResult() {
+        val resolved = resolveNeteaseLikedTrackIds(
+            directResult = NeteaseLikedTrackIdsResult(
+                status = NeteaseAccountActionStatus.Success,
+                trackIds = setOf("10", "20"),
+            ),
+            playlistTrackIds = setOf("30", "40"),
+        )
+
+        assertEquals(setOf("10", "20"), resolved)
+    }
+
+    @Test
+    fun likedTrackIdsResolverFallsBackWhenDirectResultIsEmpty() {
+        val resolved = resolveNeteaseLikedTrackIds(
+            directResult = NeteaseLikedTrackIdsResult(
+                status = NeteaseAccountActionStatus.Success,
+                trackIds = emptySet(),
+            ),
+            playlistTrackIds = setOf("30", "40"),
+        )
+
+        assertEquals(setOf("30", "40"), resolved)
+    }
+
+    @Test
+    fun likedTrackIdsResolverFallsBackWhenDirectResultFails() {
+        val resolved = resolveNeteaseLikedTrackIds(
+            directResult = NeteaseLikedTrackIdsResult(
+                status = NeteaseAccountActionStatus.Failed,
+                trackIds = emptySet(),
+            ),
+            playlistTrackIds = setOf("50"),
+        )
+
+        assertEquals(setOf("50"), resolved)
+    }
+
+    @Test
+    fun likedTrackIdsResolverReturnsNullWhenAllSourcesFail() {
+        val resolved = resolveNeteaseLikedTrackIds(
+            directResult = NeteaseLikedTrackIdsResult(
+                status = NeteaseAccountActionStatus.Failed,
+                trackIds = emptySet(),
+            ),
+            playlistTrackIds = null,
+        )
+
+        assertNull(resolved)
+    }
+
+    @Test
+    fun likedTrackIdsResolverKeepsSuccessfulEmptyDirectResult() {
+        val resolved = resolveNeteaseLikedTrackIds(
+            directResult = NeteaseLikedTrackIdsResult(
+                status = NeteaseAccountActionStatus.Success,
+                trackIds = emptySet(),
+            ),
+            playlistTrackIds = null,
+        )
+
+        assertEquals(emptySet<String>(), resolved)
+    }
+
+    @Test
+    fun effectiveCookiesDropSessionLoginWhenPersistedLoginIsGone() {
+        val cookies = buildNeteaseEffectiveCookies(
+            persistedCookies = emptyMap(),
+            sessionCookies = mapOf(
+                "MUSIC_U" to "stale-login",
+                "__csrf" to "csrf-token",
+            ),
+        )
+
+        assertFalse(cookies.containsKey("MUSIC_U"))
+        assertEquals("csrf-token", cookies["__csrf"])
+    }
+
+    @Test
+    fun effectiveCookiesAllowSessionLoginRefreshWhenPersistedLoginExists() {
+        val cookies = buildNeteaseEffectiveCookies(
+            persistedCookies = mapOf("MUSIC_U" to "persisted-login"),
+            sessionCookies = mapOf(
+                "MUSIC_U" to "refreshed-login",
+                "__csrf" to "csrf-token",
+            ),
+        )
+
+        assertEquals("refreshed-login", cookies["MUSIC_U"])
+        assertEquals("csrf-token", cookies["__csrf"])
+    }
+
+    @Test
+    fun playlistTrackIdsAreTrimmedAndDeduplicated() {
+        val trackIds = normalizeNeteasePlaylistTrackIds(
+            listOf(" 10 ", "", "20", "10", "abc"),
+        )
+
+        assertEquals(listOf("10", "20", "abc"), trackIds)
+    }
+
+    @Test
+    fun playlistTrackIdsJsonKeepsNumericIdsAsNumbers() {
+        val trackIdsJson = buildNeteasePlaylistTrackIdsJson(
+            listOf(" 10 ", "abc", "10", "20"),
+        )
+
+        assertEquals("""[10,"abc",20]""", trackIdsJson)
+    }
+
+    @Test
+    fun playlistDeleteIdsJsonKeepsNumericIdsAsNumbers() {
+        val playlistIdsJson = buildNeteasePlaylistIdsJson(
+            listOf(" 123 ", "456", "123"),
+        )
+
+        assertEquals("[123,456]", playlistIdsJson)
+    }
+
+    @Test
     fun dailyRecommendedTracksResponseParsesDailySongs() {
         val result = parseNeteaseDailyRecommendedTracksResponse(
             """
@@ -268,6 +388,90 @@ class NeteasePlaybackUrlParserTest {
 
         assertEquals(NeteaseAccountActionStatus.RequiresLogin, result.status)
         assertTrue(result.tracks.isEmpty())
+    }
+
+    @Test
+    fun accountAlbumsResponseParsesNeriPlayerNestedResourceList() {
+        val albums = parseNeteaseAccountAlbumsResponse(
+            """
+            {
+              "code": 200,
+              "data": {
+                "mainCollectInfo": {
+                  "mineAllTabDto": {
+                    "dataList": [
+                      {
+                        "dataInfo": {
+                          "picUrl": "http://p1.music.126.net/cover.jpg",
+                          "data": {
+                            "id": 321,
+                            "name": "Collected Album",
+                            "size": 12,
+                            "artist": {"name": "Album Artist"},
+                            "publishTime": 1700000000000
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, albums.size)
+        assertEquals("321", albums.single().albumId)
+        assertEquals("Collected Album", albums.single().title)
+        assertEquals("Album Artist", albums.single().artist)
+        assertEquals("https://p1.music.126.net/cover.jpg", albums.single().artworkUrl)
+        assertEquals(12, albums.single().trackCount)
+        assertEquals(1_700_000_000_000L, albums.single().publishTimeMs)
+    }
+
+    @Test
+    fun accountAlbumsResponseRejectsNonSuccessCode() {
+        val albums = parseNeteaseAccountAlbumsResponse("""{"code":301}""")
+
+        assertTrue(albums.isEmpty())
+    }
+
+    @Test
+    fun accountRadiosResponseParsesSubscribedRadios() {
+        val radios = parseNeteaseAccountRadiosResponse(
+            """
+            {
+              "code": 200,
+              "djRadios": [
+                {
+                  "id": 700,
+                  "name": "Subscribed Podcast",
+                  "category": "音乐播客",
+                  "picUrl": "https://p1.music.126.net/radio.jpg",
+                  "programCount": 42,
+                  "playCount": 120000,
+                  "dj": {"nickname": "Host Name"}
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(1, radios.size)
+        assertEquals("700", radios.single().radioId)
+        assertEquals("Subscribed Podcast", radios.single().title)
+        assertEquals("音乐播客", radios.single().category)
+        assertEquals("Host Name", radios.single().creator)
+        assertEquals("https://p1.music.126.net/radio.jpg", radios.single().artworkUrl)
+        assertEquals(42, radios.single().programCount)
+        assertEquals(120_000L, radios.single().playCount)
+    }
+
+    @Test
+    fun accountRadiosResponseRejectsNonSuccessCode() {
+        val radios = parseNeteaseAccountRadiosResponse("""{"code":301}""")
+
+        assertTrue(radios.isEmpty())
     }
 
     @Test

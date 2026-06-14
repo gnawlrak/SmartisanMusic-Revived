@@ -61,6 +61,7 @@ internal fun LegacyPortTabContent(
     artistSettings: ArtistSettings,
     cloudMusicSearchOpenRequest: Int,
     onCloudMusicSearchOpenRequestHandled: () -> Unit,
+    cloudMusicAccountRefreshRequest: Int,
     onRefreshLibrary: () -> Unit,
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit,
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
@@ -72,6 +73,7 @@ internal fun LegacyPortTabContent(
     onAudioFxCustomGainDbPointsChange: (List<Float>) -> Unit,
     onArtistSeparatorsChange: (Set<String>) -> Unit,
     onNeteasePlaybackQualityChange: (NeteaseAudioQuality) -> Unit,
+    onNeteaseAuthChanged: () -> Unit,
     onMediaIdsHidden: (Set<String>) -> Unit,
     onRequestDeleteMediaIds: (Set<String>) -> Unit,
     onRequestSongDeleteConfirmation: (Set<String>, (() -> Unit)?) -> Unit,
@@ -121,6 +123,7 @@ internal fun LegacyPortTabContent(
                 playbackBarOverlayHeight = 0.dp,
                 searchOpenRequest = cloudMusicSearchOpenRequest,
                 onSearchOpenRequestHandled = onCloudMusicSearchOpenRequestHandled,
+                accountRefreshRequest = cloudMusicAccountRefreshRequest,
                 onTrackMoreClick = onCloudMusicTrackMoreClick,
                 modifier = Modifier
                     .fillMaxSize()
@@ -201,6 +204,7 @@ internal fun LegacyPortTabContent(
                 onAudioFxCustomGainDbPointsChange = onAudioFxCustomGainDbPointsChange,
                 onArtistSeparatorsChange = onArtistSeparatorsChange,
                 onNeteasePlaybackQualityChange = onNeteasePlaybackQualityChange,
+                onNeteaseAuthChanged = onNeteaseAuthChanged,
                 onMediaIdsHidden = onMediaIdsHidden,
                 onRequestDeleteMediaIds = onRequestDeleteMediaIds,
                 onLovedSongsTrackMoreClick = onLovedSongsTrackMoreClick,

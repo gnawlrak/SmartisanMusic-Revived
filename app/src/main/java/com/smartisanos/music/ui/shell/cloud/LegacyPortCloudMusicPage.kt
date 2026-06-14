@@ -95,6 +95,8 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import com.smartisanos.music.R
 import com.smartisanos.music.data.favorite.FavoriteSongsRepository
+import com.smartisanos.music.data.online.NeteaseAccountActionResult
+import com.smartisanos.music.data.online.NeteaseAccountActionStatus
 import com.smartisanos.music.data.online.NeteaseAuthStore
 import com.smartisanos.music.data.online.OnlineAccountPlaylist
 import com.smartisanos.music.data.online.OnlineAlbum
@@ -112,15 +114,21 @@ import com.smartisanos.music.data.online.OnlineSearchResults
 import com.smartisanos.music.data.online.OnlineSearchHotKeyword
 import com.smartisanos.music.data.online.OnlineTrack
 import com.smartisanos.music.data.online.buildOnlineMediaId
+import com.smartisanos.music.data.online.onlineIdentityOrNull
 import com.smartisanos.music.data.online.toMediaItem
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.loadArtworkBitmap
 import com.smartisanos.music.playback.replaceQueueAndPlay
+import com.smartisanos.music.ui.shell.LegacyPlaylistDeleteDialog
+import com.smartisanos.music.ui.shell.LegacyPlaylistDeleteRequest
 import com.smartisanos.music.ui.components.SmartisanDrawableBackground
 import com.smartisanos.music.ui.shell.LegacyPlaylistBlankView
+import com.smartisanos.music.ui.shell.LegacySlideSelectionStartArea
 import com.smartisanos.music.ui.shell.addLegacyPortListFooter
 import com.smartisanos.music.ui.shell.bindLegacyPortListFooter
 import com.smartisanos.music.ui.shell.legacyWrappedAdapter
+import com.smartisanos.music.ui.shell.legacyPlaylistDetailActionButton
+import com.smartisanos.music.ui.shell.legacySlideSelectionController
 import com.smartisanos.music.ui.shell.songs.LegacySongsAdapter
 import com.smartisanos.music.ui.shell.songs.LegacySongsSectionMode
 import com.smartisanos.music.ui.shell.songs.LegacySongsSortDisplayMode
@@ -138,6 +146,7 @@ internal fun LegacyPortCloudMusicPage(
     playbackBarOverlayHeight: Dp,
     searchOpenRequest: Int = 0,
     onSearchOpenRequestHandled: () -> Unit = {},
+    accountRefreshRequest: Int = 0,
     onTrackMoreClick: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -166,6 +175,7 @@ internal fun LegacyPortCloudMusicPage(
     var featuredHomeState by remember { mutableStateOf<CloudFeaturedHomeState>(CloudFeaturedHomeState.Loading) }
     var radioHomeState by remember { mutableStateOf<CloudRadioHomeState>(CloudRadioHomeState.Loading) }
     var selectedRadio by remember { mutableStateOf<OnlineRadio?>(null) }
+    var radioDetailReturnMode by rememberSaveable { mutableStateOf(CloudHomeMode.Radio) }
     var radioTrackState by remember { mutableStateOf<CloudMusicState>(CloudMusicState.Idle) }
     var artistState by remember { mutableStateOf<CloudArtistState>(CloudArtistState.Idle) }
     var selectedArtist by remember { mutableStateOf<OnlineArtist?>(null) }
@@ -182,7 +192,10 @@ internal fun LegacyPortCloudMusicPage(
     var onlinePlaylistTracksState by remember { mutableStateOf<CloudMusicState>(CloudMusicState.Idle) }
     var onlineAlbumTracksState by remember { mutableStateOf<CloudMusicState>(CloudMusicState.Idle) }
     var accountPlaylists by remember { mutableStateOf<List<OnlineAccountPlaylist>>(emptyList()) }
+    var accountAlbums by remember { mutableStateOf<List<OnlineAlbum>>(emptyList()) }
+    var accountRadios by remember { mutableStateOf<List<OnlineRadio>>(emptyList()) }
     var selectedAccountPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var handledAccountRefreshRequest by remember { mutableStateOf(0) }
     var homeMode by rememberSaveable { mutableStateOf(CloudHomeMode.Featured) }
     var searchActive by rememberSaveable { mutableStateOf(false) }
 
@@ -217,6 +230,15 @@ internal fun LegacyPortCloudMusicPage(
             searchActive = true
             onSearchOpenRequestHandled()
         }
+    }
+
+    LaunchedEffect(active, accountRefreshRequest) {
+        if (!active || accountRefreshRequest <= handledAccountRefreshRequest) {
+            return@LaunchedEffect
+        }
+        handledAccountRefreshRequest = accountRefreshRequest
+        authState = authStore.load()
+        authRevision += 1
     }
 
     BackHandler(
@@ -272,9 +294,11 @@ internal fun LegacyPortCloudMusicPage(
                 homeMode = CloudHomeMode.Radio
             }
             homeMode == CloudHomeMode.RadioPrograms -> {
+                val returnMode = radioDetailReturnMode
                 selectedRadio = null
+                radioDetailReturnMode = CloudHomeMode.Radio
                 radioTrackState = CloudMusicState.Idle
-                homeMode = CloudHomeMode.Radio
+                homeMode = returnMode
             }
             homeMode == CloudHomeMode.FeaturedTracks ||
                 homeMode == CloudHomeMode.OnlinePlaylistTracks ||
@@ -366,6 +390,8 @@ internal fun LegacyPortCloudMusicPage(
         }
         if (!authState.isLoggedIn || homeMode == CloudHomeMode.Featured) {
             accountPlaylists = emptyList()
+            accountAlbums = emptyList()
+            accountRadios = emptyList()
             selectedAccountPlaylistId = null
             homeState = CloudMusicState.Idle
             return@LaunchedEffect
@@ -375,30 +401,50 @@ internal fun LegacyPortCloudMusicPage(
         val playlistResult = runSuspendCatching {
             activeRepository.accountPlaylists()
         }
+        val albumResult = runSuspendCatching {
+            activeRepository.accountAlbums()
+        }
+        val radioResult = runSuspendCatching {
+            activeRepository.accountRadios()
+        }
         val cloudPlaylists = playlistResult.getOrNull()
-        if (playlistResult.isFailure || cloudPlaylists == null) {
+        val cloudAlbums = albumResult.getOrNull().orEmpty()
+        val cloudRadios = radioResult.getOrNull().orEmpty()
+        if (
+            playlistResult.isFailure && albumResult.isFailure && radioResult.isFailure ||
+            cloudPlaylists == null && cloudAlbums.isEmpty() && cloudRadios.isEmpty()
+        ) {
             accountPlaylists = emptyList()
+            accountAlbums = emptyList()
+            accountRadios = emptyList()
             homeState = CloudMusicState.AccountError
             return@LaunchedEffect
         }
 
-        accountPlaylists = cloudPlaylists
+        accountPlaylists = cloudPlaylists.orEmpty()
+        accountAlbums = cloudAlbums
+        accountRadios = cloudRadios
         authState = authStore.load()
 
-        val selectedPlaylist = cloudPlaylists.firstOrNull { playlist ->
+        val selectedPlaylist = accountPlaylists.firstOrNull { playlist ->
             playlist.playlistId == selectedAccountPlaylistId
-        } ?: cloudPlaylists.firstOrNull(OnlineAccountPlaylist::isLikedSongs)
-            ?: cloudPlaylists.firstOrNull()
-        if (selectedPlaylist == null) {
-            homeState = CloudMusicState.AccountEmpty
-            return@LaunchedEffect
-        }
-        if (selectedAccountPlaylistId != selectedPlaylist.playlistId) {
+        } ?: accountPlaylists.firstOrNull(OnlineAccountPlaylist::isLikedSongs)
+            ?: accountPlaylists.firstOrNull()
+        if (selectedPlaylist != null && selectedAccountPlaylistId != selectedPlaylist.playlistId) {
             selectedAccountPlaylistId = selectedPlaylist.playlistId
         }
 
         if (homeMode == CloudHomeMode.Playlists) {
-            homeState = CloudMusicState.Success(emptyList())
+            homeState = if (accountPlaylists.isEmpty() && accountAlbums.isEmpty() && accountRadios.isEmpty()) {
+                CloudMusicState.AccountEmpty
+            } else {
+                CloudMusicState.Success(emptyList())
+            }
+            return@LaunchedEffect
+        }
+
+        if (selectedPlaylist == null) {
+            homeState = CloudMusicState.AccountEmpty
             return@LaunchedEffect
         }
 
@@ -652,7 +698,7 @@ internal fun LegacyPortCloudMusicPage(
             return
         }
         selectedAccountPlaylistId = null
-        homeMode = CloudHomeMode.Tracks
+        homeMode = CloudHomeMode.Playlists
     }
     fun selectCollections() {
         query = ""
@@ -673,6 +719,7 @@ internal fun LegacyPortCloudMusicPage(
     fun selectRadio() {
         query = ""
         selectedRadio = null
+        radioDetailReturnMode = CloudHomeMode.Radio
         radioTrackState = CloudMusicState.Idle
         homeMode = CloudHomeMode.Radio
     }
@@ -682,8 +729,12 @@ internal fun LegacyPortCloudMusicPage(
     fun openRadioList() {
         homeMode = CloudHomeMode.RadioList
     }
-    fun openRadioPrograms(radio: OnlineRadio) {
+    fun openRadioPrograms(
+        radio: OnlineRadio,
+        returnMode: CloudHomeMode = CloudHomeMode.Radio,
+    ) {
         selectedRadio = radio
+        radioDetailReturnMode = returnMode
         radioTrackState = if (authState.isLoggedIn) {
             CloudMusicState.LoadingRadio
         } else {
@@ -798,6 +849,8 @@ internal fun LegacyPortCloudMusicPage(
         homeMode == CloudHomeMode.Collections ||
             (homeMode == CloudHomeMode.OnlinePlaylistTracks && onlineDetailReturnMode == CloudHomeMode.Collections) ->
             CloudMusicHomeEntry.Collection
+        (homeMode == CloudHomeMode.OnlinePlaylistTracks || homeMode == CloudHomeMode.OnlineAlbumTracks) &&
+            onlineDetailReturnMode == CloudHomeMode.Playlists -> CloudMusicHomeEntry.Mine
         homeMode == CloudHomeMode.FeaturedTracks ||
             homeMode == CloudHomeMode.FeaturedPlaylists ||
             homeMode == CloudHomeMode.FeaturedCharts ||
@@ -815,8 +868,13 @@ internal fun LegacyPortCloudMusicPage(
         homeMode == CloudHomeMode.ArtistAlbums -> CloudMusicHomeEntry.Artist
         homeMode == CloudHomeMode.Radio ||
             homeMode == CloudHomeMode.RadioList ||
-            homeMode == CloudHomeMode.RadioTracks ||
-            homeMode == CloudHomeMode.RadioPrograms -> CloudMusicHomeEntry.Radio
+            homeMode == CloudHomeMode.RadioTracks -> CloudMusicHomeEntry.Radio
+        homeMode == CloudHomeMode.RadioPrograms ->
+            if (radioDetailReturnMode == CloudHomeMode.Playlists) {
+                CloudMusicHomeEntry.Mine
+            } else {
+                CloudMusicHomeEntry.Radio
+            }
         homeMode == CloudHomeMode.Playlists || homeMode == CloudHomeMode.Tracks -> CloudMusicHomeEntry.Mine
         !accountLibraryVisible || homeMode == CloudHomeMode.Featured -> CloudMusicHomeEntry.Recommend
         else -> CloudMusicHomeEntry.Collection
@@ -824,7 +882,7 @@ internal fun LegacyPortCloudMusicPage(
     val sectionTitle = when {
         searchPromptVisible -> stringResource(R.string.cloud_music_section_search)
         searchResultVisible -> stringResource(R.string.cloud_music_section_search_results)
-        homeMode == CloudHomeMode.Playlists -> stringResource(R.string.cloud_music_section_playlists)
+        homeMode == CloudHomeMode.Playlists -> stringResource(R.string.cloud_music_section_account_library)
         homeMode == CloudHomeMode.Artists -> stringResource(R.string.cloud_music_section_hot_artists)
         homeMode == CloudHomeMode.ArtistTracks ->
             selectedArtist?.name ?: stringResource(R.string.cloud_music_section_artist_tracks)
@@ -1026,19 +1084,27 @@ internal fun LegacyPortCloudMusicPage(
                                         onActionClick = { authRevision += 1 },
                                         modifier = Modifier.fillMaxSize(),
                                     )
-                                    accountPlaylists.isEmpty() -> CloudMusicBlankState(
+                                    accountPlaylists.isEmpty() && accountAlbums.isEmpty() && accountRadios.isEmpty() -> CloudMusicBlankState(
                                         title = stringResource(R.string.cloud_music_playlists_empty),
                                         subtitle = stringResource(R.string.cloud_music_empty_subtitle),
                                         modifier = Modifier.fillMaxSize(),
                                     )
-                                    else -> CloudMusicPlaylistList(
+                                    else -> CloudMusicAccountLibraryList(
                                         playlists = accountPlaylists,
+                                        albums = accountAlbums,
+                                        radios = accountRadios,
                                         selectedPlaylistId = selectedAccountPlaylistId,
                                         active = active,
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onPlaylistClick = { playlist ->
                                             selectedAccountPlaylistId = playlist.playlistId
                                             homeMode = CloudHomeMode.Tracks
+                                        },
+                                        onAlbumClick = { album ->
+                                            openOnlineAlbum(album, CloudHomeMode.Playlists)
+                                        },
+                                        onRadioClick = { radio ->
+                                            openRadioPrograms(radio, CloudHomeMode.Playlists)
                                         },
                                         modifier = Modifier.fillMaxSize(),
                                     )
@@ -1220,7 +1286,7 @@ internal fun LegacyPortCloudMusicPage(
                                     onRetryClick = { authRevision += 1 },
                                     onTracksClick = ::openRadioTracks,
                                     onRadioListClick = ::openRadioList,
-                                    onRadioClick = ::openRadioPrograms,
+                                    onRadioClick = { radio -> openRadioPrograms(radio) },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -1229,7 +1295,7 @@ internal fun LegacyPortCloudMusicPage(
                                     state = radioHomeState,
                                     playbackBarOverlayHeight = playbackBarOverlayHeight,
                                     onRetryClick = { authRevision += 1 },
-                                    onRadioClick = ::openRadioPrograms,
+                                    onRadioClick = { radio -> openRadioPrograms(radio) },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -1314,6 +1380,16 @@ internal fun LegacyPortCloudMusicPage(
                                     playbackBarOverlayHeight = playbackBarOverlayHeight,
                                     onRetryClick = { authRevision += 1 },
                                     onTrackMoreClick = onTrackMoreClick,
+                                    accountPlaylist = selectedAccountPlaylist,
+                                    onAccountPlaylistTracksChanged = { authRevision += 1 },
+                                    onAccountPlaylistDeleted = { deletedPlaylist ->
+                                        accountPlaylists = accountPlaylists.filterNot { playlist ->
+                                            playlist.playlistId == deletedPlaylist.playlistId
+                                        }
+                                        selectedAccountPlaylistId = null
+                                        homeMode = CloudHomeMode.Playlists
+                                        authRevision += 1
+                                    },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -1871,6 +1947,9 @@ private fun CloudMusicStateContent(
     playbackBarOverlayHeight: Dp,
     onRetryClick: () -> Unit,
     onTrackMoreClick: (MediaItem) -> Unit,
+    accountPlaylist: OnlineAccountPlaylist? = null,
+    onAccountPlaylistTracksChanged: () -> Unit = {},
+    onAccountPlaylistDeleted: (OnlineAccountPlaylist) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -1945,6 +2024,9 @@ private fun CloudMusicStateContent(
             active = active,
             playbackBarOverlayHeight = playbackBarOverlayHeight,
             onTrackMoreClick = onTrackMoreClick,
+            editableAccountPlaylist = accountPlaylist?.takeIf(OnlineAccountPlaylist::isEditable),
+            onAccountPlaylistTracksChanged = onAccountPlaylistTracksChanged,
+            onAccountPlaylistDeleted = onAccountPlaylistDeleted,
             modifier = modifier,
         )
     }
@@ -3354,16 +3436,25 @@ private class CloudMusicArtistAdapter : BaseAdapter() {
 }
 
 @Composable
-private fun CloudMusicPlaylistList(
+private fun CloudMusicAccountLibraryList(
     playlists: List<OnlineAccountPlaylist>,
+    albums: List<OnlineAlbum>,
+    radios: List<OnlineRadio>,
     selectedPlaylistId: String?,
     active: Boolean,
     playbackBarOverlayHeight: Dp,
     onPlaylistClick: (OnlineAccountPlaylist) -> Unit,
+    onAlbumClick: (OnlineAlbum) -> Unit,
+    onRadioClick: (OnlineRadio) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val playbackBarOverlayHeightPx = with(LocalDensity.current) {
         playbackBarOverlayHeight.roundToPx()
+    }
+    val items = remember(playlists, albums, radios) {
+        playlists.map { playlist -> CloudAccountLibraryItem.Playlist(playlist) } +
+            albums.map { album -> CloudAccountLibraryItem.Album(album) } +
+            radios.map { radio -> CloudAccountLibraryItem.Radio(radio) }
     }
     AndroidView(
         modifier = modifier,
@@ -3393,15 +3484,15 @@ private fun CloudMusicPlaylistList(
                 }
             }
             listView.bindLegacyPortListFooter(
-                pluralsRes = R.plurals.playlists_count,
-                count = playlists.size,
+                pluralsRes = R.plurals.cloud_music_account_library_count,
+                count = items.size,
             )
-            val adapter = listView.legacyWrappedAdapter<CloudMusicPlaylistAdapter>()
-                ?: CloudMusicPlaylistAdapter().also { nextAdapter ->
+            val adapter = listView.legacyWrappedAdapter<CloudMusicAccountLibraryAdapter>()
+                ?: CloudMusicAccountLibraryAdapter().also { nextAdapter ->
                     listView.adapter = nextAdapter
                 }
             val changed = adapter.updateItems(
-                nextItems = playlists,
+                nextItems = items,
                 nextSelectedPlaylistId = selectedPlaylistId,
             )
             if (changed) {
@@ -3410,23 +3501,34 @@ private fun CloudMusicPlaylistList(
                 adapter.updateVisibleRows(listView)
             }
             listView.setOnItemClickListener { _, _, position, _ ->
-                adapter.itemAt(position)?.let(onPlaylistClick)
+                when (val item = adapter.itemAt(position)) {
+                    is CloudAccountLibraryItem.Playlist -> onPlaylistClick(item.playlist)
+                    is CloudAccountLibraryItem.Album -> onAlbumClick(item.album)
+                    is CloudAccountLibraryItem.Radio -> onRadioClick(item.radio)
+                    null -> Unit
+                }
             }
         },
     )
 }
 
-private class CloudMusicPlaylistAdapter : BaseAdapter() {
-    private var playlists: List<OnlineAccountPlaylist> = emptyList()
+private sealed interface CloudAccountLibraryItem {
+    data class Playlist(val playlist: OnlineAccountPlaylist) : CloudAccountLibraryItem
+    data class Album(val album: OnlineAlbum) : CloudAccountLibraryItem
+    data class Radio(val radio: OnlineRadio) : CloudAccountLibraryItem
+}
+
+private class CloudMusicAccountLibraryAdapter : BaseAdapter() {
+    private var items: List<CloudAccountLibraryItem> = emptyList()
     private var selectedPlaylistId: String? = null
 
     fun updateItems(
-        nextItems: List<OnlineAccountPlaylist>,
+        nextItems: List<CloudAccountLibraryItem>,
         nextSelectedPlaylistId: String?,
     ): Boolean {
-        val changed = playlists != nextItems || selectedPlaylistId != nextSelectedPlaylistId
+        val changed = items != nextItems || selectedPlaylistId != nextSelectedPlaylistId
         if (changed) {
-            playlists = nextItems
+            items = nextItems
             selectedPlaylistId = nextSelectedPlaylistId
             notifyDataSetChanged()
         }
@@ -3436,33 +3538,42 @@ private class CloudMusicPlaylistAdapter : BaseAdapter() {
     fun updateVisibleRows(listView: ListView) {
         for (index in 0 until listView.childCount) {
             val position = listView.firstVisiblePosition + index
-            val playlist = itemAt(position) ?: continue
-            bindPlaylistRow(listView.getChildAt(index), playlist)
+            val item = itemAt(position) ?: continue
+            bindAccountLibraryRow(listView.getChildAt(index), item)
         }
     }
 
-    fun itemAt(position: Int): OnlineAccountPlaylist? = playlists.getOrNull(position)
+    fun itemAt(position: Int): CloudAccountLibraryItem? = items.getOrNull(position)
 
-    override fun getCount(): Int = playlists.size
+    override fun getCount(): Int = items.size
 
     override fun getItem(position: Int): Any? = itemAt(position)
 
-    override fun getItemId(position: Int): Long = playlists.getOrNull(position)?.playlistId?.toLongOrNull() ?: position.toLong()
+    override fun getItemId(position: Int): Long {
+        return when (val item = itemAt(position)) {
+            is CloudAccountLibraryItem.Playlist ->
+                item.playlist.playlistId.toLongOrNull() ?: position.toLong()
+            is CloudAccountLibraryItem.Album ->
+                item.album.albumId.toLongOrNull()?.let { albumId -> -albumId } ?: -(position.toLong() + 1L)
+            is CloudAccountLibraryItem.Radio ->
+                item.radio.radioId.toLongOrNull()?.let { radioId -> Long.MIN_VALUE + radioId } ?: Long.MIN_VALUE + position.toLong()
+            null -> position.toLong()
+        }
+    }
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        val view = convertView ?: createPlaylistRow(parent)
-        itemAt(position)?.let { playlist -> bindPlaylistRow(view, playlist) }
+        val view = convertView ?: createAccountLibraryRow(parent)
+        itemAt(position)?.let { item -> bindAccountLibraryRow(view, item) }
         return view
     }
 
-    private fun createPlaylistRow(parent: ViewGroup): View {
+    private fun createAccountLibraryRow(parent: ViewGroup): View {
         val context = parent.context
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundResource(R.drawable.listview_selector)
-            isClickable = true
-            isFocusable = true
+            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
             setPadding(context.dpPx(15), 0, context.dpPx(15), 0)
             layoutParams = AbsListView.LayoutParams(
                 AbsListView.LayoutParams.MATCH_PARENT,
@@ -3502,12 +3613,12 @@ private class CloudMusicPlaylistAdapter : BaseAdapter() {
         }
     }
 
-    private fun bindPlaylistRow(view: View, playlist: OnlineAccountPlaylist) {
+    private fun bindAccountLibraryRow(view: View, item: CloudAccountLibraryItem) {
         val context = view.context
         view.findViewById<TextView>(R.id.listview_item_line_one)?.apply {
-            text = playlist.displayTitle(context)
+            text = item.displayTitle(context)
             setTextColor(
-                if (playlist.playlistId == selectedPlaylistId) {
+                if (item is CloudAccountLibraryItem.Playlist && item.playlist.playlistId == selectedPlaylistId) {
                     Color.rgb(177, 36, 32)
                 } else {
                     context.getColor(R.color.list_item_first_line)
@@ -3515,8 +3626,33 @@ private class CloudMusicPlaylistAdapter : BaseAdapter() {
             )
         }
         view.findViewById<TextView>(R.id.listview_item_line_two)?.text =
-            context.getString(R.string.cloud_music_playlist_track_count, playlist.trackCount)
+            item.displaySubtitle(context)
     }
+}
+
+private fun CloudAccountLibraryItem.displayTitle(context: Context): String {
+    return when (this) {
+        is CloudAccountLibraryItem.Playlist -> playlist.displayTitle(context)
+        is CloudAccountLibraryItem.Album -> album.title
+        is CloudAccountLibraryItem.Radio -> radio.title
+    }
+}
+
+private fun CloudAccountLibraryItem.displaySubtitle(context: Context): String {
+    return when (this) {
+        is CloudAccountLibraryItem.Playlist -> listOf(
+            context.getString(R.string.cloud_music_account_playlist_label),
+            context.getString(R.string.cloud_music_playlist_track_count, playlist.trackCount),
+        )
+        is CloudAccountLibraryItem.Album -> listOfNotNull(
+            context.getString(R.string.cloud_music_account_album_label),
+            album.albumSubtitle(context),
+        )
+        is CloudAccountLibraryItem.Radio -> listOfNotNull(
+            context.getString(R.string.cloud_music_account_radio_label),
+            radio.subtitleText(context),
+        )
+    }.joinToString(" · ")
 }
 
 private fun OnlineAccountPlaylist.displayTitle(context: Context): String {
@@ -3535,6 +3671,9 @@ private fun CloudMusicResultList(
     active: Boolean,
     playbackBarOverlayHeight: Dp,
     onTrackMoreClick: (MediaItem) -> Unit,
+    editableAccountPlaylist: OnlineAccountPlaylist? = null,
+    onAccountPlaylistTracksChanged: () -> Unit = {},
+    onAccountPlaylistDeleted: (OnlineAccountPlaylist) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -3542,14 +3681,45 @@ private fun CloudMusicResultList(
     val scope = rememberCoroutineScope()
     var queuePopulateJob by remember { mutableStateOf<Job?>(null) }
     var queuePopulateToken by remember { mutableStateOf(0L) }
+    var editMode by remember { mutableStateOf(false) }
+    var selectedMediaIds by remember { mutableStateOf(emptySet<String>()) }
+    var deleteRequest by remember { mutableStateOf<LegacyPlaylistDeleteRequest?>(null) }
+    var removeInFlight by remember { mutableStateOf(false) }
+    var deletePlaylistInFlight by remember { mutableStateOf(false) }
     val mediaItems = remember(tracks) {
         tracks.map { track -> track.toMediaItem() }
+    }
+    val mediaIds = remember(mediaItems) {
+        mediaItems.mapTo(linkedSetOf(), MediaItem::mediaId)
     }
     val playbackBarOverlayHeightPx = with(LocalDensity.current) {
         playbackBarOverlayHeight.roundToPx()
     }
+
+    LaunchedEffect(editableAccountPlaylist?.playlistId, mediaIds) {
+        if (editableAccountPlaylist == null) {
+            editMode = false
+            selectedMediaIds = emptySet()
+        } else {
+            selectedMediaIds = selectedMediaIds.intersect(mediaIds)
+        }
+    }
+
+    BackHandler(enabled = active && editMode) {
+        editMode = false
+        selectedMediaIds = emptySet()
+    }
+
     fun showPlayFailed() {
         Toast.makeText(context, playFailedMessageRes, Toast.LENGTH_SHORT).show()
+    }
+
+    fun updateSelection(mediaId: String, selected: Boolean) {
+        selectedMediaIds = if (selected) {
+            selectedMediaIds + mediaId
+        } else {
+            selectedMediaIds - mediaId
+        }
     }
 
     fun playCloudQueueFromIndex(
@@ -3592,20 +3762,175 @@ private fun CloudMusicResultList(
         }
     }
 
+    fun removeSelectedFromAccountPlaylist() {
+        val playlist = editableAccountPlaylist ?: return
+        if (removeInFlight || selectedMediaIds.isEmpty()) {
+            return
+        }
+        val trackIds = mediaItems
+            .asSequence()
+            .filter { item -> item.mediaId in selectedMediaIds }
+            .mapNotNull { item ->
+                item.onlineIdentityOrNull()
+                    ?.takeIf { identity -> identity.source == playlist.provider.sourceId }
+                    ?.trackId
+            }
+            .distinct()
+            .toList()
+        if (trackIds.isEmpty()) {
+            selectedMediaIds = emptySet()
+            return
+        }
+        removeInFlight = true
+        scope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    repository.removeTracksFromAccountPlaylist(
+                        playlist = playlist,
+                        trackIds = trackIds,
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+            } finally {
+                removeInFlight = false
+            }
+            when (result.status) {
+                NeteaseAccountActionStatus.Success -> {
+                    editMode = false
+                    selectedMediaIds = emptySet()
+                    onAccountPlaylistTracksChanged()
+                    Toast.makeText(
+                        context,
+                        R.string.netease_online_music_playlist_remove_success,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                NeteaseAccountActionStatus.RequiresLogin -> {
+                    Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                }
+                NeteaseAccountActionStatus.Failed -> {
+                    Toast.makeText(
+                        context,
+                        R.string.netease_online_music_playlist_remove_failed,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
+    }
+
+    fun deleteAccountPlaylist() {
+        val playlist = editableAccountPlaylist ?: return
+        if (deletePlaylistInFlight) {
+            return
+        }
+        deletePlaylistInFlight = true
+        scope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    repository.deleteAccountPlaylist(playlist)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+            } finally {
+                deletePlaylistInFlight = false
+            }
+            when (result.status) {
+                NeteaseAccountActionStatus.Success -> {
+                    editMode = false
+                    selectedMediaIds = emptySet()
+                    onAccountPlaylistDeleted(playlist)
+                    Toast.makeText(
+                        context,
+                        R.string.netease_online_music_playlist_delete_success,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                NeteaseAccountActionStatus.RequiresLogin -> {
+                    Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                }
+                NeteaseAccountActionStatus.Failed -> {
+                    Toast.makeText(
+                        context,
+                        R.string.netease_online_music_playlist_delete_failed,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
+    }
+
+    LegacyPlaylistDeleteDialog(
+        request = deleteRequest,
+        onDismiss = {
+            deleteRequest = null
+        },
+        onConfirm = { request ->
+            deleteRequest = null
+            when (request) {
+                LegacyPlaylistDeleteRequest.NeteaseDetailPlaylist -> deleteAccountPlaylist()
+                LegacyPlaylistDeleteRequest.DetailTracks -> removeSelectedFromAccountPlaylist()
+                LegacyPlaylistDeleteRequest.DetailPlaylist,
+                LegacyPlaylistDeleteRequest.RootSelected -> Unit
+            }
+        },
+    )
+
     Column(modifier = modifier) {
-        CloudMusicPlayActionBar(
-            enabled = mediaItems.isNotEmpty(),
-            onPlayAllClick = {
-                playCloudQueueFromIndex(startIndex = 0)
-            },
-            onShuffleClick = {
-                playCloudQueueFromIndex(
-                    startIndex = Random.nextInt(mediaItems.size),
-                    shuffle = true,
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        val accountPlaylistEditable = editableAccountPlaylist != null
+        if (accountPlaylistEditable) {
+            CloudMusicAccountPlaylistActionBar(
+                actionInFlight = removeInFlight || deletePlaylistInFlight,
+                editMode = editMode,
+                selectedCount = selectedMediaIds.size,
+                totalCount = mediaItems.size,
+                onShuffleClick = {
+                    playCloudQueueFromIndex(
+                        startIndex = Random.nextInt(mediaItems.size),
+                        shuffle = true,
+                    )
+                },
+                onDeletePlaylistClick = {
+                    deleteRequest = LegacyPlaylistDeleteRequest.NeteaseDetailPlaylist
+                },
+                onEditClick = {
+                    editMode = true
+                    selectedMediaIds = emptySet()
+                },
+                onSelectAllClick = {
+                    selectedMediaIds = mediaIds
+                },
+                onRemoveClick = {
+                    if (selectedMediaIds.isNotEmpty()) {
+                        deleteRequest = LegacyPlaylistDeleteRequest.DetailTracks
+                    }
+                },
+                onCancelEditClick = {
+                    editMode = false
+                    selectedMediaIds = emptySet()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            CloudMusicPlayActionBar(
+                enabled = mediaItems.isNotEmpty(),
+                onPlayAllClick = {
+                    playCloudQueueFromIndex(startIndex = 0)
+                },
+                onShuffleClick = {
+                    playCloudQueueFromIndex(
+                        startIndex = Random.nextInt(mediaItems.size),
+                        shuffle = true,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         CloudMusicDivider()
         AndroidView(
             modifier = Modifier
@@ -3644,7 +3969,14 @@ private fun CloudMusicResultList(
                     ?: LegacySongsAdapter().also { adapter ->
                         listView.adapter = adapter
                     }
-                adapter.onMoreClick = onTrackMoreClick
+                adapter.onMoreClick = { item ->
+                    if (!editMode) {
+                        onTrackMoreClick(item)
+                    }
+                }
+                val previousEditMode = listView.getTag(R.id.elvitem) as? Boolean
+                val animateEditMode = previousEditMode != null && previousEditMode != editMode
+                listView.setTag(R.id.elvitem, editMode)
                 val listContentChanged = adapter.updateItems(
                     nextItems = mediaItems,
                     nextCurrentMediaId = browser?.currentMediaItem?.mediaId,
@@ -3652,8 +3984,8 @@ private fun CloudMusicResultList(
                     nextDisplayMode = LegacySongsSortDisplayMode.Name,
                     nextSectionMode = LegacySongsSectionMode.None,
                     nextQuickBarCollapsedVisibleWidth = 0,
-                    nextEditMode = false,
-                    nextSelectedMediaIds = emptySet(),
+                    nextEditMode = editMode,
+                    nextSelectedMediaIds = selectedMediaIds,
                 )
                 if (listContentChanged) {
                     listView.setSelection(0)
@@ -3661,7 +3993,7 @@ private fun CloudMusicResultList(
                 } else {
                     adapter.updateVisibleSongRows(
                         listView = listView,
-                        animateEditMode = false,
+                        animateEditMode = animateEditMode,
                     )
                 }
                 if (listView.getTag(R.id.list) !== browser) {
@@ -3685,8 +4017,28 @@ private fun CloudMusicResultList(
                     }
                     listView.setTag(R.id.list, browser)
                 }
+                val slideSelectionController = listView.legacySlideSelectionController(
+                    startArea = LegacySlideSelectionStartArea.Checkbox,
+                )
+                slideSelectionController.update(
+                    enabled = editMode,
+                    selectedKeys = selectedMediaIds,
+                    keyAtPosition = { position ->
+                        adapter.itemAt(position)?.mediaId
+                    },
+                    onSelectionChange = { mediaId, selected ->
+                        updateSelection(mediaId, selected)
+                    },
+                )
+                listView.setOnTouchListener { _, event ->
+                    slideSelectionController.handleTouch(event)
+                }
                 listView.setOnItemClickListener { _, _, position, _ ->
                     val item = adapter.itemAt(position) ?: return@setOnItemClickListener
+                    if (editMode) {
+                        updateSelection(item.mediaId, item.mediaId !in selectedMediaIds)
+                        return@setOnItemClickListener
+                    }
                     adapter.setPlaybackState(item.mediaId, true)
                     adapter.updateVisiblePlaybackState(listView)
                     val startIndex = mediaItems.indexOfFirst { candidate ->
@@ -3753,6 +4105,231 @@ private fun CloudMusicPlayActionBar(
             }
         },
     )
+}
+
+@Composable
+private fun CloudMusicAccountPlaylistActionBar(
+    actionInFlight: Boolean,
+    editMode: Boolean,
+    selectedCount: Int,
+    totalCount: Int,
+    onShuffleClick: () -> Unit,
+    onDeletePlaylistClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onSelectAllClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    onCancelEditClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AndroidView(
+        modifier = modifier
+            .height(CloudAccountPlaylistActionBarHeight)
+            .background(ComposeColor.White)
+            .padding(horizontal = 15.dp),
+        factory = { viewContext ->
+            FrameLayout(viewContext).apply {
+                setBackgroundColor(Color.WHITE)
+            }
+        },
+        update = { root ->
+            root.removeAllViews()
+            if (editMode) {
+                root.addView(
+                    cloudMusicAccountPlaylistEditActions(
+                        context = root.context,
+                        enabled = !actionInFlight,
+                        selectedCount = selectedCount,
+                        totalCount = totalCount,
+                        onSelectAllClick = onSelectAllClick,
+                        onRemoveClick = onRemoveClick,
+                        onCancelEditClick = onCancelEditClick,
+                    ),
+                    FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+                )
+            } else {
+                root.addView(
+                    cloudMusicAccountPlaylistNormalActions(
+                        context = root.context,
+                        trackActionsEnabled = totalCount > 0 && !actionInFlight,
+                        deleteEnabled = !actionInFlight,
+                        onShuffleClick = onShuffleClick,
+                        onDeletePlaylistClick = onDeletePlaylistClick,
+                        onEditClick = onEditClick,
+                    ),
+                    FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+                )
+            }
+        },
+    )
+}
+
+private fun cloudMusicAccountPlaylistNormalActions(
+    context: Context,
+    trackActionsEnabled: Boolean,
+    deleteEnabled: Boolean,
+    onShuffleClick: () -> Unit,
+    onDeletePlaylistClick: () -> Unit,
+    onEditClick: () -> Unit,
+): LinearLayout {
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        addView(
+            legacyPlaylistDetailActionButton(context, R.drawable.btn_shuffle2_selector, R.string.s_random_play).apply {
+                bindCloudMusicAccountActionEnabled(trackActionsEnabled)
+                setOnClickListener {
+                    if (isEnabled) {
+                        onShuffleClick()
+                    }
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f),
+        )
+        addView(
+            legacyPlaylistDetailActionButton(context, R.drawable.btn_deletelist2_selector, R.string.netease_playlist_delete_action).apply {
+                bindCloudMusicAccountActionEnabled(deleteEnabled)
+                setOnClickListener {
+                    if (isEnabled) {
+                        onDeletePlaylistClick()
+                    }
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                leftMargin = -context.dpPx(6)
+            },
+        )
+        addView(
+            legacyPlaylistDetailActionButton(context, R.drawable.btn_editlist2_selector, R.string.netease_playlist_edit_action).apply {
+                bindCloudMusicAccountActionEnabled(trackActionsEnabled)
+                setOnClickListener {
+                    if (isEnabled) {
+                        onEditClick()
+                    }
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                leftMargin = -context.dpPx(6)
+            },
+        )
+    }
+}
+
+private fun View.bindCloudMusicAccountActionEnabled(enabled: Boolean) {
+    isEnabled = enabled
+    alpha = if (enabled) 1f else 0.28f
+    isClickable = enabled
+    isFocusable = enabled
+}
+
+private fun cloudMusicAccountPlaylistEditActions(
+    context: Context,
+    enabled: Boolean,
+    selectedCount: Int,
+    totalCount: Int,
+    onSelectAllClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    onCancelEditClick: () -> Unit,
+): LinearLayout {
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(
+            cloudMusicAccountActionButton(
+                context = context,
+                iconRes = null,
+                text = context.getString(R.string.cloud_music_select_all),
+                enabled = enabled && totalCount > 0,
+                onClick = onSelectAllClick,
+            ),
+            LinearLayout.LayoutParams(context.dpPx(76), LinearLayout.LayoutParams.MATCH_PARENT),
+        )
+        addView(
+            TextView(context).apply {
+                text = context.getString(R.string.selected_item_format, selectedCount, totalCount)
+                setSingleLine(true)
+                ellipsize = TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER_VERTICAL
+                setTextColor(context.getColor(R.color.list_item_second_line))
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_size_better))
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f),
+        )
+        addView(
+            cloudMusicAccountActionButton(
+                context = context,
+                iconRes = R.drawable.btn_delete_song2_selector,
+                text = context.getString(R.string.delete_track),
+                enabled = enabled && selectedCount > 0,
+                destructive = true,
+                onClick = onRemoveClick,
+            ),
+            LinearLayout.LayoutParams(context.dpPx(104), LinearLayout.LayoutParams.MATCH_PARENT),
+        )
+        addView(
+            cloudMusicAccountActionButton(
+                context = context,
+                iconRes = null,
+                text = context.getString(R.string.cancel),
+                enabled = enabled,
+                onClick = onCancelEditClick,
+            ),
+            LinearLayout.LayoutParams(context.dpPx(68), LinearLayout.LayoutParams.MATCH_PARENT),
+        )
+    }
+}
+
+private fun cloudMusicAccountActionButton(
+    context: Context,
+    iconRes: Int?,
+    text: String,
+    enabled: Boolean,
+    destructive: Boolean = false,
+    onClick: () -> Unit,
+): LinearLayout {
+    return LinearLayout(context).apply {
+        gravity = Gravity.CENTER
+        orientation = LinearLayout.HORIZONTAL
+        setBackgroundResource(if (destructive) R.drawable.btn_red_bg_selector else R.drawable.title_button_bg_selector)
+        isEnabled = enabled
+        alpha = if (enabled) 1f else 0.28f
+        isClickable = enabled
+        isFocusable = enabled
+        iconRes?.let { res ->
+            addView(
+                android.widget.ImageView(context).apply {
+                    setImageResource(res)
+                    isDuplicateParentStateEnabled = true
+                },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    rightMargin = context.dpPx(8)
+                },
+            )
+        }
+        addView(
+            TextView(context).apply {
+                setSingleLine(true)
+                ellipsize = TextUtils.TruncateAt.END
+                this.text = text
+                gravity = Gravity.CENTER
+                setTextColor(
+                    context.getColor(
+                        when {
+                            destructive -> R.color.btn_text_color_red
+                            else -> R.color.btn_text_color_blue
+                        },
+                    ),
+                )
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.button_text_size))
+                typeface = Typeface.DEFAULT_BOLD
+            },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+        )
+        setOnClickListener {
+            if (isEnabled) {
+                onClick()
+            }
+        }
+    }
 }
 
 @Composable
@@ -3991,6 +4568,7 @@ private val CloudSearchCoverRowHeight = 72.dp
 private val CloudSearchCoverArtworkSize = 48.dp
 private val CloudDetailHeaderHeight = 88.dp
 private val CloudDetailHeaderArtworkSize = 64.dp
+private val CloudAccountPlaylistActionBarHeight = 48.dp
 private val CloudHomeEntryRowHeight = 78.dp
 private val CloudSectionTitleHeight = 39.dp
 private val CloudAccentColor = ComposeColor(0xFFE65C53)

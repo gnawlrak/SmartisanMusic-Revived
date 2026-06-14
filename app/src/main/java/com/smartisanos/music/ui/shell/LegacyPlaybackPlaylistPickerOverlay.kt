@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import com.smartisanos.music.R
 import com.smartisanos.music.data.playlist.UserPlaylistSummary
@@ -46,6 +47,8 @@ internal fun LegacyPlaybackPlaylistPickerOverlay(
     onCreateNewPlaylist: () -> Unit,
     onPlaylistSelected: (String) -> Unit,
     createNewPlaylistVisible: Boolean = true,
+    @StringRes titleRes: Int = R.string.playlist_picker_title,
+    @StringRes createNewPlaylistTitleRes: Int = R.string.new_playlist,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -98,6 +101,8 @@ internal fun LegacyPlaybackPlaylistPickerOverlay(
                             onCreateNewPlaylist = onCreateNewPlaylist,
                             onPlaylistSelected = onPlaylistSelected,
                             createNewPlaylistVisible = createNewPlaylistVisible,
+                            titleRes = titleRes,
+                            createNewPlaylistTitleRes = createNewPlaylistTitleRes,
                         )
                     },
                 )
@@ -151,13 +156,17 @@ private class LegacyPlaybackPlaylistPickerView(
         onCreateNewPlaylist: () -> Unit,
         onPlaylistSelected: (String) -> Unit,
         createNewPlaylistVisible: Boolean,
+        @StringRes titleRes: Int,
+        @StringRes createNewPlaylistTitleRes: Int,
     ) {
+        titleBar.setTitle(titleRes)
         titleBar.setOnRightButtonClickListener {
             onDismiss()
         }
         adapter.update(
             playlists = playlists,
             createNewPlaylistVisible = createNewPlaylistVisible,
+            createNewPlaylistTitleRes = createNewPlaylistTitleRes,
         )
         listView.layoutParams = listView.layoutParams.apply {
             val rowCount = playlists.size + if (createNewPlaylistVisible) 1 else 0
@@ -184,13 +193,16 @@ private class PlaylistPickerAdapter(
 ) : BaseAdapter() {
     private var playlists: List<UserPlaylistSummary> = emptyList()
     private var createNewPlaylistVisible = true
+    @StringRes private var createNewPlaylistTitleRes = R.string.new_playlist
 
     fun update(
         playlists: List<UserPlaylistSummary>,
         createNewPlaylistVisible: Boolean,
+        @StringRes createNewPlaylistTitleRes: Int,
     ) {
         this.playlists = playlists
         this.createNewPlaylistVisible = createNewPlaylistVisible
+        this.createNewPlaylistTitleRes = createNewPlaylistTitleRes
         notifyDataSetChanged()
     }
 
@@ -270,7 +282,7 @@ private class PlaylistPickerAdapter(
         }
 
         if (createNewPlaylistVisible && position == 0) {
-            holder.title.setText(R.string.new_playlist)
+            holder.title.setText(createNewPlaylistTitleRes)
             holder.subtitle.text = ""
             holder.subtitle.visibility = View.GONE
             holder.arrow.visibility = View.VISIBLE

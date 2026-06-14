@@ -94,6 +94,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import com.smartisanos.music.R
+import com.smartisanos.music.data.favorite.FavoriteSongsRepository
 import com.smartisanos.music.data.online.NeteaseAuthStore
 import com.smartisanos.music.data.online.OnlineAccountPlaylist
 import com.smartisanos.music.data.online.OnlineAlbum
@@ -110,6 +111,7 @@ import com.smartisanos.music.data.online.OnlinePlaylist
 import com.smartisanos.music.data.online.OnlineSearchResults
 import com.smartisanos.music.data.online.OnlineSearchHotKeyword
 import com.smartisanos.music.data.online.OnlineTrack
+import com.smartisanos.music.data.online.buildOnlineMediaId
 import com.smartisanos.music.data.online.toMediaItem
 import com.smartisanos.music.playback.LocalPlaybackBrowser
 import com.smartisanos.music.playback.loadArtworkBitmap
@@ -143,6 +145,9 @@ internal fun LegacyPortCloudMusicPage(
     val appContext = context.applicationContext
     val authStore = remember(appContext) {
         NeteaseAuthStore(appContext)
+    }
+    val favoriteRepository = remember(appContext) {
+        FavoriteSongsRepository.getInstance(appContext)
     }
     val repositoryRouter = remember(appContext) {
         OnlineMusicRepositoryRouter(appContext)
@@ -188,6 +193,22 @@ internal fun LegacyPortCloudMusicPage(
                 authState = latestAuthState
                 authRevision += 1
             }
+        }
+    }
+
+    LaunchedEffect(active, authRevision, authState.isLoggedIn) {
+        if (!active || !authState.isLoggedIn) {
+            return@LaunchedEffect
+        }
+        val likedTrackIds = runSuspendCatching {
+            activeRepository.accountLikedTrackIds()
+        }.getOrNull().orEmpty()
+        if (likedTrackIds.isNotEmpty()) {
+            favoriteRepository.addMissing(
+                likedTrackIds.mapTo(linkedSetOf()) { trackId ->
+                    buildOnlineMediaId(OnlineMusicProvider.Netease.sourceId, trackId)
+                },
+            )
         }
     }
 

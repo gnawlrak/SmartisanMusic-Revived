@@ -30,6 +30,7 @@ internal fun LegacyPortPlaybackOverlay(
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
     onScratchEnabledChange: (Boolean) -> Unit,
     onTrackRatingChanged: (String, Int) -> Unit,
+    onFavoriteToggle: (MediaItem) -> Unit,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -46,6 +47,7 @@ internal fun LegacyPortPlaybackOverlay(
             onRequestAddToQueue = onRequestAddToQueue,
             onScratchEnabledChange = onScratchEnabledChange,
             onTrackRatingChanged = onTrackRatingChanged,
+            onFavoriteToggle = onFavoriteToggle,
             onCollapse = onCollapse,
             modifier = Modifier.fillMaxSize(),
         )

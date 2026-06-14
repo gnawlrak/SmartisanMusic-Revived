@@ -76,6 +76,7 @@ internal fun LegacyPortPlaybackPage(
     onRequestAddToQueue: (List<MediaItem>) -> Unit,
     onScratchEnabledChange: (Boolean) -> Unit,
     onTrackRatingChanged: (String, Int) -> Unit,
+    onFavoriteToggle: (MediaItem) -> Unit,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -155,12 +156,7 @@ internal fun LegacyPortPlaybackPage(
                 controller?.seekToDefaultPosition(queueIndex)
             },
             onFavoriteCurrentClick = {
-                val mediaId = queueSnapshot.current?.mediaId.orEmpty()
-                if (mediaId.isNotBlank()) {
-                    scope.launch {
-                        favoriteRepository.toggle(mediaId)
-                    }
-                }
+                queueSnapshot.current?.mediaItem?.let(onFavoriteToggle)
             },
             onCurrentRatingChanged = { mediaId, score ->
                 if (mediaId.isNotBlank()) {
@@ -246,6 +242,7 @@ internal fun LegacyPortPlaybackPage(
                 onRequestAddToPlaylist = onRequestAddToPlaylist,
                 onRequestAddToQueue = onRequestAddToQueue,
                 onScratchEnabledChange = onScratchEnabledChange,
+                onFavoriteToggle = onFavoriteToggle,
                 onCollapse = onCollapse,
                 showTopBar = false,
                 modifier = Modifier

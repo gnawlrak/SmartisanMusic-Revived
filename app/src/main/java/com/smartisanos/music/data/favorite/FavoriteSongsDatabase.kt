@@ -30,6 +30,9 @@ interface FavoriteSongDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: FavoriteSongEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllMissing(entities: List<FavoriteSongEntity>)
+
     @Query("DELETE FROM favorite_songs WHERE mediaId = :mediaId")
     suspend fun deleteById(mediaId: String)
 

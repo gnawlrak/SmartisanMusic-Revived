@@ -101,6 +101,7 @@ fun PlaybackScreen(
     onRequestAddToPlaylist: (List<MediaItem>) -> Unit = {},
     onRequestAddToQueue: (List<MediaItem>) -> Unit = {},
     onLibraryChanged: () -> Unit = {},
+    onFavoriteToggle: ((MediaItem) -> Unit)? = null,
     showTopBar: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -939,10 +940,15 @@ fun PlaybackScreen(
                 showMorePanel = false
             },
             onFavoriteToggle = {
+                val currentItem = state.mediaItem
                 val mediaId = currentMediaId
-                if (!mediaId.isNullOrBlank() && !currentIsExternalAudio) {
-                    scope.launch {
-                        favoriteRepository.toggle(mediaId)
+                if (currentItem != null && !mediaId.isNullOrBlank() && !currentIsExternalAudio) {
+                    if (onFavoriteToggle != null) {
+                        onFavoriteToggle(currentItem)
+                    } else {
+                        scope.launch {
+                            favoriteRepository.toggle(mediaId)
+                        }
                     }
                 }
                 showMorePanel = false

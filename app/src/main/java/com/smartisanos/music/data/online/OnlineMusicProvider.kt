@@ -25,8 +25,15 @@ internal data class OnlineAccountPlaylist(
     val title: String,
     val trackCount: Int,
     val isLikedSongs: Boolean = false,
+    val isEditable: Boolean = false,
     val subtitle: String? = null,
     val artworkUrl: String? = null,
+)
+
+internal data class OnlineAccountPlaylistCreateResult(
+    val status: NeteaseAccountActionStatus,
+    val playlist: OnlineAccountPlaylist? = null,
+    val code: Int? = null,
 )
 
 internal data class OnlineArtist(
@@ -188,6 +195,17 @@ internal interface OnlineMusicProviderRepository {
     )
 
     suspend fun accountPlaylists(): List<OnlineAccountPlaylist>? = null
+
+    suspend fun accountLikedTrackIds(): Set<String>? = null
+
+    suspend fun addTracksToAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        trackIds: List<String>,
+    ): NeteaseAccountActionResult = NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+
+    suspend fun createAccountPlaylist(name: String): OnlineAccountPlaylistCreateResult {
+        return OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.Failed)
+    }
 
     suspend fun accountPlaylistTracks(playlist: OnlineAccountPlaylist): List<OnlineTrack> = emptyList()
 

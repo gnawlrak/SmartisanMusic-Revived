@@ -47,6 +47,24 @@ class FavoriteSongsRepository private constructor(
         )
     }
 
+    suspend fun addMissing(mediaIds: Set<String>, likedAt: Long = System.currentTimeMillis()) {
+        val normalizedMediaIds = mediaIds.asSequence()
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .toSet()
+        if (normalizedMediaIds.isEmpty()) {
+            return
+        }
+        favoriteSongDao.insertAllMissing(
+            normalizedMediaIds.map { mediaId ->
+                FavoriteSongEntity(
+                    mediaId = mediaId,
+                    likedAt = likedAt,
+                )
+            },
+        )
+    }
+
     suspend fun remove(mediaId: String) {
         val normalizedMediaId = mediaId.trim()
         if (normalizedMediaId.isEmpty()) {

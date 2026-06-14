@@ -58,6 +58,39 @@ internal class OnlineMusicRepositoryRouter(
         return track?.toMediaItem()
     }
 
+    suspend fun setTrackLiked(
+        identity: OnlineTrackIdentity,
+        liked: Boolean,
+    ): NeteaseAccountActionResult {
+        return when (identity.source) {
+            OnlineMusicProvider.Netease.sourceId -> neteaseRepository.setTrackLiked(
+                trackId = identity.trackId,
+                liked = liked,
+            )
+            else -> NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+    }
+
+    suspend fun addTracksToAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        identities: List<OnlineTrackIdentity>,
+    ): NeteaseAccountActionResult {
+        val trackIds = identities
+            .asSequence()
+            .filter { identity -> identity.source == playlist.provider.sourceId }
+            .map(OnlineTrackIdentity::trackId)
+            .filter(String::isNotBlank)
+            .distinct()
+            .toList()
+        if (trackIds.isEmpty()) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        return repositoryFor(playlist.provider).addTracksToAccountPlaylist(
+            playlist = playlist,
+            trackIds = trackIds,
+        )
+    }
+
     private suspend fun resolveNeteaseItems(
         trackIds: List<String>,
         includeLyrics: Boolean,

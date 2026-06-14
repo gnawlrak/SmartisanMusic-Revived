@@ -1,6 +1,7 @@
 package com.smartisanos.music.ui.components
 
 import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -16,7 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import com.smartisanos.music.R
 import com.smartisanos.music.data.favorite.FavoriteSongsRepository
+import com.smartisanos.music.data.online.NeteaseAccountActionStatus
+import com.smartisanos.music.data.online.OnlineMusicProvider
+import com.smartisanos.music.data.online.OnlineMusicRepositoryRouter
+import com.smartisanos.music.data.online.onlineIdentityOrNull
 import com.smartisanos.music.isExternalAudioLaunchItem
 import com.smartisanos.music.playback.LocalPlaybackController
 import com.smartisanos.music.playback.artworkRequestKey
@@ -34,6 +40,9 @@ fun GlobalPlaybackBar(
     val controller = LocalPlaybackController.current ?: return
     val favoriteRepository = remember(context.applicationContext) {
         FavoriteSongsRepository.getInstance(context.applicationContext)
+    }
+    val onlineMusicRepository = remember(context.applicationContext) {
+        OnlineMusicRepositoryRouter(context.applicationContext)
     }
     val favoriteIds by favoriteRepository.observeFavoriteIds().collectAsState(initial = emptySet())
     val scope = rememberCoroutineScope()
@@ -67,6 +76,14 @@ fun GlobalPlaybackBar(
         value = loadLegacyArtworkBitmap(context.applicationContext, mediaItem)
     }
 
+    suspend fun setLocalFavoriteState(mediaId: String, liked: Boolean) {
+        if (liked) {
+            favoriteRepository.add(mediaId)
+        } else {
+            favoriteRepository.remove(mediaId)
+        }
+    }
+
     LegacyPortPlaybackBar(
         snapshot = snapshot,
         shown = true,
@@ -79,8 +96,34 @@ fun GlobalPlaybackBar(
                 return@LegacyPortPlaybackBar
             }
             val mediaId = item.mediaId.takeIf(String::isNotBlank) ?: return@LegacyPortPlaybackBar
+            val shouldLike = mediaId !in favoriteIds
+            val identity = item.onlineIdentityOrNull()
             scope.launch {
-                favoriteRepository.toggle(mediaId)
+                if (identity?.source == OnlineMusicProvider.Netease.sourceId) {
+                    val result = onlineMusicRepository.setTrackLiked(
+                        identity = identity,
+                        liked = shouldLike,
+                    )
+                    when (result.status) {
+                        NeteaseAccountActionStatus.Success -> setLocalFavoriteState(mediaId, shouldLike)
+                        NeteaseAccountActionStatus.RequiresLogin -> {
+                            Toast.makeText(
+                                context,
+                                R.string.online_music_login_required,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                        NeteaseAccountActionStatus.Failed -> {
+                            Toast.makeText(
+                                context,
+                                R.string.netease_online_music_like_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                } else {
+                    favoriteRepository.toggle(mediaId)
+                }
             }
         },
         onPrevious = {

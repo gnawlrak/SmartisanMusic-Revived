@@ -48,10 +48,15 @@ import com.smartisanos.music.R
 import com.smartisanos.music.data.favorite.FavoriteSongsRepository
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
+import com.smartisanos.music.data.online.NeteaseAccountActionStatus
+import com.smartisanos.music.data.online.OnlineAccountPlaylist
 import com.smartisanos.music.data.online.OnlineMusicRepositoryRouter
+import com.smartisanos.music.data.online.OnlineMusicProvider
 import com.smartisanos.music.data.online.isOnlineMediaItem
+import com.smartisanos.music.data.online.onlineIdentityOrNull
 import com.smartisanos.music.data.playlist.PlaylistCreateResult
 import com.smartisanos.music.data.playlist.PlaylistRepository
+import com.smartisanos.music.data.playlist.UserPlaylistSummary
 import com.smartisanos.music.data.settings.ArtistSettings
 import com.smartisanos.music.data.settings.ArtistSettingsStore
 import com.smartisanos.music.data.settings.LibraryDisplaySettings
@@ -185,9 +190,12 @@ private fun LegacyPortMainShellContent(
     var pendingSongDeleteDismissAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingSystemDeleteSongIds by remember { mutableStateOf(emptySet<String>()) }
     var pendingPlaylistPickerMediaItems by remember { mutableStateOf<List<MediaItem>?>(null) }
+    var pendingNeteasePlaylistPickerMediaItems by remember { mutableStateOf<List<MediaItem>?>(null) }
+    var neteasePlaylistPickerPlaylists by remember { mutableStateOf<List<OnlineAccountPlaylist>>(emptyList()) }
     var pendingTrackActionItem by remember { mutableStateOf<MediaItem?>(null) }
     var pendingTrackActionSource by remember { mutableStateOf(LegacyTrackActionSource.Library) }
     var playbackPlaylistCreateRequest by remember { mutableStateOf<LegacyPlaylistNameDialogRequest.Create?>(null) }
+    var playbackPlaylistCreateTarget by remember { mutableStateOf(LegacyPlaybackPlaylistCreateTarget.Local) }
     var ratingOverrides by remember { mutableStateOf(emptyMap<String, Int>()) }
     var snapshot by remember(controller) {
         mutableStateOf(
@@ -360,7 +368,68 @@ private fun LegacyPortMainShellContent(
             item.mediaId.isNotBlank() && !item.isExternalAudioLaunchItem() && !item.isOnlineMediaItem()
         }
         if (candidates.isNotEmpty()) {
+            pendingNeteasePlaylistPickerMediaItems = null
             pendingPlaylistPickerMediaItems = candidates
+            return
+        }
+        val neteaseCandidates = items.filter { item ->
+            item.mediaId.isNotBlank() &&
+                !item.isExternalAudioLaunchItem() &&
+                item.onlineIdentityOrNull()?.source == OnlineMusicProvider.Netease.sourceId
+        }
+        if (neteaseCandidates.isEmpty()) {
+            return
+        }
+        scope.launch {
+            val accountPlaylists = runCatching {
+                onlineMusicRepository
+                    .repositoryFor(OnlineMusicProvider.Netease)
+                    .accountPlaylists()
+            }.getOrNull()
+            if (accountPlaylists == null) {
+                Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val editablePlaylists = accountPlaylists.filter(OnlineAccountPlaylist::isEditable)
+            neteasePlaylistPickerPlaylists = editablePlaylists
+            pendingPlaylistPickerMediaItems = null
+            pendingNeteasePlaylistPickerMediaItems = neteaseCandidates
+        }
+    }
+
+    suspend fun setLocalFavoriteState(mediaId: String, liked: Boolean) {
+        if (liked) {
+            favoriteRepository.add(mediaId)
+        } else {
+            favoriteRepository.remove(mediaId)
+        }
+    }
+
+    fun toggleFavorite(mediaItem: MediaItem) {
+        if (mediaItem.isExternalAudioLaunchItem()) {
+            return
+        }
+        val mediaId = mediaItem.mediaId.takeIf(String::isNotBlank) ?: return
+        val shouldLike = mediaId !in favoriteIds
+        val identity = mediaItem.onlineIdentityOrNull()
+        scope.launch {
+            if (identity?.source == OnlineMusicProvider.Netease.sourceId) {
+                val result = onlineMusicRepository.setTrackLiked(
+                    identity = identity,
+                    liked = shouldLike,
+                )
+                when (result.status) {
+                    NeteaseAccountActionStatus.Success -> setLocalFavoriteState(mediaId, shouldLike)
+                    NeteaseAccountActionStatus.RequiresLogin -> {
+                        Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                    }
+                    NeteaseAccountActionStatus.Failed -> {
+                        Toast.makeText(context, R.string.netease_online_music_like_failed, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                favoriteRepository.toggle(mediaId)
+            }
         }
     }
 
@@ -844,13 +913,7 @@ private fun LegacyPortMainShellContent(
                             playbackVisible = true
                         },
                         onToggleFavorite = { mediaItem ->
-                            if (mediaItem.isExternalAudioLaunchItem()) {
-                                return@LegacyPortPlaybackBar
-                            }
-                            val mediaId = mediaItem.mediaId.takeIf(String::isNotBlank) ?: return@LegacyPortPlaybackBar
-                            scope.launch {
-                                favoriteRepository.toggle(mediaId)
-                            }
+                            toggleFavorite(mediaItem)
                         },
                         onPrevious = {
                             controller?.seekToPrevious()
@@ -885,7 +948,10 @@ private fun LegacyPortMainShellContent(
             val isFavorite = mediaId in favoriteIds
             val canAddToPlaylist = mediaId.isNotBlank() &&
                 !actionItem.isExternalAudioLaunchItem() &&
-                !actionItem.isOnlineMediaItem()
+                (
+                    !actionItem.isOnlineMediaItem() ||
+                        actionItem.onlineIdentityOrNull()?.source == OnlineMusicProvider.Netease.sourceId
+                    )
             val canFavorite = mediaId.isNotBlank() &&
                 !actionItem.isExternalAudioLaunchItem()
             val actions = mutableListOf(
@@ -925,9 +991,7 @@ private fun LegacyPortMainShellContent(
                     onClick = {
                         dismissTrackActions()
                         if (canFavorite) {
-                            scope.launch {
-                                favoriteRepository.toggle(mediaId)
-                            }
+                            toggleFavorite(actionItem)
                         }
                     },
                 ),
@@ -966,6 +1030,7 @@ private fun LegacyPortMainShellContent(
             onTrackRatingChanged = { mediaId, score ->
                 ratingOverrides = ratingOverrides + (mediaId to score.coerceIn(0, 5))
             },
+            onFavoriteToggle = ::toggleFavorite,
             onCollapse = {
                 playbackVisible = false
             },
@@ -1031,6 +1096,7 @@ private fun LegacyPortMainShellContent(
             },
             onCreateNewPlaylist = {
                 scope.launch {
+                    playbackPlaylistCreateTarget = LegacyPlaybackPlaylistCreateTarget.Local
                     playbackPlaylistCreateRequest = LegacyPlaylistNameDialogRequest.Create(
                         initialName = playlistRepository.suggestNextUntitledName(),
                     )
@@ -1055,25 +1121,135 @@ private fun LegacyPortMainShellContent(
                 .fillMaxSize()
                 .zIndex(4f),
         )
+        LegacyPlaybackPlaylistPickerOverlay(
+            visible = pendingNeteasePlaylistPickerMediaItems != null,
+            playlists = neteasePlaylistPickerPlaylists.map(OnlineAccountPlaylist::toUserPlaylistSummary),
+            onDismiss = {
+                pendingNeteasePlaylistPickerMediaItems = null
+                neteasePlaylistPickerPlaylists = emptyList()
+            },
+            onCreateNewPlaylist = {
+                playbackPlaylistCreateTarget = LegacyPlaybackPlaylistCreateTarget.Netease
+                playbackPlaylistCreateRequest = LegacyPlaylistNameDialogRequest.Create(
+                    initialName = context.getString(R.string.playlist_default_name),
+                )
+            },
+            onPlaylistSelected = { playlistId ->
+                val playlist = neteasePlaylistPickerPlaylists.firstOrNull { candidate ->
+                    candidate.playlistId == playlistId
+                } ?: return@LegacyPlaybackPlaylistPickerOverlay
+                val identities = pendingNeteasePlaylistPickerMediaItems
+                    ?.mapNotNull(MediaItem::onlineIdentityOrNull)
+                    .orEmpty()
+                scope.launch {
+                    val result = onlineMusicRepository.addTracksToAccountPlaylist(
+                        playlist = playlist,
+                        identities = identities,
+                    )
+                    when {
+                        result.status == NeteaseAccountActionStatus.Success -> {
+                            Toast.makeText(context, R.string.playlist_added, Toast.LENGTH_SHORT).show()
+                        }
+                        result.status == NeteaseAccountActionStatus.RequiresLogin -> {
+                            Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                        }
+                        result.code.isNeteasePlaylistDuplicateCode() -> {
+                            Toast.makeText(context, R.string.playlist_song_exists, Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            Toast.makeText(
+                                context,
+                                R.string.netease_online_music_playlist_add_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                    pendingNeteasePlaylistPickerMediaItems = null
+                    neteasePlaylistPickerPlaylists = emptyList()
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f),
+        )
         LegacyPlaylistNameDialogOverlay(
             request = playbackPlaylistCreateRequest,
             onDismiss = {
                 playbackPlaylistCreateRequest = null
             },
             onConfirm = { _, input ->
-                val mediaIds = pendingPlaylistPickerMediaItems?.map(MediaItem::mediaId).orEmpty()
-                scope.launch {
-                    when (val result = playlistRepository.createPlaylist(input, mediaIds)) {
-                        PlaylistCreateResult.EmptyName -> {
-                            Toast.makeText(context, R.string.playlist_create_failed, Toast.LENGTH_SHORT).show()
+                when (playbackPlaylistCreateTarget) {
+                    LegacyPlaybackPlaylistCreateTarget.Local -> {
+                        val mediaIds = pendingPlaylistPickerMediaItems?.map(MediaItem::mediaId).orEmpty()
+                        scope.launch {
+                            when (playlistRepository.createPlaylist(input, mediaIds)) {
+                                PlaylistCreateResult.EmptyName -> {
+                                    Toast.makeText(context, R.string.playlist_create_failed, Toast.LENGTH_SHORT).show()
+                                }
+                                PlaylistCreateResult.DuplicateName -> {
+                                    Toast.makeText(context, R.string.playlist_duplicate_name, Toast.LENGTH_SHORT).show()
+                                }
+                                is PlaylistCreateResult.Success -> {
+                                    playbackPlaylistCreateRequest = null
+                                    pendingPlaylistPickerMediaItems = null
+                                    Toast.makeText(context, R.string.playlist_added, Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
-                        PlaylistCreateResult.DuplicateName -> {
-                            Toast.makeText(context, R.string.playlist_duplicate_name, Toast.LENGTH_SHORT).show()
-                        }
-                        is PlaylistCreateResult.Success -> {
-                            playbackPlaylistCreateRequest = null
-                            pendingPlaylistPickerMediaItems = null
-                            Toast.makeText(context, R.string.playlist_added, Toast.LENGTH_SHORT).show()
+                    }
+                    LegacyPlaybackPlaylistCreateTarget.Netease -> {
+                        val identities = pendingNeteasePlaylistPickerMediaItems
+                            ?.mapNotNull(MediaItem::onlineIdentityOrNull)
+                            .orEmpty()
+                        scope.launch {
+                            val createResult = onlineMusicRepository
+                                .repositoryFor(OnlineMusicProvider.Netease)
+                                .createAccountPlaylist(input)
+                            when {
+                                createResult.status == NeteaseAccountActionStatus.RequiresLogin -> {
+                                    Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                                }
+                                createResult.code.isNeteasePlaylistDuplicateNameCode() -> {
+                                    Toast.makeText(context, R.string.playlist_duplicate_name, Toast.LENGTH_SHORT).show()
+                                }
+                                createResult.status != NeteaseAccountActionStatus.Success ||
+                                    createResult.playlist == null -> {
+                                    Toast.makeText(context, R.string.playlist_create_failed, Toast.LENGTH_SHORT).show()
+                                }
+                                else -> {
+                                    val addResult = onlineMusicRepository.addTracksToAccountPlaylist(
+                                        playlist = createResult.playlist,
+                                        identities = identities,
+                                    )
+                                    when {
+                                        addResult.status == NeteaseAccountActionStatus.Success -> {
+                                            playbackPlaylistCreateRequest = null
+                                            pendingNeteasePlaylistPickerMediaItems = null
+                                            neteasePlaylistPickerPlaylists = emptyList()
+                                            Toast.makeText(context, R.string.playlist_added, Toast.LENGTH_SHORT).show()
+                                        }
+                                        addResult.status == NeteaseAccountActionStatus.RequiresLogin -> {
+                                            Toast.makeText(context, R.string.online_music_login_required, Toast.LENGTH_SHORT).show()
+                                        }
+                                        addResult.code.isNeteasePlaylistDuplicateCode() -> {
+                                            playbackPlaylistCreateRequest = null
+                                            pendingNeteasePlaylistPickerMediaItems = null
+                                            neteasePlaylistPickerPlaylists = emptyList()
+                                            Toast.makeText(context, R.string.playlist_song_exists, Toast.LENGTH_SHORT).show()
+                                        }
+                                        else -> {
+                                            Toast.makeText(
+                                                context,
+                                                R.string.netease_online_music_playlist_add_failed,
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                    playbackPlaylistCreateRequest = null
+                                    pendingNeteasePlaylistPickerMediaItems = null
+                                    neteasePlaylistPickerPlaylists = emptyList()
+                                }
+                            }
                         }
                     }
                 }
@@ -1136,4 +1312,27 @@ private fun List<MediaItem>.withRatingOverrides(ratingOverrides: Map<String, Int
         val score = ratingOverrides[item.mediaId] ?: return@map item
         item.withPlaybackRating(score)
     }
+}
+
+private fun OnlineAccountPlaylist.toUserPlaylistSummary(): UserPlaylistSummary {
+    return UserPlaylistSummary(
+        id = playlistId,
+        name = title,
+        songCount = trackCount,
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
+}
+
+private fun Int?.isNeteasePlaylistDuplicateCode(): Boolean {
+    return this == 502 || this == 512
+}
+
+private fun Int?.isNeteasePlaylistDuplicateNameCode(): Boolean {
+    return this == 505
+}
+
+private enum class LegacyPlaybackPlaylistCreateTarget {
+    Local,
+    Netease,
 }

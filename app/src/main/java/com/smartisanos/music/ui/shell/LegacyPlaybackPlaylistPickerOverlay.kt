@@ -45,6 +45,7 @@ internal fun LegacyPlaybackPlaylistPickerOverlay(
     onDismiss: () -> Unit,
     onCreateNewPlaylist: () -> Unit,
     onPlaylistSelected: (String) -> Unit,
+    createNewPlaylistVisible: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -96,6 +97,7 @@ internal fun LegacyPlaybackPlaylistPickerOverlay(
                             onDismiss = onDismiss,
                             onCreateNewPlaylist = onCreateNewPlaylist,
                             onPlaylistSelected = onPlaylistSelected,
+                            createNewPlaylistVisible = createNewPlaylistVisible,
                         )
                     },
                 )
@@ -148,22 +150,28 @@ private class LegacyPlaybackPlaylistPickerView(
         onDismiss: () -> Unit,
         onCreateNewPlaylist: () -> Unit,
         onPlaylistSelected: (String) -> Unit,
+        createNewPlaylistVisible: Boolean,
     ) {
         titleBar.setOnRightButtonClickListener {
             onDismiss()
         }
-        adapter.update(playlists)
+        adapter.update(
+            playlists = playlists,
+            createNewPlaylistVisible = createNewPlaylistVisible,
+        )
         listView.layoutParams = listView.layoutParams.apply {
+            val rowCount = playlists.size + if (createNewPlaylistVisible) 1 else 0
             height = context.dpInt(
-                (LegacyPlaylistPickerRowHeightDp * (playlists.size + 1))
+                (LegacyPlaylistPickerRowHeightDp * rowCount.coerceAtLeast(1))
                     .coerceAtMost(LegacyPlaylistPickerMaxListHeightDp),
             )
         }
         listView.setOnItemClickListener { _, _, position, _ ->
-            if (position == 0) {
+            if (createNewPlaylistVisible && position == 0) {
                 onCreateNewPlaylist()
             } else {
-                playlists.getOrNull(position - 1)?.let { playlist ->
+                val playlistIndex = if (createNewPlaylistVisible) position - 1 else position
+                playlists.getOrNull(playlistIndex)?.let { playlist ->
                     onPlaylistSelected(playlist.id)
                 }
             }
@@ -175,16 +183,22 @@ private class PlaylistPickerAdapter(
     private val context: Context,
 ) : BaseAdapter() {
     private var playlists: List<UserPlaylistSummary> = emptyList()
+    private var createNewPlaylistVisible = true
 
-    fun update(next: List<UserPlaylistSummary>) {
-        playlists = next
+    fun update(
+        playlists: List<UserPlaylistSummary>,
+        createNewPlaylistVisible: Boolean,
+    ) {
+        this.playlists = playlists
+        this.createNewPlaylistVisible = createNewPlaylistVisible
         notifyDataSetChanged()
     }
 
-    override fun getCount(): Int = playlists.size + 1
+    override fun getCount(): Int = playlists.size + if (createNewPlaylistVisible) 1 else 0
 
     override fun getItem(position: Int): UserPlaylistSummary? {
-        return playlists.getOrNull(position - 1)
+        val playlistIndex = if (createNewPlaylistVisible) position - 1 else position
+        return playlists.getOrNull(playlistIndex)
     }
 
     override fun getItemId(position: Int): Long = position.toLong()
@@ -255,13 +269,14 @@ private class PlaylistPickerAdapter(
             convertView
         }
 
-        if (position == 0) {
+        if (createNewPlaylistVisible && position == 0) {
             holder.title.setText(R.string.new_playlist)
             holder.subtitle.text = ""
             holder.subtitle.visibility = View.GONE
             holder.arrow.visibility = View.VISIBLE
         } else {
-            val playlist = playlists[position - 1]
+            val playlistIndex = if (createNewPlaylistVisible) position - 1 else position
+            val playlist = playlists[playlistIndex]
             holder.title.text = playlist.name
             holder.subtitle.text = context.resources.getQuantityString(
                 R.plurals.legacy_playlist_song_count,

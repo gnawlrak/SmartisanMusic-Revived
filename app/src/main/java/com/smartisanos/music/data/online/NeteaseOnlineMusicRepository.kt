@@ -90,9 +90,15 @@ internal data class NeteasePlaylistSummary(
     val name: String,
     val trackCount: Int,
     val specialType: Int,
+    val creatorUserId: Long? = null,
+    val subscribed: Boolean = false,
 ) {
     val isLikedSongs: Boolean
         get() = specialType == 5
+
+    fun isEditableBy(userId: Long): Boolean {
+        return !isLikedSongs && !subscribed && creatorUserId == userId
+    }
 }
 
 internal data class NeteasePlaylistDetail(
@@ -112,6 +118,33 @@ internal data class NeteasePlaybackParseResult(
     val status: NeteasePlaybackParseStatus,
     val playbackUrl: OnlinePlaybackUrl? = null,
 )
+
+internal enum class NeteaseAccountActionStatus {
+    Success,
+    RequiresLogin,
+    Failed,
+}
+
+internal data class NeteaseAccountActionResult(
+    val status: NeteaseAccountActionStatus,
+    val code: Int? = null,
+)
+
+internal data class NeteaseLikedTrackIdsResult(
+    val status: NeteaseAccountActionStatus,
+    val trackIds: Set<String> = emptySet(),
+    val code: Int? = null,
+)
+
+internal data class NeteaseDailyRecommendedTracksResult(
+    val status: NeteaseAccountActionStatus,
+    val tracks: List<OnlineTrack> = emptyList(),
+    val code: Int? = null,
+)
+
+internal enum class NeteasePlaylistTrackOperation(val apiValue: String) {
+    Add("add"),
+}
 
 internal class NeteaseOnlineMusicRepository(
     private val authStore: NeteaseAuthStore? = null,
@@ -192,13 +225,15 @@ internal class NeteaseOnlineMusicRepository(
     }
 
     override suspend fun featuredTracks(): List<OnlineTrack> {
-        return featuredSongs()
+        return currentUserDailyRecommendedTracks(limit = FeaturedLimit)
+            ?.takeIf(List<OnlineTrack>::isNotEmpty)
+            ?: featuredSongs()
     }
 
     override suspend fun featuredHome(): OnlineMusicHome {
         return OnlineMusicHome(
             tracks = runCatching {
-                featuredSongs().take(FeaturedHomeTrackLimit)
+                featuredTracks().take(FeaturedHomeTrackLimit)
             }.getOrDefault(emptyList()),
             playlists = runCatching {
                 featuredPlaylists()
@@ -316,16 +351,124 @@ internal class NeteaseOnlineMusicRepository(
         )
     }
 
+    suspend fun currentUserDailyRecommendedTracks(limit: Int = FeaturedLimit): List<OnlineTrack>? {
+        val state = authStore?.load() ?: return null
+        if (!state.isLoggedIn) {
+            return null
+        }
+        val result = runCatching {
+            client.getDailyRecommendedSongs(limit = limit)
+        }.getOrDefault(NeteaseDailyRecommendedTracksResult(NeteaseAccountActionStatus.Failed))
+        return result.tracks.takeIf { result.status == NeteaseAccountActionStatus.Success }
+    }
+
+    suspend fun currentUserLikedTrackIds(): Set<String>? {
+        val state = authStore?.load() ?: return null
+        if (!state.isLoggedIn) {
+            return null
+        }
+        val profile = currentUserProfile() ?: state.profile ?: return null
+        val result = runCatching {
+            client.getUserLikedTrackIds(profile.userId)
+        }.getOrDefault(NeteaseLikedTrackIdsResult(NeteaseAccountActionStatus.Failed))
+        return result.trackIds.takeIf { result.status == NeteaseAccountActionStatus.Success }
+    }
+
+    suspend fun setTrackLiked(trackId: String, liked: Boolean): NeteaseAccountActionResult {
+        val normalizedTrackId = trackId.trim().takeIf(String::isNotEmpty)
+            ?: return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        val state = authStore?.load()
+        if (state?.isLoggedIn != true) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.RequiresLogin, code = 301)
+        }
+        return runCatching {
+            client.setSongLiked(
+                trackId = normalizedTrackId,
+                liked = liked,
+            )
+        }.getOrDefault(NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    suspend fun addTracksToPlaylist(
+        playlistId: String,
+        trackIds: List<String>,
+    ): NeteaseAccountActionResult {
+        val normalizedPlaylistId = playlistId.trim().takeIf(String::isNotEmpty)
+            ?: return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        val normalizedTrackIds = trackIds
+            .asSequence()
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+            .toList()
+        if (normalizedTrackIds.isEmpty()) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        val state = authStore?.load()
+        if (state?.isLoggedIn != true) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.RequiresLogin, code = 301)
+        }
+        return runCatching {
+            client.manipulatePlaylistTracks(
+                playlistId = normalizedPlaylistId,
+                trackIds = normalizedTrackIds,
+                operation = NeteasePlaylistTrackOperation.Add,
+            )
+        }.getOrDefault(NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    suspend fun createPlaylist(name: String): OnlineAccountPlaylistCreateResult {
+        val normalizedName = name.trim().takeIf(String::isNotEmpty)
+            ?: return OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.Failed)
+        val state = authStore?.load()
+        if (state?.isLoggedIn != true) {
+            return OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.RequiresLogin, code = 301)
+        }
+        return runCatching {
+            client.createPlaylist(normalizedName)
+        }.getOrDefault(OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.Failed))
+    }
+
     override suspend fun accountPlaylists(): List<OnlineAccountPlaylist>? {
-        return currentUserPlaylists()?.map { playlist ->
+        val state = authStore?.load() ?: return null
+        if (!state.isLoggedIn) {
+            return null
+        }
+        val profile = currentUserProfile() ?: state.profile ?: return null
+        return client.getUserPlaylists(
+            userId = profile.userId,
+            limit = AccountPlaylistLimit,
+        ).map { playlist ->
             OnlineAccountPlaylist(
                 provider = provider,
                 playlistId = playlist.playlistId,
                 title = playlist.name,
                 trackCount = playlist.trackCount,
                 isLikedSongs = playlist.isLikedSongs,
+                isEditable = playlist.isEditableBy(profile.userId),
             )
         }
+    }
+
+    override suspend fun accountLikedTrackIds(): Set<String>? {
+        return currentUserLikedTrackIds()
+    }
+
+    override suspend fun addTracksToAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        trackIds: List<String>,
+    ): NeteaseAccountActionResult {
+        if (playlist.provider != provider || !playlist.isEditable) {
+            return NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        return addTracksToPlaylist(
+            playlistId = playlist.playlistId,
+            trackIds = trackIds,
+        )
+    }
+
+    override suspend fun createAccountPlaylist(name: String): OnlineAccountPlaylistCreateResult {
+        return createPlaylist(name)
     }
 
     override suspend fun accountPlaylistTracks(playlist: OnlineAccountPlaylist): List<OnlineTrack> {
@@ -845,6 +988,100 @@ internal class NeteaseCloudMusicClient(
         parseNeteaseAccountProfileResponse(response)
     }
 
+    suspend fun setSongLiked(trackId: String, liked: Boolean): NeteaseAccountActionResult = withContext(Dispatchers.IO) {
+        val id = trackId.trim().takeIf(String::isNotEmpty)
+            ?: return@withContext NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        requestAccountActionWithSessionRetry {
+            callWeApi(
+                path = "/song/like",
+                params = mapOf(
+                    "trackId" to id,
+                    "like" to liked.toString(),
+                ),
+            )
+        }
+    }
+
+    suspend fun getUserLikedTrackIds(userId: Long): NeteaseLikedTrackIdsResult = withContext(Dispatchers.IO) {
+        if (userId <= 0L) {
+            return@withContext NeteaseLikedTrackIdsResult(NeteaseAccountActionStatus.Failed)
+        }
+        requestLikedTrackIdsWithSessionRetry {
+            callWeApi(
+                path = "/song/like/get",
+                params = mapOf("uid" to userId.toString()),
+            )
+        }
+    }
+
+    suspend fun getDailyRecommendedSongs(limit: Int): NeteaseDailyRecommendedTracksResult = withContext(Dispatchers.IO) {
+        val safeLimit = limit.coerceAtLeast(1)
+        requestDailyRecommendedTracksWithSessionRetry {
+            callWeApi(
+                path = "/v3/discovery/recommend/songs",
+                params = mapOf(
+                    "total" to "true",
+                    "limit" to safeLimit.toString(),
+                ),
+            )
+        }.let { result ->
+            if (result.status == NeteaseAccountActionStatus.Success) {
+                result.copy(tracks = result.tracks.take(safeLimit))
+            } else {
+                result
+            }
+        }
+    }
+
+    suspend fun manipulatePlaylistTracks(
+        playlistId: String,
+        trackIds: List<String>,
+        operation: NeteasePlaylistTrackOperation,
+    ): NeteaseAccountActionResult = withContext(Dispatchers.IO) {
+        val id = playlistId.trim().takeIf(String::isNotEmpty)
+            ?: return@withContext NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        val ids = trackIds
+            .asSequence()
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+            .toList()
+        if (ids.isEmpty()) {
+            return@withContext NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed)
+        }
+        val trackIdsJson = JSONArray().also { array ->
+            ids.forEach { trackId ->
+                array.put(trackId.toLongOrNull() ?: trackId)
+            }
+        }.toString()
+        requestAccountActionWithSessionRetry {
+            callWeApi(
+                path = "/playlist/manipulate/tracks",
+                params = mapOf(
+                    "op" to operation.apiValue,
+                    "pid" to id,
+                    "trackIds" to trackIdsJson,
+                    "imme" to "true",
+                ),
+            )
+        }
+    }
+
+    suspend fun createPlaylist(name: String): OnlineAccountPlaylistCreateResult = withContext(Dispatchers.IO) {
+        val normalizedName = name.trim().takeIf(String::isNotEmpty)
+            ?: return@withContext OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.Failed)
+        requestPlaylistCreateWithSessionRetry {
+            callWeApi(
+                path = "/playlist/create",
+                params = mapOf(
+                    "name" to normalizedName,
+                    "privacy" to "0",
+                    "type" to "NORMAL",
+                ),
+            )
+        }
+    }
+
     private fun resolveOuterPlaybackUrl(trackId: String): OnlinePlaybackUrl? {
         val url = "https://music.163.com/song/media/outer/url?id=${trackId.urlEncoded()}.mp3"
         val connection = openConnection(url, followRedirects = false).apply {
@@ -999,6 +1236,82 @@ internal class NeteaseCloudMusicClient(
                 originalDurationMs = originalDurationMs,
             )
         }.getOrDefault(NeteasePlaybackParseResult(NeteasePlaybackParseStatus.Unavailable))
+    }
+
+    private fun requestAccountActionWithSessionRetry(
+        request: () -> String,
+    ): NeteaseAccountActionResult {
+        var result = tryParseAccountActionResponse(request)
+        if (hasLogin() && result.status == NeteaseAccountActionStatus.RequiresLogin) {
+            ensureWeapiSession()
+            result = tryParseAccountActionResponse(request)
+        }
+        return result
+    }
+
+    private fun tryParseAccountActionResponse(
+        request: () -> String,
+    ): NeteaseAccountActionResult {
+        return runCatching {
+            parseNeteaseAccountActionResponse(request())
+        }.getOrDefault(NeteaseAccountActionResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    private fun requestLikedTrackIdsWithSessionRetry(
+        request: () -> String,
+    ): NeteaseLikedTrackIdsResult {
+        var result = tryParseLikedTrackIdsResponse(request)
+        if (hasLogin() && result.status == NeteaseAccountActionStatus.RequiresLogin) {
+            ensureWeapiSession()
+            result = tryParseLikedTrackIdsResponse(request)
+        }
+        return result
+    }
+
+    private fun tryParseLikedTrackIdsResponse(
+        request: () -> String,
+    ): NeteaseLikedTrackIdsResult {
+        return runCatching {
+            parseNeteaseLikedTrackIdsResponse(request())
+        }.getOrDefault(NeteaseLikedTrackIdsResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    private fun requestDailyRecommendedTracksWithSessionRetry(
+        request: () -> String,
+    ): NeteaseDailyRecommendedTracksResult {
+        var result = tryParseDailyRecommendedTracksResponse(request)
+        if (hasLogin() && result.status == NeteaseAccountActionStatus.RequiresLogin) {
+            ensureWeapiSession()
+            result = tryParseDailyRecommendedTracksResponse(request)
+        }
+        return result
+    }
+
+    private fun tryParseDailyRecommendedTracksResponse(
+        request: () -> String,
+    ): NeteaseDailyRecommendedTracksResult {
+        return runCatching {
+            parseNeteaseDailyRecommendedTracksResponse(request())
+        }.getOrDefault(NeteaseDailyRecommendedTracksResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    private fun requestPlaylistCreateWithSessionRetry(
+        request: () -> String,
+    ): OnlineAccountPlaylistCreateResult {
+        var result = tryParsePlaylistCreateResponse(request)
+        if (hasLogin() && result.status == NeteaseAccountActionStatus.RequiresLogin) {
+            ensureWeapiSession()
+            result = tryParsePlaylistCreateResponse(request)
+        }
+        return result
+    }
+
+    private fun tryParsePlaylistCreateResponse(
+        request: () -> String,
+    ): OnlineAccountPlaylistCreateResult {
+        return runCatching {
+            parseNeteasePlaylistCreateResponse(request())
+        }.getOrDefault(OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.Failed))
     }
 
     private fun hasLogin(): Boolean {
@@ -1397,7 +1710,7 @@ internal data class OnlineTrackIdentity(
     val trackId: String,
 )
 
-private fun buildOnlineMediaId(source: String, trackId: String): String {
+internal fun buildOnlineMediaId(source: String, trackId: String): String {
     return "$OnlineMediaIdPrefix$source:$trackId"
 }
 
@@ -1474,6 +1787,10 @@ private fun parseNeteasePlaylistSummary(playlist: JSONObject): NeteasePlaylistSu
         name = name,
         trackCount = playlist.optInt("trackCount", 0).coerceAtLeast(0),
         specialType = playlist.optInt("specialType", 0),
+        creatorUserId = playlist.optJSONObject("creator")
+            ?.optLongOrNull("userId")
+            ?.takeIf { userId -> userId > 0L },
+        subscribed = playlist.optBoolean("subscribed", false),
     )
 }
 
@@ -1587,6 +1904,106 @@ internal fun parseNeteasePlaybackUrlResponse(
     }
 }
 
+internal fun parseNeteaseAccountActionResponse(response: String): NeteaseAccountActionResult {
+    val root = JSONObject(response)
+    val code = root.optInt("code", -1)
+    val status = when (code) {
+        200 -> NeteaseAccountActionStatus.Success
+        301 -> NeteaseAccountActionStatus.RequiresLogin
+        else -> NeteaseAccountActionStatus.Failed
+    }
+    return NeteaseAccountActionResult(
+        status = status,
+        code = code.takeIf { value -> value >= 0 },
+    )
+}
+
+internal fun parseNeteaseLikedTrackIdsResponse(response: String): NeteaseLikedTrackIdsResult {
+    val root = JSONObject(response)
+    val code = root.optInt("code", -1)
+    val status = when (code) {
+        200 -> NeteaseAccountActionStatus.Success
+        301 -> NeteaseAccountActionStatus.RequiresLogin
+        else -> NeteaseAccountActionStatus.Failed
+    }
+    if (status != NeteaseAccountActionStatus.Success) {
+        return NeteaseLikedTrackIdsResult(
+            status = status,
+            code = code.takeIf { value -> value >= 0 },
+        )
+    }
+    val idsArray = root.optJSONArray("ids")
+        ?: root.optJSONObject("data")?.optJSONArray("ids")
+        ?: root.optJSONArray("data")
+    return NeteaseLikedTrackIdsResult(
+        status = NeteaseAccountActionStatus.Success,
+        trackIds = idsArray?.toPositiveIdStrings().orEmpty(),
+        code = code,
+    )
+}
+
+internal fun parseNeteaseDailyRecommendedTracksResponse(response: String): NeteaseDailyRecommendedTracksResult {
+    val root = JSONObject(response)
+    val code = root.optInt("code", -1)
+    val status = when (code) {
+        200 -> NeteaseAccountActionStatus.Success
+        301 -> NeteaseAccountActionStatus.RequiresLogin
+        else -> NeteaseAccountActionStatus.Failed
+    }
+    if (status != NeteaseAccountActionStatus.Success) {
+        return NeteaseDailyRecommendedTracksResult(
+            status = status,
+            code = code.takeIf { value -> value >= 0 },
+        )
+    }
+    val data = root.optJSONObject("data")
+    val songs = data?.optJSONArray("dailySongs")
+        ?: data?.optJSONArray("recommend")
+        ?: root.optJSONArray("recommend")
+        ?: root.optJSONArray("dailySongs")
+    return NeteaseDailyRecommendedTracksResult(
+        status = NeteaseAccountActionStatus.Success,
+        tracks = songs
+            ?.toJsonObjects()
+            ?.mapNotNull(::parseNeteaseSong)
+            .orEmpty(),
+        code = code,
+    )
+}
+
+internal fun parseNeteasePlaylistCreateResponse(response: String): OnlineAccountPlaylistCreateResult {
+    val root = JSONObject(response)
+    val code = root.optInt("code", -1)
+    val status = when (code) {
+        200 -> NeteaseAccountActionStatus.Success
+        301 -> NeteaseAccountActionStatus.RequiresLogin
+        else -> NeteaseAccountActionStatus.Failed
+    }
+    if (status != NeteaseAccountActionStatus.Success) {
+        return OnlineAccountPlaylistCreateResult(
+            status = status,
+            code = code.takeIf { value -> value >= 0 },
+        )
+    }
+    val playlist = root.optJSONObject("playlist")
+        ?.let(::parseNeteasePlaylistSummary)
+        ?.let { summary ->
+            OnlineAccountPlaylist(
+                provider = OnlineMusicProvider.Netease,
+                playlistId = summary.playlistId,
+                title = summary.name,
+                trackCount = summary.trackCount,
+                isLikedSongs = summary.isLikedSongs,
+                isEditable = true,
+            )
+        }
+    return OnlineAccountPlaylistCreateResult(
+        status = if (playlist == null) NeteaseAccountActionStatus.Failed else NeteaseAccountActionStatus.Success,
+        playlist = playlist,
+        code = code,
+    )
+}
+
 internal fun isNeteasePreviewDuration(
     returnedDurationMs: Long?,
     originalDurationMs: Long,
@@ -1631,6 +2048,17 @@ private fun JSONArray.toStrings(): List<String> {
     return buildList {
         for (index in 0 until length()) {
             optString(index).takeIf(String::isNotBlank)?.let(::add)
+        }
+    }
+}
+
+private fun JSONArray.toPositiveIdStrings(): Set<String> {
+    return buildSet {
+        for (index in 0 until length()) {
+            optLong(index, 0L)
+                .takeIf { id -> id > 0L }
+                ?.toString()
+                ?.let(::add)
         }
     }
 }

@@ -181,6 +181,136 @@ class NeteasePlaybackUrlParserTest {
     }
 
     @Test
+    fun accountActionResponseAcceptsSuccessCode() {
+        val result = parseNeteaseAccountActionResponse("""{"code":200}""")
+
+        assertEquals(NeteaseAccountActionStatus.Success, result.status)
+        assertEquals(200, result.code)
+    }
+
+    @Test
+    fun accountActionResponseTreats301AsLoginRequired() {
+        val result = parseNeteaseAccountActionResponse("""{"code":301,"msg":"need login"}""")
+
+        assertEquals(NeteaseAccountActionStatus.RequiresLogin, result.status)
+        assertEquals(301, result.code)
+    }
+
+    @Test
+    fun accountActionResponseRejectsUnexpectedCode() {
+        val result = parseNeteaseAccountActionResponse("""{"code":400}""")
+
+        assertEquals(NeteaseAccountActionStatus.Failed, result.status)
+        assertEquals(400, result.code)
+    }
+
+    @Test
+    fun likedTrackIdsResponseParsesTopLevelIds() {
+        val result = parseNeteaseLikedTrackIdsResponse("""{"code":200,"ids":[10,20,0]}""")
+
+        assertEquals(NeteaseAccountActionStatus.Success, result.status)
+        assertEquals(setOf("10", "20"), result.trackIds)
+    }
+
+    @Test
+    fun likedTrackIdsResponseParsesNestedDataIds() {
+        val result = parseNeteaseLikedTrackIdsResponse("""{"code":200,"data":{"ids":[30,40]}}""")
+
+        assertEquals(NeteaseAccountActionStatus.Success, result.status)
+        assertEquals(setOf("30", "40"), result.trackIds)
+    }
+
+    @Test
+    fun likedTrackIdsResponseTreats301AsLoginRequired() {
+        val result = parseNeteaseLikedTrackIdsResponse("""{"code":301}""")
+
+        assertEquals(NeteaseAccountActionStatus.RequiresLogin, result.status)
+        assertTrue(result.trackIds.isEmpty())
+    }
+
+    @Test
+    fun dailyRecommendedTracksResponseParsesDailySongs() {
+        val result = parseNeteaseDailyRecommendedTracksResponse(
+            """
+            {
+              "code": 200,
+              "data": {
+                "dailySongs": [
+                  {
+                    "id": 101,
+                    "name": "Daily One",
+                    "dt": 210000,
+                    "ar": [{"name": "Artist A"}],
+                    "al": {"name": "Album A", "picUrl": "http://p1.music.126.net/a.jpg"}
+                  },
+                  {
+                    "id": 102,
+                    "name": "Daily Two",
+                    "dt": 180000,
+                    "ar": [{"name": "Artist B"}],
+                    "al": {"name": "Album B"}
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(NeteaseAccountActionStatus.Success, result.status)
+        assertEquals(listOf("101", "102"), result.tracks.map(OnlineTrack::trackId))
+        assertEquals("Daily One", result.tracks.first().title)
+        assertEquals("Artist A", result.tracks.first().artist)
+    }
+
+    @Test
+    fun dailyRecommendedTracksResponseTreats301AsLoginRequired() {
+        val result = parseNeteaseDailyRecommendedTracksResponse("""{"code":301}""")
+
+        assertEquals(NeteaseAccountActionStatus.RequiresLogin, result.status)
+        assertTrue(result.tracks.isEmpty())
+    }
+
+    @Test
+    fun playlistCreateResponseParsesCreatedPlaylist() {
+        val result = parseNeteasePlaylistCreateResponse(
+            """
+            {
+              "code": 200,
+              "playlist": {
+                "id": 900,
+                "name": "新歌单",
+                "trackCount": 0,
+                "specialType": 0,
+                "subscribed": false,
+                "creator": {"userId": 42}
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(NeteaseAccountActionStatus.Success, result.status)
+        assertEquals("900", result.playlist?.playlistId)
+        assertEquals("新歌单", result.playlist?.title)
+        assertTrue(result.playlist?.isEditable == true)
+    }
+
+    @Test
+    fun playlistCreateResponseTreats301AsLoginRequired() {
+        val result = parseNeteasePlaylistCreateResponse("""{"code":301}""")
+
+        assertEquals(NeteaseAccountActionStatus.RequiresLogin, result.status)
+        assertNull(result.playlist)
+    }
+
+    @Test
+    fun playlistCreateResponseKeepsFailureCode() {
+        val result = parseNeteasePlaylistCreateResponse("""{"code":505}""")
+
+        assertEquals(NeteaseAccountActionStatus.Failed, result.status)
+        assertEquals(505, result.code)
+    }
+
+    @Test
     fun userPlaylistResponseMarksLikedSongsPlaylist() {
         val playlists = parseNeteaseUserPlaylistsResponse(
             """
@@ -209,6 +339,49 @@ class NeteasePlaybackUrlParserTest {
         assertEquals(37, playlists.first().trackCount)
         assertTrue(playlists.first().isLikedSongs)
         assertFalse(playlists.last().isLikedSongs)
+    }
+
+    @Test
+    fun userPlaylistResponseParsesEditableCreatedPlaylists() {
+        val playlists = parseNeteaseUserPlaylistsResponse(
+            """
+            {
+              "code": 200,
+              "playlist": [
+                {
+                  "id": 100,
+                  "name": "我喜欢的音乐",
+                  "trackCount": 37,
+                  "specialType": 5,
+                  "subscribed": false,
+                  "creator": {"userId": 42}
+                },
+                {
+                  "id": 200,
+                  "name": "自己创建的歌单",
+                  "trackCount": 8,
+                  "specialType": 0,
+                  "subscribed": false,
+                  "creator": {"userId": 42}
+                },
+                {
+                  "id": 300,
+                  "name": "收藏的歌单",
+                  "trackCount": 9,
+                  "specialType": 0,
+                  "subscribed": true,
+                  "creator": {"userId": 7}
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertFalse(playlists[0].isEditableBy(42L))
+        assertTrue(playlists[1].isEditableBy(42L))
+        assertEquals(42L, playlists[1].creatorUserId)
+        assertFalse(playlists[2].isEditableBy(42L))
+        assertTrue(playlists[2].subscribed)
     }
 
     @Test

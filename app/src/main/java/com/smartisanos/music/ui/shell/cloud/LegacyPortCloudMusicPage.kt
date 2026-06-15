@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.R
 import com.smartisanos.music.data.favorite.FavoriteSongsRepository
+import com.smartisanos.music.data.online.NeteaseAuthState
 import com.smartisanos.music.data.online.NeteaseAuthStore
 import com.smartisanos.music.data.online.OnlineAccountPlaylist
 import com.smartisanos.music.data.online.OnlineAlbum
@@ -926,7 +927,7 @@ internal fun LegacyPortCloudMusicPage(
                                                 subtitle = stringResource(R.string.cloud_music_empty_subtitle),
                                                 modifier = Modifier.fillMaxSize(),
                                             )
-                                            else -> CloudMusicAccountLibraryList(
+                                            else -> CloudMusicMinePage(
                                                 playlists = accountPlaylists,
                                                 albums = accountAlbums,
                                                 radios = accountRadios,

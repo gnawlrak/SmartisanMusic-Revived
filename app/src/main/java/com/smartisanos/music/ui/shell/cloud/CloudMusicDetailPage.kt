@@ -20,16 +20,17 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -147,38 +149,52 @@ internal fun CloudMusicDetailHeader(
     artworkUrl: String?,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.background(ComposeColor.White),
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(CloudDetailHeaderHeight)
+            .background(ComposeColor(0xFFF5F5F5)),
     ) {
+        CloudMusicCoverImage(
+            imageUrl = artworkUrl,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            ComposeColor(0x40000000),
+                            ComposeColor(0xCC000000),
+                        ),
+                    ),
+                ),
+        )
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(CloudDetailHeaderHeight)
-                .padding(start = 12.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
             CloudMusicCoverImage(
                 imageUrl = artworkUrl,
                 modifier = Modifier
                     .size(CloudDetailHeaderArtworkSize)
-                    .clip(RoundedCornerShape(4.dp))
-                    .border(
-                        width = 0.67.dp,
-                        color = ComposeColor(0x1F000000),
-                        shape = RoundedCornerShape(4.dp),
-                    ),
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ComposeColor(0xFFDDDDDD)),
             )
+            Spacer(modifier = Modifier.width(16.dp))
             Column(
-                modifier = Modifier
-                    .padding(start = 12.dp)
-                    .weight(1f),
-                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Bottom,
             ) {
                 Text(
                     text = title,
                     style = TextStyle(
-                        fontSize = 16.sp,
-                        color = ComposeColor(0xCC000000),
+                        fontSize = 20.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                        color = ComposeColor.White,
                     ),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -187,8 +203,8 @@ internal fun CloudMusicDetailHeader(
                     Text(
                         text = subtitleText,
                         style = TextStyle(
-                            fontSize = 12.sp,
-                            color = CloudSecondaryTextColor,
+                            fontSize = 13.sp,
+                            color = ComposeColor(0xCCFFFFFF),
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -197,7 +213,6 @@ internal fun CloudMusicDetailHeader(
                 }
             }
         }
-        CloudMusicDivider()
     }
 }
 

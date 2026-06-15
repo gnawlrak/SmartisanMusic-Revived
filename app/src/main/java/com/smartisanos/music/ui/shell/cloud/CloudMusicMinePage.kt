@@ -16,11 +16,33 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.smartisanos.music.R
 import com.smartisanos.music.data.online.OnlineAccountPlaylist
 import com.smartisanos.music.data.online.OnlineAlbum
@@ -28,7 +50,9 @@ import com.smartisanos.music.data.online.OnlineRadio
 import com.smartisanos.music.ui.shell.addLegacyPortListFooter
 import com.smartisanos.music.ui.shell.bindLegacyPortListFooter
 import com.smartisanos.music.ui.shell.legacyWrappedAdapter
-import androidx.compose.ui.viewinterop.AndroidView
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
+import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
 
 internal sealed interface CloudAccountLibraryItem {
     data class Playlist(val playlist: OnlineAccountPlaylist) : CloudAccountLibraryItem
@@ -36,8 +60,17 @@ internal sealed interface CloudAccountLibraryItem {
     data class Radio(val radio: OnlineRadio) : CloudAccountLibraryItem
 }
 
+internal enum class CloudAccountLibraryFilter(
+    val labelRes: Int,
+) {
+    All(R.string.cloud_music_filter_all),
+    Playlist(R.string.cloud_music_filter_playlist),
+    Album(R.string.cloud_music_filter_album),
+    Radio(R.string.cloud_music_filter_radio),
+}
+
 @Composable
-internal fun CloudMusicAccountLibraryList(
+internal fun CloudMusicMinePage(
     playlists: List<OnlineAccountPlaylist>,
     albums: List<OnlineAlbum>,
     radios: List<OnlineRadio>,
@@ -49,13 +82,101 @@ internal fun CloudMusicAccountLibraryList(
     onRadioClick: (OnlineRadio) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var selectedFilter by remember { mutableStateOf(CloudAccountLibraryFilter.All) }
+    val items = remember(playlists, albums, radios, selectedFilter) {
+        when (selectedFilter) {
+            CloudAccountLibraryFilter.All ->
+                playlists.map { CloudAccountLibraryItem.Playlist(it) } +
+                    albums.map { CloudAccountLibraryItem.Album(it) } +
+                    radios.map { CloudAccountLibraryItem.Radio(it) }
+            CloudAccountLibraryFilter.Playlist ->
+                playlists.map { CloudAccountLibraryItem.Playlist(it) }
+            CloudAccountLibraryFilter.Album ->
+                albums.map { CloudAccountLibraryItem.Album(it) }
+            CloudAccountLibraryFilter.Radio ->
+                radios.map { CloudAccountLibraryItem.Radio(it) }
+        }
+    }
+
+    Column(modifier = modifier.background(ComposeColor.White)) {
+        CloudMusicFilterBar(
+            selectedFilter = selectedFilter,
+            onFilterChange = { selectedFilter = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+        )
+        CloudMusicDivider()
+        if (items.isEmpty()) {
+            CloudMusicBlankState(
+                title = stringResource(R.string.cloud_music_blank_no_content),
+                subtitle = null,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        } else {
+            CloudMusicAccountLibraryList(
+                items = items,
+                selectedPlaylistId = selectedPlaylistId,
+                active = active,
+                playbackBarOverlayHeight = playbackBarOverlayHeight,
+                onPlaylistClick = onPlaylistClick,
+                onAlbumClick = onAlbumClick,
+                onRadioClick = onRadioClick,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CloudMusicFilterBar(
+    selectedFilter: CloudAccountLibraryFilter,
+    onFilterChange: (CloudAccountLibraryFilter) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CloudAccountLibraryFilter.entries.forEach { filter ->
+            val selected = filter == selectedFilter
+            val backgroundColor = if (selected) CloudAccentColor.copy(alpha = 0.12f) else ComposeColor(0xFFF5F5F5)
+            val contentColor = if (selected) CloudAccentColor else ComposeColor(0x99000000)
+
+            Box(
+                modifier = Modifier
+                    .height(28.dp)
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(backgroundColor)
+                    .cloudMusicPressable(pressedScale = 0.95f, onClick = { onFilterChange(filter) }),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(filter.labelRes),
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        color = contentColor,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CloudMusicAccountLibraryList(
+    items: List<CloudAccountLibraryItem>,
+    selectedPlaylistId: String?,
+    active: Boolean,
+    playbackBarOverlayHeight: Dp,
+    onPlaylistClick: (OnlineAccountPlaylist) -> Unit,
+    onAlbumClick: (OnlineAlbum) -> Unit,
+    onRadioClick: (OnlineRadio) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val playbackBarOverlayHeightPx = with(LocalDensity.current) {
         playbackBarOverlayHeight.roundToPx()
-    }
-    val items = remember(playlists, albums, radios) {
-        playlists.map { playlist -> CloudAccountLibraryItem.Playlist(playlist) } +
-            albums.map { album -> CloudAccountLibraryItem.Album(album) } +
-            radios.map { radio -> CloudAccountLibraryItem.Radio(radio) }
     }
     AndroidView(
         modifier = modifier,

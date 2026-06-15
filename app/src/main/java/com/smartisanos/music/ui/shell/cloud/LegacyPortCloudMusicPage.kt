@@ -983,6 +983,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlinePlaylist(playlist, CloudMusicRoute.Collections)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        key = { playlist -> playlist.playlistId },
                                     )
                                 }
                                 CloudMusicRoute.FeaturedTracks -> {
@@ -1010,6 +1011,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlinePlaylist(playlist, CloudMusicRoute.FeaturedPlaylists)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        key = { playlist -> playlist.playlistId },
                                     )
                                 }
                                 CloudMusicRoute.FeaturedCharts -> {
@@ -1025,6 +1027,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlinePlaylist(playlist, CloudMusicRoute.FeaturedCharts)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        key = { playlist -> playlist.playlistId },
                                     )
                                 }
                                 CloudMusicRoute.FeaturedAlbums -> {
@@ -1040,6 +1043,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlineAlbum(album, CloudMusicRoute.FeaturedAlbums)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        key = { album -> album.albumId },
                                     )
                                 }
                                 CloudMusicRoute.FeaturedArtists -> {
@@ -1204,6 +1208,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlineAlbum(album, route)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        key = { album -> album.albumId },
                                     )
                                 }
                                 is CloudMusicRoute.RadioPrograms -> {

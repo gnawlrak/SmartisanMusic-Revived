@@ -112,6 +112,7 @@ internal fun CloudRadioListContent(
             imageUrl = OnlineRadio::artworkUrl,
             onItemClick = onRadioClick,
             modifier = modifier,
+            key = { radio -> radio.radioId },
         )
     }
 }

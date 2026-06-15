@@ -6,13 +6,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -159,6 +158,7 @@ internal fun <T> CloudFeaturedHomeCoverListContent(
     imageUrl: (T) -> String?,
     onItemClick: (T) -> Unit,
     modifier: Modifier = Modifier,
+    key: ((T) -> Any)? = null,
 ) {
     when (state) {
         CloudFeaturedHomeState.Loading -> CloudMusicBlankState(
@@ -186,6 +186,7 @@ internal fun <T> CloudFeaturedHomeCoverListContent(
             imageUrl = imageUrl,
             onItemClick = onItemClick,
             modifier = modifier,
+            key = key,
         )
     }
 }
@@ -440,16 +441,16 @@ internal fun CloudHomePlaylistSection(
         onActionClick = onActionClick,
         modifier = modifier,
     ) {
-        visiblePlaylists.forEachIndexed { index, playlist ->
+        items(
+            items = visiblePlaylists,
+            key = { playlist -> playlist.playlistId },
+        ) { playlist ->
             CloudHomeCoverCard(
                 title = playlist.title,
                 subtitle = playlist.homeSubtitle(context),
                 imageUrl = playlist.artworkUrl,
                 onClick = { onPlaylistClick(playlist) },
             )
-            if (index != visiblePlaylists.lastIndex) {
-                Spacer(modifier = Modifier.width(10.dp))
-            }
         }
     }
 }
@@ -469,22 +470,23 @@ internal fun CloudHomeAlbumSection(
     val visibleAlbums = remember(albums) {
         albums.take(CloudHomeCoverPreviewCount)
     }
+    val fallbackArtist = stringResource(R.string.cloud_music_album_provider_netease)
     CloudHomeCoverSection(
         title = title,
         actionText = actionText,
         onActionClick = onActionClick,
         modifier = modifier,
     ) {
-        visibleAlbums.forEachIndexed { index, album ->
+        items(
+            items = visibleAlbums,
+            key = { album -> album.albumId },
+        ) { album ->
             CloudHomeCoverCard(
                 title = album.title,
-                subtitle = album.artist ?: stringResource(R.string.cloud_music_album_provider_netease),
+                subtitle = album.artist ?: fallbackArtist,
                 imageUrl = album.artworkUrl,
                 onClick = { onAlbumClick(album) },
             )
-            if (index != visibleAlbums.lastIndex) {
-                Spacer(modifier = Modifier.width(10.dp))
-            }
         }
     }
 }
@@ -501,6 +503,7 @@ internal fun CloudHomeArtistSection(
     if (artists.isEmpty()) {
         return
     }
+    val context = LocalContext.current
     val visibleArtists = remember(artists) {
         artists.take(CloudHomeCoverPreviewCount)
     }
@@ -510,16 +513,16 @@ internal fun CloudHomeArtistSection(
         onActionClick = onActionClick,
         modifier = modifier,
     ) {
-        visibleArtists.forEachIndexed { index, artist ->
+        items(
+            items = visibleArtists,
+            key = { artist -> artist.artistId },
+        ) { artist ->
             CloudHomeCoverCard(
                 title = artist.name,
-                subtitle = artist.subtitleText(LocalContext.current),
+                subtitle = artist.subtitleText(context),
                 imageUrl = artist.artworkUrl,
                 onClick = { onArtistClick(artist) },
             )
-            if (index != visibleArtists.lastIndex) {
-                Spacer(modifier = Modifier.width(10.dp))
-            }
         }
     }
 }
@@ -536,6 +539,7 @@ internal fun CloudHomeRadioSection(
     if (radios.isEmpty()) {
         return
     }
+    val context = LocalContext.current
     val visibleRadios = remember(radios) {
         radios.take(CloudHomeCoverPreviewCount)
     }
@@ -545,16 +549,16 @@ internal fun CloudHomeRadioSection(
         onActionClick = onActionClick,
         modifier = modifier,
     ) {
-        visibleRadios.forEachIndexed { index, radio ->
+        items(
+            items = visibleRadios,
+            key = { radio -> radio.radioId },
+        ) { radio ->
             CloudHomeCoverCard(
                 title = radio.title,
-                subtitle = radio.cardSubtitle(LocalContext.current),
+                subtitle = radio.cardSubtitle(context),
                 imageUrl = radio.artworkUrl,
                 onClick = { onRadioClick(radio) },
             )
-            if (index != visibleRadios.lastIndex) {
-                Spacer(modifier = Modifier.width(10.dp))
-            }
         }
     }
 }

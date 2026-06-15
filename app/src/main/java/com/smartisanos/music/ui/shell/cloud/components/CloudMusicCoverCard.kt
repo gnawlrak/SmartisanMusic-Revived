@@ -1,16 +1,16 @@
 package com.smartisanos.music.ui.shell.cloud.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -76,7 +76,7 @@ internal fun CloudHomeCoverSection(
     actionText: String? = null,
     onActionClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    content: @Composable RowScope.() -> Unit,
+    content: LazyListScope.() -> Unit,
 ) {
     Column(
         modifier = modifier.background(ComposeColor.White),
@@ -87,14 +87,16 @@ internal fun CloudHomeCoverSection(
             onClick = onActionClick,
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 14.dp),
-        ) {
-            content()
-        }
+        // 用 LazyRow 替代 Row+horizontalScroll：卡片在滚动时按需组合并回收复用，
+        // 避免一次性组合全部卡片及其封面图。
+        // 原实现的 padding(start=12,top=12,end=12,bottom=14) 由 contentPadding 还原；
+        // 项间 10dp 由调用方承担的 Spacer 改为统一的 spacedBy。
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            content = content,
+        )
         CloudMusicDivider()
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -189,6 +192,7 @@ internal fun CloudMusicSearchResultsContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
+                        key = { album -> album.albumId },
                     )
                     CloudSearchCategory.Playlists -> CloudSearchCoverResultList(
                         items = state.results.playlists,
@@ -200,6 +204,7 @@ internal fun CloudMusicSearchResultsContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
+                        key = { playlist -> playlist.playlistId },
                     )
                 }
             }
@@ -431,6 +436,7 @@ internal fun <T> CloudSearchCoverResultList(
     imageUrl: (T) -> String?,
     onItemClick: (T) -> Unit,
     modifier: Modifier = Modifier,
+    key: ((T) -> Any)? = null,
 ) {
     if (items.isEmpty()) {
         CloudMusicBlankState(
@@ -440,58 +446,63 @@ internal fun <T> CloudSearchCoverResultList(
         )
         return
     }
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .background(ComposeColor.White)
-            .padding(bottom = playbackBarOverlayHeight + 10.dp),
+    // 用 LazyColumn 替代 Column+verticalScroll+forEach：长列表只组合可见行，
+    // 封面图随回收复用，避免一次性加载全部封面协程。
+    LazyColumn(
+        modifier = modifier.background(ComposeColor.White),
+        contentPadding = PaddingValues(bottom = playbackBarOverlayHeight + 10.dp),
     ) {
-        items.forEach { item ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(CloudSearchCoverRowHeight)
-                    .cloudMusicPressable(onClick = { onItemClick(item) })
-                    .padding(start = 12.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CloudMusicCoverImage(
-                    imageUrl = imageUrl(item),
+        itemsIndexed(
+            items = items,
+            key = { index, item -> key?.invoke(item) ?: index },
+        ) { _, item ->
+            Column {
+                Row(
                     modifier = Modifier
-                        .size(CloudSearchCoverArtworkSize)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(ComposeColor(0xFFF0F0F0)),
-                )
-                Column(
-                    modifier = Modifier
-                        .padding(start = 12.dp)
-                        .weight(1f),
-                    verticalArrangement = Arrangement.Center,
+                        .fillMaxWidth()
+                        .height(CloudSearchCoverRowHeight)
+                        .cloudMusicPressable(onClick = { onItemClick(item) })
+                        .padding(start = 12.dp, end = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = title(item),
-                        style = TextStyle(
-                            fontSize = 15.sp,
-                            color = ComposeColor(0xCC000000),
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    CloudMusicCoverImage(
+                        imageUrl = imageUrl(item),
+                        modifier = Modifier
+                            .size(CloudSearchCoverArtworkSize)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(ComposeColor(0xFFF0F0F0)),
                     )
-                    subtitle(item)?.takeIf(String::isNotBlank)?.let { subtitleText ->
+                    Column(
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
                         Text(
-                            text = subtitleText,
+                            text = title(item),
                             style = TextStyle(
-                                fontSize = 11.sp,
-                                color = CloudSecondaryTextColor,
+                                fontSize = 15.sp,
+                                color = ComposeColor(0xCC000000),
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp),
                         )
+                        subtitle(item)?.takeIf(String::isNotBlank)?.let { subtitleText ->
+                            Text(
+                                text = subtitleText,
+                                style = TextStyle(
+                                    fontSize = 11.sp,
+                                    color = CloudSecondaryTextColor,
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
                     }
                 }
+                CloudMusicDivider()
             }
-            CloudMusicDivider()
         }
     }
 }

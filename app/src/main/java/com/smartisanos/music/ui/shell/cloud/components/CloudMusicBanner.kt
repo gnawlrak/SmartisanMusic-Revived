@@ -3,17 +3,9 @@ package com.smartisanos.music.ui.shell.cloud.components
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Size
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -25,6 +17,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,6 +54,7 @@ import com.smartisanos.music.ui.shell.cloud.CloudBannerHeight
 import com.smartisanos.music.ui.shell.cloud.CloudBannerMaxCount
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun CloudMusicBannerStrip(
     banners: List<OnlineBanner>,
@@ -82,8 +78,8 @@ internal fun CloudMusicBannerStrip(
             .take(CloudBannerMaxCount)
             .ifEmpty { listOf(fallbackBanner) }
     }
-    var currentIndex by remember(visibleBanners) { mutableStateOf(0) }
-    val safeIndex = currentIndex.coerceIn(0, visibleBanners.lastIndex)
+    val pagerState = rememberPagerState(pageCount = { visibleBanners.size })
+    val currentIndex = pagerState.currentPage
 
     LaunchedEffect(active, visibleBanners) {
         if (!active || visibleBanners.size <= 1) {
@@ -91,7 +87,8 @@ internal fun CloudMusicBannerStrip(
         }
         while (true) {
             delay(CloudBannerAutoScrollMs)
-            currentIndex = (currentIndex + 1) % visibleBanners.size
+            val nextPage = (pagerState.currentPage + 1) % visibleBanners.size
+            pagerState.animateScrollToPage(nextPage)
         }
     }
 
@@ -104,33 +101,14 @@ internal fun CloudMusicBannerStrip(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(5.dp))
-                .border(
-                    width = 0.67.dp,
-                    color = ComposeColor(0x1F000000),
-                    shape = RoundedCornerShape(5.dp),
-                ),
+                .clip(RoundedCornerShape(8.dp))
+                .background(ComposeColor(0xFFF5F5F5)),
         ) {
-            AnimatedContent(
-                targetState = visibleBanners[safeIndex],
-                transitionSpec = {
-                    (
-                        fadeIn(animationSpec = tween(220)) +
-                            slideInVertically(
-                                animationSpec = tween(260, easing = FastOutSlowInEasing),
-                                initialOffsetY = { height -> height / 8 },
-                            )
-                        ) togetherWith (
-                        fadeOut(animationSpec = tween(160)) +
-                            slideOutVertically(
-                                animationSpec = tween(220, easing = FastOutSlowInEasing),
-                                targetOffsetY = { height -> -height / 10 },
-                            )
-                        )
-                },
-                label = "cloud music banner transition",
-                modifier = Modifier.matchParentSize(),
-            ) { banner ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                val banner = visibleBanners[page]
                 val bannerClickable = !banner.targetTrackId.isNullOrBlank() ||
                     !banner.targetAlbumId.isNullOrBlank() ||
                     !banner.targetPlaylistId.isNullOrBlank()
@@ -152,8 +130,15 @@ internal fun CloudMusicBannerStrip(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .fillMaxWidth()
-                            .background(ComposeColor(0x99000000))
-                            .padding(horizontal = 13.dp, vertical = 8.dp),
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    colors = listOf(
+                                        ComposeColor.Transparent,
+                                        ComposeColor(0x99000000),
+                                    ),
+                                ),
+                            )
+                            .padding(horizontal = 13.dp, vertical = 10.dp),
                     ) {
                         Column {
                             Text(
@@ -184,19 +169,18 @@ internal fun CloudMusicBannerStrip(
             if (visibleBanners.size > 1) {
                 Row(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 10.dp, bottom = 9.dp),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     visibleBanners.forEachIndexed { index, _ ->
                         Box(
                             modifier = Modifier
-                                .width(if (index == safeIndex) 12.dp else 5.dp)
-                                .height(2.dp)
-                                .clip(RoundedCornerShape(1.dp))
+                                .size(if (index == currentIndex) 6.dp else 5.dp)
+                                .clip(CircleShape)
                                 .background(
-                                    if (index == safeIndex) {
+                                    if (index == currentIndex) {
                                         ComposeColor.White
                                     } else {
                                         ComposeColor(0x80FFFFFF)

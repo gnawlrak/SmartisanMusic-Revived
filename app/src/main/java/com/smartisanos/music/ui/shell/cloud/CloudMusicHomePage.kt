@@ -1,17 +1,28 @@
 package com.smartisanos.music.ui.shell.cloud
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -31,9 +42,11 @@ import com.smartisanos.music.data.online.OnlineTrack
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeCoverCard
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeCoverSection
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeSectionHeader
+import com.smartisanos.music.ui.shell.cloud.components.CloudHomeAnimatedSection
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicCoverImage
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
-import com.smartisanos.music.ui.shell.cloud.components.CloudHomeTrackPreviewRow
+import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
 
 internal sealed interface CloudFeaturedHomeState {
     object Loading : CloudFeaturedHomeState
@@ -82,44 +95,54 @@ internal fun CloudFeaturedHomeContent(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = bottomPadding),
             ) {
-                CloudHomeTrackPreviewSection(
-                    title = stringResource(R.string.cloud_music_section_daily_recommend),
-                    tracks = state.home.tracks,
-                    onClick = onTracksClick,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                CloudHomePlaylistSection(
-                    title = stringResource(R.string.cloud_music_section_featured_playlists),
-                    playlists = state.home.playlists,
-                    actionText = stringResource(R.string.cloud_music_section_view_all),
-                    onActionClick = onPlaylistsClick,
-                    onPlaylistClick = onPlaylistClick,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                CloudHomePlaylistSection(
-                    title = stringResource(R.string.cloud_music_section_hot_charts),
-                    playlists = state.home.charts,
-                    actionText = stringResource(R.string.cloud_music_section_view_all),
-                    onActionClick = onChartsClick,
-                    onPlaylistClick = onPlaylistClick,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                CloudHomeAlbumSection(
-                    title = stringResource(R.string.cloud_music_section_new_albums),
-                    albums = state.home.albums,
-                    actionText = stringResource(R.string.cloud_music_section_view_all),
-                    onActionClick = onAlbumsClick,
-                    onAlbumClick = onAlbumClick,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                CloudHomeArtistSection(
-                    title = stringResource(R.string.cloud_music_section_hot_artists),
-                    artists = state.home.artists,
-                    actionText = stringResource(R.string.cloud_music_section_view_all),
-                    onActionClick = onArtistsClick,
-                    onArtistClick = onArtistClick,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                CloudHomeAnimatedSection(index = 0) {
+                    CloudHomeTrackPreviewSection(
+                        title = stringResource(R.string.cloud_music_section_daily_recommend),
+                        tracks = state.home.tracks,
+                        onClick = onTracksClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                CloudHomeAnimatedSection(index = 1) {
+                    CloudHomePlaylistSection(
+                        title = stringResource(R.string.cloud_music_section_featured_playlists),
+                        playlists = state.home.playlists,
+                        actionText = stringResource(R.string.cloud_music_section_view_all),
+                        onActionClick = onPlaylistsClick,
+                        onPlaylistClick = onPlaylistClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                CloudHomeAnimatedSection(index = 2) {
+                    CloudHomePlaylistSection(
+                        title = stringResource(R.string.cloud_music_section_hot_charts),
+                        playlists = state.home.charts,
+                        actionText = stringResource(R.string.cloud_music_section_view_all),
+                        onActionClick = onChartsClick,
+                        onPlaylistClick = onPlaylistClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                CloudHomeAnimatedSection(index = 3) {
+                    CloudHomeAlbumSection(
+                        title = stringResource(R.string.cloud_music_section_new_albums),
+                        albums = state.home.albums,
+                        actionText = stringResource(R.string.cloud_music_section_view_all),
+                        onActionClick = onAlbumsClick,
+                        onAlbumClick = onAlbumClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                CloudHomeAnimatedSection(index = 4) {
+                    CloudHomeArtistSection(
+                        title = stringResource(R.string.cloud_music_section_hot_artists),
+                        artists = state.home.artists,
+                        actionText = stringResource(R.string.cloud_music_section_view_all),
+                        onActionClick = onArtistsClick,
+                        onArtistClick = onArtistClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -230,18 +253,117 @@ internal fun CloudHomeTrackPreviewSection(
     ) {
         CloudHomeSectionHeader(
             title = title,
-            actionText = stringResource(R.string.cloud_music_section_view_all),
-            onClick = onClick,
+            actionText = null,
+            onClick = null,
             modifier = Modifier.fillMaxWidth(),
         )
-        tracks.take(CloudHomeTrackPreviewCount).forEachIndexed { index, track ->
-            CloudHomeTrackPreviewRow(
-                index = index + 1,
-                track = track,
-                onClick = onClick,
-                modifier = Modifier.fillMaxWidth(),
+        CloudHomeDailyRecommendCard(
+            tracks = tracks,
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+        )
+        CloudMusicDivider()
+    }
+}
+
+@Composable
+private fun CloudHomeDailyRecommendCard(
+    tracks: List<OnlineTrack>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val weekDay = remember {
+        val calendar = java.util.Calendar.getInstance()
+        when (calendar.get(java.util.Calendar.DAY_OF_WEEK)) {
+            java.util.Calendar.MONDAY -> "星期一"
+            java.util.Calendar.TUESDAY -> "星期二"
+            java.util.Calendar.WEDNESDAY -> "星期三"
+            java.util.Calendar.THURSDAY -> "星期四"
+            java.util.Calendar.FRIDAY -> "星期五"
+            java.util.Calendar.SATURDAY -> "星期六"
+            else -> "星期日"
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .height(120.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        ComposeColor(0xFFFFF5F5),
+                        ComposeColor(0xFFFFE8E6),
+                    ),
+                ),
             )
-            CloudMusicDivider()
+            .cloudMusicPressable(onClick = onClick)
+            .padding(16.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxWidth()
+                .padding(end = 148.dp),
+        ) {
+            Text(
+                text = weekDay,
+                style = TextStyle(
+                    fontSize = 13.sp,
+                    color = CloudAccentColor,
+                ),
+            )
+            Text(
+                text = stringResource(R.string.cloud_music_section_daily_recommend),
+                style = TextStyle(
+                    fontSize = 18.sp,
+                    color = ComposeColor(0xE6000000),
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = context.getString(R.string.cloud_music_playlist_track_count, tracks.size),
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    color = CloudSecondaryTextColor,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+
+        val previewTracks = remember(tracks) { tracks.take(3) }
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            horizontalArrangement = Arrangement.spacedBy((-8).dp),
+        ) {
+            previewTracks.forEach { track ->
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(ComposeColor(0xFFEDEDED))
+                        .border(
+                            width = 1.dp,
+                            color = ComposeColor.White,
+                            shape = RoundedCornerShape(4.dp),
+                        ),
+                ) {
+                    val artworkUrl = track.artworkUrl
+                    if (!artworkUrl.isNullOrBlank()) {
+                        CloudMusicCoverImage(
+                            imageUrl = artworkUrl,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
         }
     }
 }

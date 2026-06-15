@@ -1,10 +1,7 @@
 package com.smartisanos.music.ui.shell.cloud.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -17,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -39,39 +35,31 @@ internal fun CloudHomeCoverCard(
     Column(
         modifier = modifier
             .width(CloudHomeCoverCardWidth)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick,
-            ),
+            .cloudMusicPressable(onClick = onClick),
     ) {
         CloudMusicCoverImage(
             imageUrl = imageUrl,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(4.dp))
-                .border(
-                    width = 0.67.dp,
-                    color = ComposeColor(0x1F000000),
-                    shape = RoundedCornerShape(4.dp),
-                ),
+                .clip(RoundedCornerShape(6.dp))
+                .background(ComposeColor(0xFFF0F0F0)),
         )
         Text(
             text = title,
             style = TextStyle(
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 color = ComposeColor(0xCC000000),
             ),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 7.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
         subtitle?.takeIf(String::isNotBlank)?.let { subtitleText ->
             Text(
                 text = subtitleText,
                 style = TextStyle(
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = CloudSecondaryTextColor,
                 ),
                 maxLines = 1,
@@ -103,7 +91,7 @@ internal fun CloudHomeCoverSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 12.dp),
+                .padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 14.dp),
         ) {
             content()
         }

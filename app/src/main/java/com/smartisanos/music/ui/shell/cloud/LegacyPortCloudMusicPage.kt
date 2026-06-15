@@ -13,6 +13,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -41,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -71,6 +76,7 @@ import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBannerStrip
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicSectionTitle
+import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -1412,9 +1418,10 @@ private fun CloudMusicHomeEntryRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CloudHomeEntryRowHeight)
-                .padding(start = 12.dp, end = 12.dp, top = 11.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .horizontalScroll(rememberScrollState())
+                .height(56.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             entries.forEach { (entry, onClick) ->
@@ -1422,7 +1429,6 @@ private fun CloudMusicHomeEntryRow(
                     entry = entry,
                     selected = selectedEntry == entry,
                     onClick = onClick,
-                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -1435,33 +1441,40 @@ private fun CloudMusicHomeEntryButton(
     entry: CloudMusicHomeEntry,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
+    val contentColor = if (selected) CloudAccentColor else ComposeColor(0x99000000)
+    val backgroundColor = if (selected) CloudAccentColor.copy(alpha = 0.12f) else ComposeColor.Transparent
+
+    Row(
+        modifier = Modifier
+            .height(30.dp)
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(15.dp),
+            )
+            .cloudMusicPressable(
+                pressedScale = 0.95f,
                 onClick = onClick,
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            )
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
             painter = painterResource(entry.iconRes),
             contentDescription = stringResource(entry.labelRes),
-            modifier = Modifier.size(36.dp),
+            colorFilter = ColorFilter.tint(contentColor),
+            modifier = Modifier.size(16.dp),
         )
         Text(
             text = stringResource(entry.labelRes),
             style = TextStyle(
-                fontSize = 10.sp,
-                color = if (selected) CloudAccentColor else ComposeColor(0x99000000),
+                fontSize = 11.sp,
+                color = contentColor,
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp),
+            modifier = Modifier.padding(start = 5.dp),
         )
     }
 }

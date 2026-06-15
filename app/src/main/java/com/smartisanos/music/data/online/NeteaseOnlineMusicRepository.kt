@@ -1560,7 +1560,7 @@ internal class NeteaseCloudMusicClient(
             artistId = id,
             name = name,
             subtitle = subtitle,
-            artworkUrl = artist.optArtworkUrl(),
+            artworkUrl = artist.optArtistArtworkUrl(),
             trackCount = artist.optInt("musicSize", 0).coerceAtLeast(0),
             albumCount = artist.optInt("albumSize", 0).coerceAtLeast(0),
         )
@@ -1860,6 +1860,12 @@ private fun JSONObject.optArtworkUrl(): String? {
     return optNonBlankString("picUrl")
         ?: optNonBlankString("blurPicUrl")
         ?: optNonBlankString("img1v1Url")
+}
+
+private fun JSONObject.optArtistArtworkUrl(): String? {
+    return optNonBlankString("img1v1Url")
+        ?: optNonBlankString("picUrl")
+        ?: optNonBlankString("blurPicUrl")
 }
 
 private fun parseNeteaseSong(song: JSONObject): OnlineTrack? {

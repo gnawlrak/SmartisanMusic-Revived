@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -43,12 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -149,68 +149,48 @@ internal fun CloudMusicDetailHeader(
     artworkUrl: String?,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .height(CloudDetailHeaderHeight)
-            .background(ComposeColor(0xFFF5F5F5)),
+            .background(ComposeColor.White)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         CloudMusicCoverImage(
             imageUrl = artworkUrl,
-            modifier = Modifier.fillMaxSize(),
-        )
-        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            ComposeColor(0x40000000),
-                            ComposeColor(0xCC000000),
-                        ),
-                    ),
-                ),
+                .height(CloudDetailHeaderArtworkSize)
+                .clip(RoundedCornerShape(8.dp))
+                .background(ComposeColor(0xFFF0F0F0)),
+            contentScale = ContentScale.Fit,
+            preserveAspectRatio = true,
         )
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.Bottom,
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(
+            modifier = Modifier.weight(1f),
         ) {
-            CloudMusicCoverImage(
-                imageUrl = artworkUrl,
-                modifier = Modifier
-                    .size(CloudDetailHeaderArtworkSize)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(ComposeColor(0xFFDDDDDD)),
+            Text(
+                text = title,
+                style = TextStyle(
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ComposeColor(0xE6000000),
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Bottom,
-            ) {
+            subtitle?.takeIf(String::isNotBlank)?.let { subtitleText ->
                 Text(
-                    text = title,
+                    text = subtitleText,
                     style = TextStyle(
-                        fontSize = 20.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                        color = ComposeColor.White,
+                        fontSize = 13.sp,
+                        color = CloudSecondaryTextColor,
                     ),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-                subtitle?.takeIf(String::isNotBlank)?.let { subtitleText ->
-                    Text(
-                        text = subtitleText,
-                        style = TextStyle(
-                            fontSize = 13.sp,
-                            color = ComposeColor(0xCCFFFFFF),
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                }
             }
         }
     }

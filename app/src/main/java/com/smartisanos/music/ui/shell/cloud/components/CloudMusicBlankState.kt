@@ -1,18 +1,30 @@
 package com.smartisanos.music.ui.shell.cloud.components
 
-import android.graphics.Color
-import android.graphics.Typeface
-import android.util.TypedValue
-import android.view.Gravity
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.LinearLayout
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.smartisanos.music.R
-import com.smartisanos.music.ui.shell.LegacyPlaylistBlankView
-import com.smartisanos.music.ui.shell.cloud.dpPx
+import com.smartisanos.music.ui.shell.cloud.CloudAccentColor
+import com.smartisanos.music.ui.shell.cloud.CloudSecondaryTextColor
+import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
 
 @Composable
 internal fun CloudMusicBlankState(
@@ -22,85 +34,64 @@ internal fun CloudMusicBlankState(
     onActionClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    AndroidView(
-        modifier = modifier,
-        factory = { viewContext ->
-            FrameLayout(viewContext).apply {
-                setBackgroundResource(R.drawable.account_background)
-            }
-        },
-        update = { root ->
-            val content = CloudMusicBlankContent(
-                title = title,
-                subtitle = subtitle.orEmpty(),
-                actionText = actionText.orEmpty(),
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ComposeColor(0xFFF8F8F8)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 32.dp),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.blank_search),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(ComposeColor(0xFFD0D0D0)),
+                modifier = Modifier
+                    .width(80.dp)
+                    .height(80.dp),
             )
-            if (root.tag == content) {
-                root.findViewById<Button>(R.id.btn_ok)?.setOnClickListener {
-                    onActionClick?.invoke()
-                }
-                return@AndroidView
-            }
-            root.tag = content
-            root.removeAllViews()
-            val contentColumn = LinearLayout(root.context).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-            }
-            contentColumn.addView(
-                LegacyPlaylistBlankView(
-                    context = root.context,
-                    iconRes = R.drawable.blank_search,
-                    primaryText = content.title,
-                    secondaryText = content.subtitle,
+            Text(
+                text = title,
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    color = ComposeColor(0x99000000),
+                    textAlign = TextAlign.Center,
                 ),
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ),
+                modifier = Modifier.padding(top = 16.dp),
             )
-            if (content.actionText.isNotBlank() && onActionClick != null) {
-                contentColumn.addView(
-                    Button(root.context).apply {
-                        id = R.id.btn_ok
-                        text = content.actionText
-                        isAllCaps = false
-                        gravity = Gravity.CENTER
-                        includeFontPadding = true
-                        setTypeface(typeface, Typeface.BOLD)
-                        setTextColor(Color.WHITE)
-                        setTextSize(
-                            TypedValue.COMPLEX_UNIT_PX,
-                            resources.getDimension(R.dimen.semi_large_text_size),
-                        )
-                        setBackgroundResource(R.drawable.shrink_long_btn_red_selector)
-                        minWidth = 0
-                        minimumWidth = 0
-                        minHeight = 0
-                        minimumHeight = 0
-                        setOnClickListener { onActionClick.invoke() }
-                    },
-                    LinearLayout.LayoutParams(
-                        root.context.dpPx(160),
-                        root.context.dpPx(48),
-                    ).apply {
-                        topMargin = root.context.dpPx(24)
-                    },
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        color = CloudSecondaryTextColor,
+                        textAlign = TextAlign.Center,
+                    ),
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             }
-            root.addView(
-                contentColumn,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        },
-    )
+            if (!actionText.isNullOrBlank() && onActionClick != null) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 24.dp)
+                        .width(160.dp)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(CloudAccentColor)
+                        .cloudMusicPressable(onClick = onActionClick),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = actionText,
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            color = ComposeColor.White,
+                        ),
+                    )
+                }
+            }
+        }
+    }
 }
-
-private data class CloudMusicBlankContent(
-    val title: String,
-    val subtitle: String,
-    val actionText: String,
-)

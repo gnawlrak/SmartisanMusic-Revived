@@ -1,9 +1,6 @@
 package com.smartisanos.music.ui.shell.cloud
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +42,7 @@ import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicCoverImage
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeTrackPreviewRow
+import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
 
 internal sealed interface CloudSearchResultsState {
     object Idle : CloudSearchResultsState
@@ -276,18 +273,14 @@ internal fun CloudHotSearchRow(
     Row(
         modifier = modifier
             .height(CloudHotSearchRowHeight)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick,
-            )
+            .cloudMusicPressable(onClick = onClick)
             .padding(start = 12.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = index.toString(),
             style = TextStyle(
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 color = if (index <= 3) CloudAccentColor else ComposeColor(0x66000000),
             ),
             modifier = Modifier.width(28.dp),
@@ -314,7 +307,7 @@ internal fun CloudHotSearchRow(
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 5.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
@@ -350,17 +343,13 @@ internal fun CloudSearchCategoryBar(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = { onCategoryChange(category) },
-                    ),
+                    .cloudMusicPressable(pressedScale = 0.95f, onClick = { onCategoryChange(category) }),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = stringResource(category.labelRes),
                     style = TextStyle(
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         color = if (selected) CloudAccentColor else ComposeColor(0x99000000),
                     ),
                     maxLines = 1,
@@ -370,8 +359,9 @@ internal fun CloudSearchCategoryBar(
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .width(22.dp)
-                            .height(2.dp)
+                            .width(20.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
                             .background(CloudAccentColor),
                     )
                 }
@@ -461,11 +451,7 @@ internal fun <T> CloudSearchCoverResultList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(CloudSearchCoverRowHeight)
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = { onItemClick(item) },
-                    )
+                    .cloudMusicPressable(onClick = { onItemClick(item) })
                     .padding(start = 12.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -473,12 +459,8 @@ internal fun <T> CloudSearchCoverResultList(
                     imageUrl = imageUrl(item),
                     modifier = Modifier
                         .size(CloudSearchCoverArtworkSize)
-                        .clip(RoundedCornerShape(4.dp))
-                        .border(
-                            width = 0.67.dp,
-                            color = ComposeColor(0x1F000000),
-                            shape = RoundedCornerShape(4.dp),
-                        ),
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(ComposeColor(0xFFF0F0F0)),
                 )
                 Column(
                     modifier = Modifier
@@ -504,7 +486,7 @@ internal fun <T> CloudSearchCoverResultList(
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 5.dp),
+                            modifier = Modifier.padding(top = 4.dp),
                         )
                     }
                 }

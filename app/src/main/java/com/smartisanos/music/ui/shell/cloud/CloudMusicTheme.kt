@@ -36,7 +36,6 @@ internal const val CloudBannerArtworkHeightPx = 320
 internal const val CloudCoverArtworkSizePx = 260
 internal const val CloudHomeTrackPreviewCount = 5
 internal const val CloudHomeCoverPreviewCount = 6
-internal const val CloudArtistIntroMaxLines = 5
 
 internal fun OnlineMusicHome.isEmpty(): Boolean {
     return tracks.isEmpty() &&

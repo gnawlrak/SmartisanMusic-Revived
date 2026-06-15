@@ -12,7 +12,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,8 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.zIndex
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -134,10 +133,12 @@ internal fun <T : Any> LegacyPortPageStackTransition(
     label: String = "legacy page stack transition",
     axis: LegacyPortPageStackAxis = LegacyPortPageStackAxis.Horizontal,
     axisForKey: (T) -> LegacyPortPageStackAxis = { axis },
+    secondaryDepthForKey: (T) -> Int = { 1 },
     predictiveBackProgress: Float? = null,
     predictiveBackExitConsumed: Boolean = false,
     onPredictiveBackExitConsumedReset: (() -> Unit)? = null,
     primaryContent: @Composable () -> Unit,
+    popPrimaryContent: (@Composable (T) -> Unit)? = null,
     secondaryContent: @Composable (T) -> Unit,
 ) {
     val visibleState = remember {
@@ -155,13 +156,44 @@ internal fun <T : Any> LegacyPortPageStackTransition(
     var retainedAxis by remember {
         mutableStateOf(axis)
     }
+    var retainedSecondaryDepth by remember {
+        mutableStateOf(secondaryKey?.let(secondaryDepthForKey) ?: 0)
+    }
     LaunchedEffect(secondaryKey, predictiveBackExitConsumed) {
         val effectAxis = secondaryKey?.let(axisForKey) ?: retainedAxis
         if (secondaryKey != null) {
-            retainedSecondaryKey = secondaryKey
-            retainedAxis = axisForKey(secondaryKey)
+            val nextAxis = axisForKey(secondaryKey)
+            val nextDepth = secondaryDepthForKey(secondaryKey)
+            val previousSecondaryKey = retainedSecondaryKey
+            val isReplacingWithPop = previousSecondaryKey != null &&
+                previousSecondaryKey != secondaryKey &&
+                retainedAxis == LegacyPortPageStackAxis.Horizontal &&
+                nextDepth < retainedSecondaryDepth
             onPredictiveBackExitConsumedReset?.invoke()
-            if (retainedAxis == LegacyPortPageStackAxis.Horizontal) {
+            if (isReplacingWithPop && predictiveBackExitConsumed) {
+                retainedSecondaryKey = secondaryKey
+                retainedSecondaryDepth = nextDepth
+                retainedAxis = nextAxis
+                horizontalProgress.snapTo(1f)
+            } else if (isReplacingWithPop) {
+                horizontalProgress.snapTo(1f)
+                horizontalProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = LegacyPageStackSlideMillis,
+                        easing = LegacyPageStackEasing,
+                    ),
+                )
+                retainedSecondaryKey = secondaryKey
+                retainedSecondaryDepth = nextDepth
+                retainedAxis = nextAxis
+                horizontalProgress.snapTo(1f)
+            } else {
+                retainedSecondaryKey = secondaryKey
+                retainedSecondaryDepth = nextDepth
+                retainedAxis = nextAxis
+            }
+            if (!isReplacingWithPop && retainedAxis == LegacyPortPageStackAxis.Horizontal) {
                 horizontalProgress.snapTo(0f)
                 horizontalProgress.animateTo(
                     targetValue = 1f,
@@ -184,30 +216,49 @@ internal fun <T : Any> LegacyPortPageStackTransition(
                 )
             }
             retainedSecondaryKey = null
+            retainedSecondaryDepth = 0
         } else if (retainedSecondaryKey != null) {
             delay(LegacyPageStackSlideMillis.toLong())
             retainedSecondaryKey = null
+            retainedSecondaryDepth = 0
         }
     }
     LaunchedEffect(predictiveBackExitConsumed, hasSecondary) {
         if (!hasSecondary && predictiveBackExitConsumed) {
             retainedSecondaryKey = null
+            retainedSecondaryDepth = 0
         }
     }
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        val activeAxis = secondaryKey?.let(axisForKey) ?: retainedAxis
+        val nextKey = secondaryKey
+        val nextAxis = nextKey?.let(axisForKey)
+        val retainedKey = retainedSecondaryKey
+        val replacingWithPop = nextKey != null &&
+            retainedKey != null &&
+            nextKey != retainedKey &&
+            retainedAxis == LegacyPortPageStackAxis.Horizontal &&
+            secondaryDepthForKey(nextKey) < retainedSecondaryDepth
+        val activeAxis = if (replacingWithPop) {
+            retainedAxis
+        } else {
+            nextAxis ?: retainedAxis
+        }
+        val predictiveReplacementExitConsumed = replacingWithPop && predictiveBackExitConsumed
         val activeBackProgress = predictiveBackProgress
             ?.takeIf { activeAxis == LegacyPortPageStackAxis.Horizontal }
             ?.coerceIn(0f, 1f)
         val predictiveExitConsumed = !hasSecondary && predictiveBackExitConsumed
         val enteringNewSecondary = hasSecondary &&
             secondaryKey != retainedSecondaryKey &&
+            !replacingWithPop &&
             activeAxis == LegacyPortPageStackAxis.Horizontal
         val visibleProgress = when {
             predictiveExitConsumed -> 0f
+            predictiveReplacementExitConsumed -> 1f
             activeBackProgress != null -> 1f - activeBackProgress
+            replacingWithPop -> horizontalProgress.value.coerceIn(0f, 1f)
             enteringNewSecondary -> 0f
             activeAxis == LegacyPortPageStackAxis.Horizontal -> horizontalProgress.value.coerceIn(0f, 1f)
             else -> 0f
@@ -226,22 +277,35 @@ internal fun <T : Any> LegacyPortPageStackTransition(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(primaryOffsetX, 0) },
+                .graphicsLayer {
+                    translationX = primaryOffsetX.toFloat()
+                },
         ) {
-            primaryContent()
+            val popTargetKey = nextKey.takeIf {
+                replacingWithPop && !predictiveReplacementExitConsumed
+            }
+            val popContent = popPrimaryContent
+            if (popTargetKey != null && popContent != null) {
+                popContent(popTargetKey)
+            } else {
+                primaryContent()
+            }
         }
 
-        val contentKey = if (predictiveExitConsumed && activeAxis == LegacyPortPageStackAxis.Horizontal) {
-            null
-        } else {
-            secondaryKey ?: retainedSecondaryKey
+        val contentKey = when {
+            predictiveExitConsumed && activeAxis == LegacyPortPageStackAxis.Horizontal -> null
+            predictiveReplacementExitConsumed -> secondaryKey
+            replacingWithPop -> retainedKey
+            else -> secondaryKey ?: retainedSecondaryKey
         }
         if (contentKey != null) {
             if (activeAxis == LegacyPortPageStackAxis.Horizontal) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .offset { IntOffset(secondaryOffsetX, 0) }
+                        .graphicsLayer {
+                            translationX = secondaryOffsetX.toFloat()
+                        }
                         .zIndex(1f),
                 ) {
                     secondaryContent(contentKey)

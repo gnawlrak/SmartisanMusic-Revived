@@ -115,14 +115,36 @@ internal sealed class CloudMusicRoute {
 }
 
 internal fun CloudMusicRoute.primaryRoute(): CloudMusicRoute = when (this) {
-    is CloudMusicRoute.OnlinePlaylistTracks -> returnTo.primaryRoute()
-    is CloudMusicRoute.OnlineAlbumTracks -> returnTo.primaryRoute()
-    is CloudMusicRoute.ArtistTracks -> returnTo.primaryRoute()
-    is CloudMusicRoute.ArtistAlbums -> returnTo.primaryRoute()
-    is CloudMusicRoute.RadioPrograms -> returnTo.primaryRoute()
+    is CloudMusicRoute.OnlinePlaylistTracks -> returnTo
+    is CloudMusicRoute.OnlineAlbumTracks -> returnTo
+    is CloudMusicRoute.ArtistTracks -> returnTo
+    is CloudMusicRoute.ArtistAlbums -> returnTo
+    is CloudMusicRoute.RadioPrograms -> returnTo
     is CloudMusicRoute.BannerTrack -> CloudMusicRoute.Home
     CloudMusicRoute.Search -> CloudMusicRoute.Home
     else -> this
+}
+
+internal fun CloudMusicRoute.rootRoute(): CloudMusicRoute = when (this) {
+    is CloudMusicRoute.OnlinePlaylistTracks -> returnTo.rootRoute()
+    is CloudMusicRoute.OnlineAlbumTracks -> returnTo.rootRoute()
+    is CloudMusicRoute.ArtistTracks -> returnTo.rootRoute()
+    is CloudMusicRoute.ArtistAlbums -> returnTo.rootRoute()
+    is CloudMusicRoute.RadioPrograms -> returnTo.rootRoute()
+    is CloudMusicRoute.BannerTrack -> CloudMusicRoute.Home
+    CloudMusicRoute.Search -> CloudMusicRoute.Home
+    else -> this
+}
+
+internal fun CloudMusicRoute.stackDepth(): Int = when (this) {
+    is CloudMusicRoute.OnlinePlaylistTracks -> returnTo.stackDepth() + 1
+    is CloudMusicRoute.OnlineAlbumTracks -> returnTo.stackDepth() + 1
+    is CloudMusicRoute.ArtistTracks -> returnTo.stackDepth() + 1
+    is CloudMusicRoute.ArtistAlbums -> returnTo.stackDepth() + 1
+    is CloudMusicRoute.RadioPrograms -> returnTo.stackDepth() + 1
+    is CloudMusicRoute.BannerTrack -> 1
+    CloudMusicRoute.Search -> 1
+    else -> 0
 }
 
 private fun CloudMusicRoute.toMap(): Map<String, Any?> = when (this) {

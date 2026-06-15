@@ -9,8 +9,9 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AnimationUtils
 import android.graphics.drawable.ColorDrawable
+import android.view.ViewTreeObserver
+import android.view.animation.DecelerateInterpolator
 import android.widget.AbsListView
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -20,8 +21,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +45,8 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +74,7 @@ import com.smartisanos.music.ui.shell.addLegacyPortListFooter
 import com.smartisanos.music.ui.shell.bindLegacyPortListFooter
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicCoverImage
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDelayedLoadingState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
 import com.smartisanos.music.ui.shell.legacyPlaylistDetailActionButton
 import com.smartisanos.music.ui.shell.legacySlideSelectionController
@@ -117,16 +119,24 @@ internal fun CloudMusicTrackDetailContent(
     extraContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        if (!title.isNullOrBlank() || !subtitle.isNullOrBlank() || !artworkUrl.isNullOrBlank()) {
-            CloudMusicDetailHeader(
-                title = title.orEmpty(),
-                subtitle = subtitle,
-                artworkUrl = artworkUrl,
-                modifier = Modifier.fillMaxWidth(),
-            )
+    val hasDetailHeader = !title.isNullOrBlank() || !subtitle.isNullOrBlank() || !artworkUrl.isNullOrBlank()
+    val detailHeaderContent: (@Composable () -> Unit)? = if (hasDetailHeader || extraContent != null) {
+        {
+            if (hasDetailHeader) {
+                CloudMusicDetailHeader(
+                    title = title.orEmpty(),
+                    subtitle = subtitle,
+                    artworkUrl = artworkUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            extraContent?.invoke()
         }
-        extraContent?.invoke()
+    } else {
+        null
+    }
+
+    if (state is CloudMusicState.Success && detailHeaderContent != null) {
         CloudMusicStateContent(
             state = state,
             repository = repository,
@@ -135,10 +145,33 @@ internal fun CloudMusicTrackDetailContent(
             playbackBarOverlayHeight = playbackBarOverlayHeight,
             onRetryClick = onRetryClick,
             onTrackMoreClick = onTrackMoreClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            detailHeaderContent = detailHeaderContent,
+            modifier = modifier,
         )
+    } else {
+        Column(modifier = modifier) {
+            if (hasDetailHeader) {
+                CloudMusicDetailHeader(
+                    title = title.orEmpty(),
+                    subtitle = subtitle,
+                    artworkUrl = artworkUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            extraContent?.invoke()
+            CloudMusicStateContent(
+                state = state,
+                repository = repository,
+                authLoggedIn = authLoggedIn,
+                active = active,
+                playbackBarOverlayHeight = playbackBarOverlayHeight,
+                onRetryClick = onRetryClick,
+                onTrackMoreClick = onTrackMoreClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        }
     }
 }
 
@@ -208,6 +241,7 @@ internal fun CloudMusicStateContent(
     accountPlaylist: OnlineAccountPlaylist? = null,
     onAccountPlaylistTracksChanged: () -> Unit = {},
     onAccountPlaylistDeleted: (OnlineAccountPlaylist) -> Unit = {},
+    detailHeaderContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -216,19 +250,16 @@ internal fun CloudMusicStateContent(
             subtitle = stringResource(R.string.cloud_music_empty_subtitle),
             modifier = modifier,
         )
-        CloudMusicState.LoadingAccount -> CloudMusicBlankState(
+        CloudMusicState.LoadingAccount -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_account_tracks_loading),
-            subtitle = null,
             modifier = modifier,
         )
-        CloudMusicState.LoadingFeatured -> CloudMusicBlankState(
+        CloudMusicState.LoadingFeatured -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_featured_loading),
-            subtitle = null,
             modifier = modifier,
         )
-        CloudMusicState.LoadingRadio -> CloudMusicBlankState(
+        CloudMusicState.LoadingRadio -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_radio_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudMusicState.AccountEmpty -> CloudMusicBlankState(
@@ -285,6 +316,7 @@ internal fun CloudMusicStateContent(
             editableAccountPlaylist = accountPlaylist?.takeIf(OnlineAccountPlaylist::isEditable),
             onAccountPlaylistTracksChanged = onAccountPlaylistTracksChanged,
             onAccountPlaylistDeleted = onAccountPlaylistDeleted,
+            detailHeaderContent = detailHeaderContent,
             modifier = modifier,
         )
     }
@@ -301,6 +333,7 @@ internal fun CloudMusicResultList(
     editableAccountPlaylist: OnlineAccountPlaylist? = null,
     onAccountPlaylistTracksChanged: () -> Unit = {},
     onAccountPlaylistDeleted: (OnlineAccountPlaylist) -> Unit = {},
+    detailHeaderContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -508,8 +541,10 @@ internal fun CloudMusicResultList(
         },
     )
 
-    Column(modifier = modifier) {
-        val accountPlaylistEditable = editableAccountPlaylist != null
+    val accountPlaylistEditable = editableAccountPlaylist != null
+
+    @Composable
+    fun ActionBar(modifier: Modifier = Modifier) {
         if (accountPlaylistEditable) {
             CloudMusicAccountPlaylistActionBar(
                 actionInFlight = removeInFlight || deletePlaylistInFlight,
@@ -541,7 +576,7 @@ internal fun CloudMusicResultList(
                     editMode = false
                     selectedMediaIds = emptySet()
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = modifier,
             )
         } else {
             CloudMusicPlayActionBar(
@@ -555,143 +590,274 @@ internal fun CloudMusicResultList(
                         shuffle = true,
                     )
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = modifier,
             )
         }
+    }
+
+    val scrollingHeaderContent: (@Composable () -> Unit)? = detailHeaderContent
+        ?.takeUnless { accountPlaylistEditable }
+        ?.let { content ->
+            {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(ComposeColor.White),
+                ) {
+                    content()
+                    ActionBar(modifier = Modifier.fillMaxWidth())
+                    CloudMusicDivider()
+                }
+            }
+        }
+
+    if (scrollingHeaderContent != null) {
+        CloudMusicResultListView(
+            active = active,
+            playbackBarOverlayHeightPx = playbackBarOverlayHeightPx,
+            mediaItems = mediaItems,
+            browser = browser,
+            editMode = editMode,
+            selectedMediaIds = selectedMediaIds,
+            headerContent = scrollingHeaderContent,
+            onTrackMoreClick = onTrackMoreClick,
+            onSelectionChange = ::updateSelection,
+            onTrackClick = { item, adapter, listView ->
+                adapter.setPlaybackState(item.mediaId, true)
+                adapter.updateVisiblePlaybackState(listView)
+                val startIndex = mediaItems.indexOfFirst { candidate ->
+                    candidate.mediaId == item.mediaId
+                }.takeIf { index -> index >= 0 } ?: 0
+                playCloudQueueFromIndex(
+                    startIndex = startIndex,
+                    onResolveFailed = {
+                        adapter.setPlaybackState(
+                            nextCurrentMediaId = browser?.currentMediaItem?.mediaId,
+                            nextCurrentIsPlaying = browser?.isPlaying == true,
+                        )
+                        adapter.updateVisiblePlaybackState(listView)
+                    },
+                )
+            },
+            modifier = modifier,
+        )
+        return
+    }
+
+    Column(modifier = modifier) {
+        ActionBar(modifier = Modifier.fillMaxWidth())
         CloudMusicDivider()
-        AndroidView(
+        CloudMusicResultListView(
+            active = active,
+            playbackBarOverlayHeightPx = playbackBarOverlayHeightPx,
+            mediaItems = mediaItems,
+            browser = browser,
+            editMode = editMode,
+            selectedMediaIds = selectedMediaIds,
+            onTrackMoreClick = onTrackMoreClick,
+            onSelectionChange = ::updateSelection,
+            onTrackClick = { item, adapter, listView ->
+                adapter.setPlaybackState(item.mediaId, true)
+                adapter.updateVisiblePlaybackState(listView)
+                val startIndex = mediaItems.indexOfFirst { candidate ->
+                    candidate.mediaId == item.mediaId
+                }.takeIf { index -> index >= 0 } ?: 0
+                playCloudQueueFromIndex(
+                    startIndex = startIndex,
+                    onResolveFailed = {
+                        adapter.setPlaybackState(
+                            nextCurrentMediaId = browser?.currentMediaItem?.mediaId,
+                            nextCurrentIsPlaying = browser?.isPlaying == true,
+                        )
+                        adapter.updateVisiblePlaybackState(listView)
+                    },
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            factory = { viewContext ->
-                FrameLayout(viewContext).apply {
+        )
+    }
+}
+
+@Composable
+private fun CloudMusicResultListView(
+    active: Boolean,
+    playbackBarOverlayHeightPx: Int,
+    mediaItems: List<MediaItem>,
+    browser: Player?,
+    editMode: Boolean,
+    selectedMediaIds: Set<String>,
+    headerContent: (@Composable () -> Unit)? = null,
+    onTrackMoreClick: (MediaItem) -> Unit,
+    onSelectionChange: (String, Boolean) -> Unit,
+    onTrackClick: (MediaItem, LegacySongsAdapter, ListView) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AndroidView(
+        modifier = modifier,
+        factory = { viewContext ->
+            FrameLayout(viewContext).apply {
+                setBackgroundColor(Color.TRANSPARENT)
+                LayoutInflater.from(viewContext).inflate(R.layout.smart_pinnedlist, this, true)
+                findViewById<ListView>(R.id.list)?.apply {
+                    divider = ColorDrawable(viewContext.getColor(R.color.listview_divider_color))
+                    dividerHeight = viewContext.resources.getDimensionPixelSize(R.dimen.listview_dividerHeight)
+                    selector = viewContext.getDrawable(R.drawable.listview_selector)
+                    cacheColorHint = Color.TRANSPARENT
                     setBackgroundColor(Color.TRANSPARENT)
-                    LayoutInflater.from(viewContext).inflate(R.layout.smart_pinnedlist, this, true)
-                    findViewById<ListView>(R.id.list)?.apply {
-                        divider = ColorDrawable(viewContext.getColor(R.color.listview_divider_color))
-                        dividerHeight = viewContext.resources.getDimensionPixelSize(R.dimen.listview_dividerHeight)
-                        selector = viewContext.getDrawable(R.drawable.listview_selector)
-                        cacheColorHint = Color.TRANSPARENT
-                        setBackgroundColor(Color.TRANSPARENT)
-                        layoutAnimation = AnimationUtils.loadLayoutAnimation(viewContext, R.anim.list_anim_layout)
-                        addLegacyPortListFooter()
-                    }
+                    setHeaderDividersEnabled(false)
+                    val headerHost = CloudMusicDetailListHeaderHost(viewContext)
+                    setTag(R.id.cloud_music_detail_list_header, headerHost)
+                    addHeaderView(headerHost, null, false)
+                    addLegacyPortListFooter()
                 }
-            },
-            update = { root ->
-                root.visibility = if (active) View.VISIBLE else View.INVISIBLE
-                val listView = root.findViewById<ListView>(R.id.list) ?: return@AndroidView
-                listView.apply {
-                    val nextPaddingBottom = playbackBarOverlayHeightPx
-                    if (paddingBottom != nextPaddingBottom || clipToPadding) {
-                        setPadding(paddingLeft, paddingTop, paddingRight, nextPaddingBottom)
-                        clipToPadding = false
-                    }
+            }
+        },
+        update = { root ->
+            root.visibility = if (active) View.VISIBLE else View.INVISIBLE
+            val listView = root.findViewById<ListView>(R.id.list) ?: return@AndroidView
+            (listView.getTag(R.id.cloud_music_detail_list_header) as? CloudMusicDetailListHeaderHost)
+                ?.bind(headerContent)
+            listView.apply {
+                val nextPaddingBottom = playbackBarOverlayHeightPx
+                if (paddingBottom != nextPaddingBottom || clipToPadding) {
+                    setPadding(paddingLeft, paddingTop, paddingRight, nextPaddingBottom)
+                    clipToPadding = false
                 }
-                listView.bindLegacyPortListFooter(
-                    pluralsRes = R.plurals.track_count,
-                    count = mediaItems.size,
+            }
+            listView.bindLegacyPortListFooter(
+                pluralsRes = R.plurals.track_count,
+                count = mediaItems.size,
+            )
+            val adapter = listView.legacyWrappedAdapter<LegacySongsAdapter>()
+                ?: LegacySongsAdapter().also { adapter ->
+                    listView.adapter = adapter
+                }
+            adapter.onMoreClick = { item ->
+                if (!editMode) {
+                    onTrackMoreClick(item)
+                }
+            }
+            val previousEditMode = listView.getTag(R.id.elvitem) as? Boolean
+            val animateEditMode = previousEditMode != null && previousEditMode != editMode
+            listView.setTag(R.id.elvitem, editMode)
+            val listContentChanged = adapter.updateItems(
+                nextItems = mediaItems,
+                nextCurrentMediaId = browser?.currentMediaItem?.mediaId,
+                nextCurrentIsPlaying = browser?.isPlaying == true,
+                nextDisplayMode = LegacySongsSortDisplayMode.Name,
+                nextSectionMode = LegacySongsSectionMode.None,
+                nextQuickBarCollapsedVisibleWidth = 0,
+                nextEditMode = editMode,
+                nextSelectedMediaIds = selectedMediaIds,
+            )
+            if (listContentChanged) {
+                listView.setSelection(0)
+                listView.scheduleCloudRowsEntrance(active)
+            } else {
+                adapter.updateVisibleSongRows(
+                    listView = listView,
+                    animateEditMode = animateEditMode,
                 )
-                val adapter = listView.legacyWrappedAdapter<LegacySongsAdapter>()
-                    ?: LegacySongsAdapter().also { adapter ->
-                        listView.adapter = adapter
-                    }
-                adapter.onMoreClick = { item ->
-                    if (!editMode) {
-                        onTrackMoreClick(item)
-                    }
+            }
+            if (listView.getTag(R.id.list) !== browser) {
+                (listView.getTag(R.id.text) as? Player.Listener)?.let { oldListener ->
+                    (listView.getTag(R.id.list) as? Player)?.removeListener(oldListener)
                 }
-                val previousEditMode = listView.getTag(R.id.elvitem) as? Boolean
-                val animateEditMode = previousEditMode != null && previousEditMode != editMode
-                listView.setTag(R.id.elvitem, editMode)
-                val listContentChanged = adapter.updateItems(
-                    nextItems = mediaItems,
-                    nextCurrentMediaId = browser?.currentMediaItem?.mediaId,
-                    nextCurrentIsPlaying = browser?.isPlaying == true,
-                    nextDisplayMode = LegacySongsSortDisplayMode.Name,
-                    nextSectionMode = LegacySongsSectionMode.None,
-                    nextQuickBarCollapsedVisibleWidth = 0,
-                    nextEditMode = editMode,
-                    nextSelectedMediaIds = selectedMediaIds,
-                )
-                if (listContentChanged) {
-                    listView.setSelection(0)
-                    listView.scheduleLayoutAnimation()
-                } else {
-                    adapter.updateVisibleSongRows(
-                        listView = listView,
-                        animateEditMode = animateEditMode,
-                    )
-                }
-                if (listView.getTag(R.id.list) !== browser) {
-                    (listView.getTag(R.id.text) as? Player.Listener)?.let { oldListener ->
-                        (listView.getTag(R.id.list) as? Player)?.removeListener(oldListener)
-                    }
-                    if (browser != null) {
-                        val playbackListener = object : Player.Listener {
-                            override fun onEvents(player: Player, events: Player.Events) {
-                                adapter.setPlaybackState(
-                                    nextCurrentMediaId = player.currentMediaItem?.mediaId,
-                                    nextCurrentIsPlaying = player.isPlaying,
-                                )
-                                adapter.updateVisiblePlaybackState(listView)
-                            }
-                        }
-                        browser.addListener(playbackListener)
-                        listView.setTag(R.id.text, playbackListener)
-                    } else {
-                        listView.setTag(R.id.text, null)
-                    }
-                    listView.setTag(R.id.list, browser)
-                }
-                val slideSelectionController = listView.legacySlideSelectionController(
-                    startArea = LegacySlideSelectionStartArea.Checkbox,
-                )
-                slideSelectionController.update(
-                    enabled = editMode,
-                    selectedKeys = selectedMediaIds,
-                    keyAtPosition = { position ->
-                        adapter.itemAt(position)?.mediaId
-                    },
-                    onSelectionChange = { mediaId, selected ->
-                        updateSelection(mediaId, selected)
-                    },
-                )
-                listView.setOnTouchListener { _, event ->
-                    slideSelectionController.handleTouch(event)
-                }
-                listView.setOnItemClickListener { _, _, position, _ ->
-                    val item = adapter.itemAt(position) ?: return@setOnItemClickListener
-                    if (editMode) {
-                        updateSelection(item.mediaId, item.mediaId !in selectedMediaIds)
-                        return@setOnItemClickListener
-                    }
-                    adapter.setPlaybackState(item.mediaId, true)
-                    adapter.updateVisiblePlaybackState(listView)
-                    val startIndex = mediaItems.indexOfFirst { candidate ->
-                        candidate.mediaId == item.mediaId
-                    }.takeIf { index -> index >= 0 } ?: 0
-                    playCloudQueueFromIndex(
-                        startIndex = startIndex,
-                        onResolveFailed = {
+                if (browser != null) {
+                    val playbackListener = object : Player.Listener {
+                        override fun onEvents(player: Player, events: Player.Events) {
                             adapter.setPlaybackState(
-                                nextCurrentMediaId = browser?.currentMediaItem?.mediaId,
-                                nextCurrentIsPlaying = browser?.isPlaying == true,
+                                nextCurrentMediaId = player.currentMediaItem?.mediaId,
+                                nextCurrentIsPlaying = player.isPlaying,
                             )
                             adapter.updateVisiblePlaybackState(listView)
-                        },
-                    )
-                }
-            },
-            onRelease = { root ->
-                val listView = root.findViewById<ListView>(R.id.list)
-                if (listView != null) {
-                    (listView.getTag(R.id.text) as? Player.Listener)?.let { oldListener ->
-                        (listView.getTag(R.id.list) as? Player)?.removeListener(oldListener)
+                        }
                     }
+                    browser.addListener(playbackListener)
+                    listView.setTag(R.id.text, playbackListener)
+                } else {
+                    listView.setTag(R.id.text, null)
                 }
-            },
+                listView.setTag(R.id.list, browser)
+            }
+            val slideSelectionController = listView.legacySlideSelectionController(
+                startArea = LegacySlideSelectionStartArea.Checkbox,
+            )
+            slideSelectionController.update(
+                enabled = editMode,
+                selectedKeys = selectedMediaIds,
+                keyAtPosition = { position ->
+                    adapter.itemAt(position - listView.headerViewsCount)?.mediaId
+                },
+                onSelectionChange = { mediaId, selected ->
+                    onSelectionChange(mediaId, selected)
+                },
+            )
+            listView.setOnTouchListener { _, event ->
+                slideSelectionController.handleTouch(event)
+            }
+            listView.setOnItemClickListener { _, _, position, _ ->
+                val trackPosition = position - listView.headerViewsCount
+                val item = adapter.itemAt(trackPosition) ?: return@setOnItemClickListener
+                if (editMode) {
+                    onSelectionChange(item.mediaId, item.mediaId !in selectedMediaIds)
+                    return@setOnItemClickListener
+                }
+                onTrackClick(item, adapter, listView)
+            }
+        },
+        onRelease = { root ->
+            val listView = root.findViewById<ListView>(R.id.list)
+            if (listView != null) {
+                (listView.getTag(R.id.text) as? Player.Listener)?.let { oldListener ->
+                    (listView.getTag(R.id.list) as? Player)?.removeListener(oldListener)
+                }
+            }
+        },
+    )
+}
+
+private class CloudMusicDetailListHeaderHost(context: Context) : FrameLayout(context) {
+    private val composeView = ComposeView(context).apply {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    init {
+        setBackgroundColor(Color.WHITE)
+        visibility = View.GONE
+        layoutParams = AbsListView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
         )
+        addView(
+            composeView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+    }
+
+    fun bind(content: (@Composable () -> Unit)?) {
+        val hasContent = content != null
+        val nextHeight = if (hasContent) {
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        } else {
+            0
+        }
+        val params = (layoutParams as? AbsListView.LayoutParams)
+            ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, nextHeight)
+        if (params.height != nextHeight) {
+            params.height = nextHeight
+            layoutParams = params
+        }
+        visibility = if (hasContent) View.VISIBLE else View.GONE
+        composeView.visibility = if (hasContent) View.VISIBLE else View.GONE
+        composeView.setContent {
+            content?.invoke()
+        }
     }
 }
 
@@ -902,6 +1068,96 @@ private fun cloudMusicAccountPlaylistEditActions(
             ),
             LinearLayout.LayoutParams(context.dpPx(68), LinearLayout.LayoutParams.MATCH_PARENT),
         )
+    }
+}
+
+private val CloudMusicListEnterInterpolator = DecelerateInterpolator(1.6f)
+private const val CloudMusicRowEnterDurationMillis = 220L
+private const val CloudMusicRowEnterStaggerMillis = 18L
+private const val CloudMusicRowEnterMaxRows = 12
+
+private fun ListView.scheduleCloudRowsEntrance(active: Boolean) {
+    resetCloudRowsEntrance()
+    (getTag(R.id.cloud_music_rows_enter_pre_draw_listener) as? ViewTreeObserver.OnPreDrawListener)?.let { listener ->
+        if (viewTreeObserver.isAlive) {
+            viewTreeObserver.removeOnPreDrawListener(listener)
+        }
+        setTag(R.id.cloud_music_rows_enter_pre_draw_listener, null)
+    }
+    val currentAdapter = adapter
+    if (!active || currentAdapter == null || currentAdapter.count == 0) {
+        return
+    }
+    val preDrawListener = object : ViewTreeObserver.OnPreDrawListener {
+        override fun onPreDraw(): Boolean {
+            if (viewTreeObserver.isAlive) {
+                viewTreeObserver.removeOnPreDrawListener(this)
+            }
+            setTag(R.id.cloud_music_rows_enter_pre_draw_listener, null)
+            startCloudRowsEntrance()
+            return true
+        }
+    }
+    setTag(R.id.cloud_music_rows_enter_pre_draw_listener, preDrawListener)
+    viewTreeObserver.addOnPreDrawListener(preDrawListener)
+}
+
+private fun ListView.resetCloudRowsEntrance() {
+    animate().cancel()
+    alpha = 1f
+    translationY = 0f
+    for (childIndex in 0 until childCount) {
+        getChildAt(childIndex)?.apply {
+            animate().cancel()
+            alpha = 1f
+            translationY = 0f
+        }
+    }
+}
+
+private fun ListView.startCloudRowsEntrance() {
+    val rowCount = childCount
+    if (rowCount == 0) {
+        alpha = 1f
+        translationY = 0f
+        return
+    }
+    val headerCount = headerViewsCount
+    val songCount = legacyWrappedAdapter<LegacySongsAdapter>()?.count ?: Int.MAX_VALUE
+    val enterDistance = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        12f,
+        resources.displayMetrics,
+    )
+    var animatedRowIndex = 0
+    for (childIndex in 0 until rowCount) {
+        val child = getChildAt(childIndex) ?: continue
+        child.animate().cancel()
+        val adapterIndex = firstVisiblePosition + childIndex - headerCount
+        if (adapterIndex !in 0 until songCount) {
+            child.alpha = 1f
+            child.translationY = 0f
+            continue
+        }
+        if (animatedRowIndex >= CloudMusicRowEnterMaxRows) {
+            child.alpha = 1f
+            child.translationY = 0f
+            continue
+        }
+        child.alpha = 0f
+        child.translationY = enterDistance
+        child.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setStartDelay(animatedRowIndex * CloudMusicRowEnterStaggerMillis)
+            .setDuration(CloudMusicRowEnterDurationMillis)
+            .setInterpolator(CloudMusicListEnterInterpolator)
+            .withEndAction {
+                child.alpha = 1f
+                child.translationY = 0f
+            }
+            .start()
+        animatedRowIndex += 1
     }
 }
 

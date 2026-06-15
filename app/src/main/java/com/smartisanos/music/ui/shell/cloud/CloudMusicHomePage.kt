@@ -44,6 +44,7 @@ import com.smartisanos.music.ui.shell.cloud.components.CloudHomeSectionHeader
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeAnimatedSection
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicCoverImage
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDelayedLoadingState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
 import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
 
@@ -70,9 +71,8 @@ internal fun CloudFeaturedHomeContent(
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        CloudFeaturedHomeState.Loading -> CloudMusicBlankState(
+        CloudFeaturedHomeState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_featured_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudFeaturedHomeState.Empty -> CloudMusicBlankState(
@@ -161,9 +161,8 @@ internal fun <T> CloudFeaturedHomeCoverListContent(
     key: ((T) -> Any)? = null,
 ) {
     when (state) {
-        CloudFeaturedHomeState.Loading -> CloudMusicBlankState(
+        CloudFeaturedHomeState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_featured_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudFeaturedHomeState.Empty -> CloudMusicBlankState(
@@ -201,9 +200,8 @@ internal fun CloudFeaturedHomeArtistListContent(
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        CloudFeaturedHomeState.Loading -> CloudMusicBlankState(
+        CloudFeaturedHomeState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_artists_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudFeaturedHomeState.Empty -> CloudMusicBlankState(
@@ -411,8 +409,6 @@ internal fun CloudArtistIntroductionSection(
                     color = CloudSecondaryTextColor,
                     lineHeight = 18.sp,
                 ),
-                maxLines = CloudArtistIntroMaxLines,
-                overflow = TextOverflow.Ellipsis,
             )
         }
         CloudMusicDivider()

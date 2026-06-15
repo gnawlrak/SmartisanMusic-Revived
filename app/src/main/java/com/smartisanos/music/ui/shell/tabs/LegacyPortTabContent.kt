@@ -10,8 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.data.favorite.FavoriteSongRecord
 import com.smartisanos.music.data.settings.ArtistSettings
@@ -93,9 +95,13 @@ internal fun LegacyPortTabContent(
     modifier: Modifier = Modifier,
 ) {
     var songsPageMounted by remember { mutableStateOf(destination == MusicDestination.Songs) }
+    var cloudMusicPageMounted by remember { mutableStateOf(destination == MusicDestination.CloudMusic) }
     LaunchedEffect(destination) {
         if (destination == MusicDestination.Songs) {
             songsPageMounted = true
+        }
+        if (destination == MusicDestination.CloudMusic) {
+            cloudMusicPageMounted = true
         }
     }
 
@@ -116,10 +122,10 @@ internal fun LegacyPortTabContent(
             )
         }
 
-        when (destination) {
-            MusicDestination.Songs -> Unit
-            MusicDestination.CloudMusic -> LegacyPortCloudMusicPage(
-                active = true,
+        if (cloudMusicPageMounted) {
+            val cloudMusicActive = destination == MusicDestination.CloudMusic
+            LegacyPortCloudMusicPage(
+                active = cloudMusicActive,
                 playbackBarOverlayHeight = 0.dp,
                 searchOpenRequest = cloudMusicSearchOpenRequest,
                 onSearchOpenRequestHandled = onCloudMusicSearchOpenRequestHandled,
@@ -127,8 +133,17 @@ internal fun LegacyPortTabContent(
                 onTrackMoreClick = onCloudMusicTrackMoreClick,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = playbackBarOverlayHeight),
+                    .padding(bottom = playbackBarOverlayHeight)
+                    .graphicsLayer {
+                        alpha = if (cloudMusicActive) 1f else 0f
+                    }
+                    .zIndex(if (cloudMusicActive) 1f else -1f),
             )
+        }
+
+        when (destination) {
+            MusicDestination.Songs -> Unit
+            MusicDestination.CloudMusic -> Unit
             MusicDestination.Album -> LegacyPortAlbumPage(
                 mediaItems = mediaItems,
                 active = true,

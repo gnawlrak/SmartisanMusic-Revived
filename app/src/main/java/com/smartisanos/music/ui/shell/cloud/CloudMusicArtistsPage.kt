@@ -26,6 +26,7 @@ import com.smartisanos.music.data.online.OnlineArtist
 import com.smartisanos.music.ui.shell.addLegacyPortListFooter
 import com.smartisanos.music.ui.shell.bindLegacyPortListFooter
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDelayedLoadingState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
 import com.smartisanos.music.ui.shell.legacyWrappedAdapter
 
@@ -48,9 +49,8 @@ internal fun CloudMusicArtistStateContent(
 ) {
     when (state) {
         CloudArtistState.Idle,
-        CloudArtistState.Loading -> CloudMusicBlankState(
+        CloudArtistState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_artists_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudArtistState.Empty -> CloudMusicBlankState(

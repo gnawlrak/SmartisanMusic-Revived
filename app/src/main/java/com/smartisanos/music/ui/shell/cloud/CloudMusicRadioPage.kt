@@ -17,6 +17,7 @@ import com.smartisanos.music.data.online.OnlineMusicProviderRepository
 import com.smartisanos.music.data.online.OnlineRadio
 import com.smartisanos.music.data.online.OnlineRadioHome
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDelayedLoadingState
 
 internal sealed interface CloudRadioHomeState {
     object Loading : CloudRadioHomeState
@@ -36,9 +37,8 @@ internal fun CloudRadioHomeContent(
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        CloudRadioHomeState.Loading -> CloudMusicBlankState(
+        CloudRadioHomeState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_radio_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudRadioHomeState.Empty -> CloudMusicBlankState(
@@ -87,9 +87,8 @@ internal fun CloudRadioListContent(
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        CloudRadioHomeState.Loading -> CloudMusicBlankState(
+        CloudRadioHomeState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_radio_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudRadioHomeState.Empty -> CloudMusicBlankState(
@@ -129,9 +128,8 @@ internal fun CloudRadioTrackStateContent(
     modifier: Modifier = Modifier,
 ) {
     when (state) {
-        CloudRadioHomeState.Loading -> CloudMusicBlankState(
+        CloudRadioHomeState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_radio_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudRadioHomeState.Empty -> CloudMusicBlankState(

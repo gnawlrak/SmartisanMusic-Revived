@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +30,7 @@ import com.smartisanos.music.R
 import com.smartisanos.music.ui.shell.cloud.CloudAccentColor
 import com.smartisanos.music.ui.shell.cloud.CloudSecondaryTextColor
 import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
+import kotlinx.coroutines.delay
 
 @Composable
 internal fun CloudMusicBlankState(
@@ -95,3 +101,33 @@ internal fun CloudMusicBlankState(
         }
     }
 }
+
+@Composable
+internal fun CloudMusicDelayedLoadingState(
+    title: String,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier,
+    delayMillis: Long = CloudMusicLoadingDelayMillis,
+) {
+    var visible by remember(title, subtitle) { mutableStateOf(false) }
+    LaunchedEffect(title, subtitle, delayMillis) {
+        visible = false
+        delay(delayMillis)
+        visible = true
+    }
+    if (visible) {
+        CloudMusicBlankState(
+            title = title,
+            subtitle = subtitle,
+            modifier = modifier,
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(ComposeColor(0xFFF8F8F8)),
+        )
+    }
+}
+
+private const val CloudMusicLoadingDelayMillis = 500L

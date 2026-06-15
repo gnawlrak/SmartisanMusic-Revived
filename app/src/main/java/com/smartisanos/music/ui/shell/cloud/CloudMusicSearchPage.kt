@@ -43,6 +43,7 @@ import com.smartisanos.music.ui.shell.cloud.components.CloudHomeCoverCard
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeSectionHeader
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicBlankState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicCoverImage
+import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDelayedLoadingState
 import com.smartisanos.music.ui.shell.cloud.components.CloudMusicDivider
 import com.smartisanos.music.ui.shell.cloud.components.CloudHomeTrackPreviewRow
 import com.smartisanos.music.ui.shell.cloud.components.cloudMusicPressable
@@ -95,9 +96,8 @@ internal fun CloudMusicSearchResultsContent(
             subtitle = stringResource(R.string.cloud_music_empty_subtitle),
             modifier = modifier,
         )
-        CloudSearchResultsState.Loading -> CloudMusicBlankState(
+        CloudSearchResultsState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_loading),
-            subtitle = null,
             modifier = modifier,
         )
         is CloudSearchResultsState.Empty -> CloudMusicBlankState(
@@ -222,9 +222,8 @@ internal fun CloudHotSearchContent(
 ) {
     when (state) {
         CloudHotSearchState.Idle,
-        CloudHotSearchState.Loading -> CloudMusicBlankState(
+        CloudHotSearchState.Loading -> CloudMusicDelayedLoadingState(
             title = stringResource(R.string.cloud_music_hot_search_loading),
-            subtitle = null,
             modifier = modifier,
         )
         CloudHotSearchState.Empty -> CloudMusicBlankState(

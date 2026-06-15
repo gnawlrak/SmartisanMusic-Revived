@@ -34,6 +34,15 @@ internal fun CloudMusicTransitionHost(
         onBack()
     }
 
+    @Composable
+    fun RenderStackRoute(route: CloudMusicRoute) {
+        if (CloudMusicRoute.isDetail(route) || route == CloudMusicRoute.Search) {
+            secondaryContent(route)
+        } else {
+            primaryContent(route)
+        }
+    }
+
     LegacyPortPageStackTransition(
         secondaryKey = currentRoute.takeIf { isDetail || isSearch },
         modifier = modifier.fillMaxSize(),
@@ -46,11 +55,15 @@ internal fun CloudMusicTransitionHost(
                 LegacyPortPageStackAxis.Horizontal
             }
         },
+        secondaryDepthForKey = CloudMusicRoute::stackDepth,
         predictiveBackProgress = predictiveBackState.progress,
         predictiveBackExitConsumed = predictiveBackState.exitConsumed,
         onPredictiveBackExitConsumedReset = { predictiveBackState.reset() },
         primaryContent = {
-            primaryContent(currentRoute.primaryRoute())
+            RenderStackRoute(currentRoute.primaryRoute())
+        },
+        popPrimaryContent = { route ->
+            RenderStackRoute(route)
         },
         secondaryContent = { route ->
             secondaryContent(route)

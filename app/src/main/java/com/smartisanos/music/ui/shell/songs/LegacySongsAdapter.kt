@@ -89,8 +89,9 @@ internal class LegacySongsAdapter : BaseAdapter() {
         listView: ListView,
         animateEditMode: Boolean,
     ) {
+        val headerCount = listView.headerViewsCount
         for (childIndex in 0 until listView.childCount) {
-            val position = listView.firstVisiblePosition + childIndex
+            val position = listView.firstVisiblePosition + childIndex - headerCount
             val mediaItem = itemAt(position)
             val child = listView.getChildAt(childIndex)?.legacySongContentView()
             val titleView = child

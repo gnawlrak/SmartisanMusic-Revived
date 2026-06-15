@@ -654,7 +654,8 @@ private fun LegacyPortMainShellContent(
         val titleShadowHeight = dimensionResource(R.dimen.title_bar_shadow_height)
         val titleAreaHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + titleContentHeight
         val mainTitleShadowVisible = currentDestination == MusicDestination.Artist ||
-            currentDestination == MusicDestination.Album
+            currentDestination == MusicDestination.Album ||
+            currentDestination == MusicDestination.CloudMusic
         Column(
             modifier = Modifier
                 .fillMaxSize()

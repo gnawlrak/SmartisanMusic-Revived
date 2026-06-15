@@ -337,7 +337,7 @@ internal class CloudMusicAccountLibraryAdapter : BaseAdapter() {
                 if (item is CloudAccountLibraryItem.Playlist && item.playlist.playlistId == selectedPlaylistId) {
                     Color.rgb(177, 36, 32)
                 } else {
-                    context.getColor(R.color.list_item_first_line)
+                    Color.BLACK
                 },
             )
         }

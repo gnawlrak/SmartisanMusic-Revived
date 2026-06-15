@@ -135,6 +135,7 @@ internal fun LegacyPortCloudMusicPage(
     var accountRadios by remember { mutableStateOf<List<OnlineRadio>>(emptyList()) }
     var accountLibraryAuthRevision by remember { mutableStateOf(-1) }
     var selectedAccountPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var accountPlaylistTrackState by remember { mutableStateOf<CloudMusicState>(CloudMusicState.Idle) }
     var handledAccountRefreshRequest by remember { mutableStateOf(0) }
     var currentRoute by rememberSaveable(stateSaver = CloudMusicRoute.Saver) { mutableStateOf<CloudMusicRoute>(CloudMusicRoute.Home) }
     var searchActive by rememberSaveable { mutableStateOf(false) }
@@ -210,6 +211,10 @@ internal fun LegacyPortCloudMusicPage(
             route is CloudMusicRoute.OnlineAlbumTracks -> {
                 currentRoute = route.returnTo
             }
+            route is CloudMusicRoute.AccountPlaylistTracks -> {
+                selectedAccountPlaylistId = null
+                currentRoute = route.returnTo
+            }
             route == CloudMusicRoute.Search -> {
                 query = ""
                 searchActive = false
@@ -226,10 +231,6 @@ internal fun LegacyPortCloudMusicPage(
                 route == CloudMusicRoute.RadioTracks -> {
                 currentRoute = CloudMusicRoute.Radio
             }
-            route == CloudMusicRoute.Mine && selectedAccountPlaylistId != null -> {
-                selectedAccountPlaylistId = null
-                homeState = CloudMusicState.Success(emptyList())
-            }
             else -> Unit
         }
     }
@@ -240,7 +241,7 @@ internal fun LegacyPortCloudMusicPage(
             currentRoute != CloudMusicRoute.Radio &&
             currentRoute != CloudMusicRoute.Artists &&
             currentRoute != CloudMusicRoute.Collections &&
-            (currentRoute != CloudMusicRoute.Mine || selectedAccountPlaylistId != null),
+            currentRoute != CloudMusicRoute.Mine,
     ) {
         onBack()
     }
@@ -293,12 +294,11 @@ internal fun LegacyPortCloudMusicPage(
     }
 
     LaunchedEffect(
-        currentRoute,
+        currentRoute.rootRoute(),
         authRevision,
         authState.isLoggedIn,
-        selectedAccountPlaylistId,
     ) {
-        if (currentRoute != CloudMusicRoute.Mine || !authState.isLoggedIn) {
+        if (currentRoute.rootRoute() != CloudMusicRoute.Mine || !authState.isLoggedIn) {
             accountPlaylists = emptyList()
             accountAlbums = emptyList()
             accountRadios = emptyList()
@@ -309,9 +309,13 @@ internal fun LegacyPortCloudMusicPage(
         }
 
         if (
-            selectedAccountPlaylistId == null &&
             accountLibraryAuthRevision == authRevision &&
-            (accountPlaylists.isNotEmpty() || accountAlbums.isNotEmpty() || accountRadios.isNotEmpty())
+            (
+                accountPlaylists.isNotEmpty() ||
+                    accountAlbums.isNotEmpty() ||
+                    accountRadios.isNotEmpty() ||
+                    homeState == CloudMusicState.AccountEmpty
+                )
         ) {
             homeState = CloudMusicState.Success(emptyList())
             return@LaunchedEffect
@@ -347,27 +351,37 @@ internal fun LegacyPortCloudMusicPage(
         accountLibraryAuthRevision = authRevision
         authState = authStore.load()
 
-        if (selectedAccountPlaylistId == null) {
-            homeState = if (accountPlaylists.isEmpty() && accountAlbums.isEmpty() && accountRadios.isEmpty()) {
-                CloudMusicState.AccountEmpty
-            } else {
-                CloudMusicState.Success(emptyList())
-            }
+        homeState = if (accountPlaylists.isEmpty() && accountAlbums.isEmpty() && accountRadios.isEmpty()) {
+            CloudMusicState.AccountEmpty
+        } else {
+            CloudMusicState.Success(emptyList())
+        }
+    }
+
+    LaunchedEffect(
+        currentRoute,
+        authRevision,
+        authState.isLoggedIn,
+    ) {
+        val route = currentRoute as? CloudMusicRoute.AccountPlaylistTracks
+        if (route == null) {
+            selectedAccountPlaylistId = null
+            accountPlaylistTrackState = CloudMusicState.Idle
             return@LaunchedEffect
         }
-
+        selectedAccountPlaylistId = route.playlist.playlistId
+        if (!authState.isLoggedIn) {
+            accountPlaylistTrackState = CloudMusicState.AccountError
+            return@LaunchedEffect
+        }
         val selectedPlaylist = accountPlaylists.firstOrNull { playlist ->
-            playlist.playlistId == selectedAccountPlaylistId
-        }
-        if (selectedPlaylist == null) {
-            homeState = CloudMusicState.AccountEmpty
-            return@LaunchedEffect
-        }
-
+            playlist.playlistId == route.playlist.playlistId
+        } ?: route.playlist
+        accountPlaylistTrackState = CloudMusicState.LoadingAccount
         val tracksResult = runSuspendCatching {
             activeRepository.accountPlaylistTracks(selectedPlaylist)
         }
-        homeState = tracksResult.fold(
+        accountPlaylistTrackState = tracksResult.fold(
             onSuccess = { tracks ->
                 if (tracks.isEmpty()) {
                     CloudMusicState.AccountEmpty
@@ -623,8 +637,10 @@ internal fun LegacyPortCloudMusicPage(
     val searchResultVisible = searchActive && normalizedQuery.isNotEmpty()
     val searchPromptVisible = searchActive && normalizedQuery.isEmpty()
     val accountLibraryVisible = !searchResultVisible && selectedProviderLoggedIn
-    val selectedAccountPlaylist = accountPlaylists.firstOrNull { playlist ->
-        playlist.playlistId == selectedAccountPlaylistId
+    val selectedAccountPlaylist = (currentRoute as? CloudMusicRoute.AccountPlaylistTracks)?.let { route ->
+        accountPlaylists.firstOrNull { playlist ->
+            playlist.playlistId == route.playlist.playlistId
+        } ?: route.playlist
     }
     fun selectMineOrLogin() {
         if (!selectedProviderLoggedIn) {
@@ -632,6 +648,7 @@ internal fun LegacyPortCloudMusicPage(
             return
         }
         selectedAccountPlaylistId = null
+        accountPlaylistTrackState = CloudMusicState.Idle
         currentRoute = CloudMusicRoute.Mine
     }
     fun selectCollections() {
@@ -714,6 +731,7 @@ internal fun LegacyPortCloudMusicPage(
         selectedRadio = null
         radioTrackState = CloudMusicState.Idle
         selectedAccountPlaylistId = null
+        accountPlaylistTrackState = CloudMusicState.Idle
         selectedOnlinePlaylist = null
         selectedOnlineAlbum = null
         featuredTrackDetailState = CloudMusicState.Idle
@@ -735,6 +753,14 @@ internal fun LegacyPortCloudMusicPage(
     }
     fun openFeaturedArtists() {
         currentRoute = CloudMusicRoute.FeaturedArtists
+    }
+    fun openAccountPlaylist(
+        playlist: OnlineAccountPlaylist,
+        returnTo: CloudMusicRoute = CloudMusicRoute.Mine,
+    ) {
+        selectedAccountPlaylistId = playlist.playlistId
+        accountPlaylistTrackState = CloudMusicState.LoadingAccount
+        currentRoute = CloudMusicRoute.AccountPlaylistTracks(playlist, returnTo)
     }
     fun openOnlinePlaylist(
         playlist: OnlinePlaylist,
@@ -807,10 +833,9 @@ internal fun LegacyPortCloudMusicPage(
     val sectionTitle = when {
         searchPromptVisible -> stringResource(R.string.cloud_music_section_search)
         searchResultVisible -> stringResource(R.string.cloud_music_section_search_results)
-        routeForUi == CloudMusicRoute.Mine && selectedAccountPlaylist == null ->
+        routeForUi == CloudMusicRoute.Mine ->
             stringResource(R.string.cloud_music_section_account_library)
-        routeForUi == CloudMusicRoute.Mine && selectedAccountPlaylist != null ->
-            selectedAccountPlaylist.displayTitle(context)
+        routeForUi is CloudMusicRoute.AccountPlaylistTracks -> routeForUi.playlist.displayTitle(context)
         routeForUi == CloudMusicRoute.Artists -> stringResource(R.string.cloud_music_section_hot_artists)
         routeForUi is CloudMusicRoute.ArtistTracks -> routeForUi.artist.name
         routeForUi is CloudMusicRoute.ArtistAlbums -> stringResource(R.string.cloud_music_section_artist_albums)
@@ -834,10 +859,7 @@ internal fun LegacyPortCloudMusicPage(
     }
     val featuredHomeVisible = !searchActive &&
         normalizedQuery.isEmpty() &&
-        (
-            currentRoute == CloudMusicRoute.Home ||
-                (!selectedProviderLoggedIn && currentRoute == CloudMusicRoute.Mine && selectedAccountPlaylistId != null)
-            )
+        currentRoute == CloudMusicRoute.Home
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -939,62 +961,38 @@ internal fun LegacyPortCloudMusicPage(
                                     )
                                 }
                                 CloudMusicRoute.Mine -> {
-                                    if (selectedAccountPlaylistId == null) {
-                                        when {
-                                            homeState == CloudMusicState.LoadingAccount -> CloudMusicDelayedLoadingState(
-                                                title = stringResource(R.string.cloud_music_account_playlists_loading),
-                                                modifier = Modifier.fillMaxSize(),
-                                            )
-                                            homeState == CloudMusicState.AccountError -> CloudMusicBlankState(
-                                                title = stringResource(R.string.cloud_music_account_playlists_error),
-                                                subtitle = stringResource(R.string.cloud_music_empty_subtitle),
-                                                actionText = stringResource(R.string.cloud_music_retry),
-                                                onActionClick = { authRevision += 1 },
-                                                modifier = Modifier.fillMaxSize(),
-                                            )
-                                            accountPlaylists.isEmpty() && accountAlbums.isEmpty() && accountRadios.isEmpty() -> CloudMusicBlankState(
-                                                title = stringResource(R.string.cloud_music_playlists_empty),
-                                                subtitle = stringResource(R.string.cloud_music_empty_subtitle),
-                                                modifier = Modifier.fillMaxSize(),
-                                            )
-                                            else -> CloudMusicMinePage(
-                                                playlists = accountPlaylists,
-                                                albums = accountAlbums,
-                                                radios = accountRadios,
-                                                selectedPlaylistId = selectedAccountPlaylistId,
-                                                active = active,
-                                                playbackBarOverlayHeight = playbackBarOverlayHeight,
-                                                onPlaylistClick = { playlist ->
-                                                    selectedAccountPlaylistId = playlist.playlistId
-                                                    currentRoute = CloudMusicRoute.Mine
-                                                },
-                                                onAlbumClick = { album ->
-                                                    openOnlineAlbum(album, CloudMusicRoute.Mine)
-                                                },
-                                                onRadioClick = { radio ->
-                                                    openRadioPrograms(radio, CloudMusicRoute.Mine)
-                                                },
-                                                modifier = Modifier.fillMaxSize(),
-                                            )
-                                        }
-                                    } else {
-                                        CloudMusicStateContent(
-                                            state = homeState,
-                                            repository = activeRepository,
-                                            authLoggedIn = authState.isLoggedIn,
+                                    when {
+                                        homeState == CloudMusicState.LoadingAccount -> CloudMusicDelayedLoadingState(
+                                            title = stringResource(R.string.cloud_music_account_playlists_loading),
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                        homeState == CloudMusicState.AccountError -> CloudMusicBlankState(
+                                            title = stringResource(R.string.cloud_music_account_playlists_error),
+                                            subtitle = stringResource(R.string.cloud_music_empty_subtitle),
+                                            actionText = stringResource(R.string.cloud_music_retry),
+                                            onActionClick = { authRevision += 1 },
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                        accountPlaylists.isEmpty() && accountAlbums.isEmpty() && accountRadios.isEmpty() -> CloudMusicBlankState(
+                                            title = stringResource(R.string.cloud_music_playlists_empty),
+                                            subtitle = stringResource(R.string.cloud_music_empty_subtitle),
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                        else -> CloudMusicMinePage(
+                                            playlists = accountPlaylists,
+                                            albums = accountAlbums,
+                                            radios = accountRadios,
+                                            selectedPlaylistId = selectedAccountPlaylistId,
                                             active = active,
                                             playbackBarOverlayHeight = playbackBarOverlayHeight,
-                                            onRetryClick = { authRevision += 1 },
-                                            onTrackMoreClick = onTrackMoreClick,
-                                            accountPlaylist = selectedAccountPlaylist,
-                                            onAccountPlaylistTracksChanged = { authRevision += 1 },
-                                            onAccountPlaylistDeleted = { deletedPlaylist ->
-                                                accountPlaylists = accountPlaylists.filterNot { playlist ->
-                                                    playlist.playlistId == deletedPlaylist.playlistId
-                                                }
-                                                selectedAccountPlaylistId = null
-                                                currentRoute = CloudMusicRoute.Mine
-                                                authRevision += 1
+                                            onPlaylistClick = { playlist ->
+                                                openAccountPlaylist(playlist)
+                                            },
+                                            onAlbumClick = { album ->
+                                                openOnlineAlbum(album, CloudMusicRoute.Mine)
+                                            },
+                                            onRadioClick = { radio ->
+                                                openRadioPrograms(radio, CloudMusicRoute.Mine)
                                             },
                                             modifier = Modifier.fillMaxSize(),
                                         )
@@ -1174,6 +1172,32 @@ internal fun LegacyPortCloudMusicPage(
                                             modifier = Modifier.fillMaxSize(),
                                         )
                                     }
+                                }
+                                is CloudMusicRoute.AccountPlaylistTracks -> {
+                                    val playlist = accountPlaylists.firstOrNull { candidate ->
+                                        candidate.playlistId == route.playlist.playlistId
+                                    } ?: route.playlist
+                                    CloudMusicStateContent(
+                                        state = accountPlaylistTrackState,
+                                        repository = activeRepository,
+                                        authLoggedIn = authState.isLoggedIn,
+                                        active = active,
+                                        playbackBarOverlayHeight = playbackBarOverlayHeight,
+                                        onRetryClick = { authRevision += 1 },
+                                        onTrackMoreClick = onTrackMoreClick,
+                                        accountPlaylist = playlist,
+                                        onAccountPlaylistTracksChanged = { authRevision += 1 },
+                                        onAccountPlaylistDeleted = { deletedPlaylist ->
+                                            accountPlaylists = accountPlaylists.filterNot { accountPlaylist ->
+                                                accountPlaylist.playlistId == deletedPlaylist.playlistId
+                                            }
+                                            selectedAccountPlaylistId = null
+                                            accountPlaylistTrackState = CloudMusicState.Idle
+                                            currentRoute = route.returnTo
+                                            authRevision += 1
+                                        },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
                                 }
                                 is CloudMusicRoute.BannerTrack -> {
                                     val banner = route.banner

@@ -2,6 +2,7 @@ package com.smartisanos.music.ui.shell.cloud
 
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.mapSaver
+import com.smartisanos.music.data.online.OnlineAccountPlaylist
 import com.smartisanos.music.data.online.OnlineAlbum
 import com.smartisanos.music.data.online.OnlineArtist
 import com.smartisanos.music.data.online.OnlineBanner
@@ -72,6 +73,12 @@ internal sealed class CloudMusicRoute {
         val returnTo: CloudMusicRoute = Home,
     ) : CloudMusicRoute()
 
+    /** 账号歌单详情（我的音乐内的“我喜欢的音乐”等） */
+    data class AccountPlaylistTracks(
+        val playlist: OnlineAccountPlaylist,
+        val returnTo: CloudMusicRoute = Mine,
+    ) : CloudMusicRoute()
+
     /** 歌手热门歌曲详情 */
     data class ArtistTracks(
         val artist: OnlineArtist,
@@ -96,6 +103,7 @@ internal sealed class CloudMusicRoute {
             is BannerTrack,
             is OnlinePlaylistTracks,
             is OnlineAlbumTracks,
+            is AccountPlaylistTracks,
             is ArtistTracks,
             is ArtistAlbums,
             is RadioPrograms,
@@ -117,6 +125,7 @@ internal sealed class CloudMusicRoute {
 internal fun CloudMusicRoute.primaryRoute(): CloudMusicRoute = when (this) {
     is CloudMusicRoute.OnlinePlaylistTracks -> returnTo
     is CloudMusicRoute.OnlineAlbumTracks -> returnTo
+    is CloudMusicRoute.AccountPlaylistTracks -> returnTo
     is CloudMusicRoute.ArtistTracks -> returnTo
     is CloudMusicRoute.ArtistAlbums -> returnTo
     is CloudMusicRoute.RadioPrograms -> returnTo
@@ -128,6 +137,7 @@ internal fun CloudMusicRoute.primaryRoute(): CloudMusicRoute = when (this) {
 internal fun CloudMusicRoute.rootRoute(): CloudMusicRoute = when (this) {
     is CloudMusicRoute.OnlinePlaylistTracks -> returnTo.rootRoute()
     is CloudMusicRoute.OnlineAlbumTracks -> returnTo.rootRoute()
+    is CloudMusicRoute.AccountPlaylistTracks -> returnTo.rootRoute()
     is CloudMusicRoute.ArtistTracks -> returnTo.rootRoute()
     is CloudMusicRoute.ArtistAlbums -> returnTo.rootRoute()
     is CloudMusicRoute.RadioPrograms -> returnTo.rootRoute()
@@ -139,6 +149,7 @@ internal fun CloudMusicRoute.rootRoute(): CloudMusicRoute = when (this) {
 internal fun CloudMusicRoute.stackDepth(): Int = when (this) {
     is CloudMusicRoute.OnlinePlaylistTracks -> returnTo.stackDepth() + 1
     is CloudMusicRoute.OnlineAlbumTracks -> returnTo.stackDepth() + 1
+    is CloudMusicRoute.AccountPlaylistTracks -> returnTo.stackDepth() + 1
     is CloudMusicRoute.ArtistTracks -> returnTo.stackDepth() + 1
     is CloudMusicRoute.ArtistAlbums -> returnTo.stackDepth() + 1
     is CloudMusicRoute.RadioPrograms -> returnTo.stackDepth() + 1
@@ -173,6 +184,11 @@ private fun CloudMusicRoute.toMap(): Map<String, Any?> = when (this) {
     is CloudMusicRoute.OnlineAlbumTracks -> mapOf(
         "type" to "OnlineAlbumTracks",
         "album" to album.toMap(),
+        "returnTo" to returnTo.toMap(),
+    )
+    is CloudMusicRoute.AccountPlaylistTracks -> mapOf(
+        "type" to "AccountPlaylistTracks",
+        "playlist" to playlist.toMap(),
         "returnTo" to returnTo.toMap(),
     )
     is CloudMusicRoute.ArtistTracks -> mapOf(
@@ -218,6 +234,10 @@ private fun Map<String, Any?>.toRoute(): CloudMusicRoute = when (this["type"] as
         album = (this["album"] as Map<String, Any?>).toOnlineAlbum(),
         returnTo = (this["returnTo"] as Map<String, Any?>).toRoute(),
     )
+    "AccountPlaylistTracks" -> CloudMusicRoute.AccountPlaylistTracks(
+        playlist = (this["playlist"] as Map<String, Any?>).toOnlineAccountPlaylist(),
+        returnTo = (this["returnTo"] as Map<String, Any?>).toRoute(),
+    )
     "ArtistTracks" -> CloudMusicRoute.ArtistTracks(
         artist = (this["artist"] as Map<String, Any?>).toOnlineArtist(),
         returnTo = (this["returnTo"] as Map<String, Any?>).toRoute(),
@@ -237,6 +257,29 @@ private fun OnlineMusicProvider.toMap(): Map<String, Any?> = mapOf("name" to nam
 
 private fun Map<String, Any?>.toOnlineMusicProvider(): OnlineMusicProvider =
     OnlineMusicProvider.valueOf(this["name"] as String)
+
+private fun OnlineAccountPlaylist.toMap(): Map<String, Any?> = mapOf(
+    "provider" to provider.toMap(),
+    "playlistId" to playlistId,
+    "title" to title,
+    "trackCount" to trackCount,
+    "isLikedSongs" to isLikedSongs,
+    "isEditable" to isEditable,
+    "subtitle" to subtitle,
+    "artworkUrl" to artworkUrl,
+)
+
+@Suppress("UNCHECKED_CAST")
+private fun Map<String, Any?>.toOnlineAccountPlaylist(): OnlineAccountPlaylist = OnlineAccountPlaylist(
+    provider = (this["provider"] as Map<String, Any?>).toOnlineMusicProvider(),
+    playlistId = this["playlistId"] as String,
+    title = this["title"] as String,
+    trackCount = this["trackCount"] as? Int ?: 0,
+    isLikedSongs = this["isLikedSongs"] as? Boolean ?: false,
+    isEditable = this["isEditable"] as? Boolean ?: false,
+    subtitle = this["subtitle"] as? String,
+    artworkUrl = this["artworkUrl"] as? String,
+)
 
 private fun OnlinePlaylist.toMap(): Map<String, Any?> = mapOf(
     "provider" to provider.toMap(),

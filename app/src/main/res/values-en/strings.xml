@@ -164,6 +164,7 @@
     <string name="cloud_music_entry_artist">Artists</string>
     <string name="cloud_music_section_featured">Recommended Songs</string>
     <string name="cloud_music_section_daily_recommend">Today\'s Recommended Songs</string>
+    <string name="cloud_music_section_daily_radio_program">Today\'s Recommended Programs</string>
     <string name="cloud_music_section_playlists">My Playlists</string>
     <string name="cloud_music_section_account_library">My Music</string>
     <string name="cloud_music_section_search">Search NetEase Cloud Music</string>

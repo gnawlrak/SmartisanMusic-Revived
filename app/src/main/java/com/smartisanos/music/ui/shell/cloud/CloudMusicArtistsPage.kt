@@ -232,7 +232,7 @@ internal class CloudMusicArtistAdapter : BaseAdapter() {
                 if (artist.artistId == selectedArtistId) {
                     Color.rgb(177, 36, 32)
                 } else {
-                    context.getColor(R.color.list_item_first_line)
+                    Color.BLACK
                 },
             )
         }

@@ -63,6 +63,8 @@ internal fun CloudRadioHomeContent(
                     title = stringResource(R.string.cloud_music_section_radio_programs),
                     tracks = state.home.tracks,
                     onClick = onTracksClick,
+                    cardTitle = stringResource(R.string.cloud_music_section_daily_radio_program),
+                    countText = stringResource(R.string.cloud_music_radio_program_count, state.home.tracks.size),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 CloudHomeRadioSection(

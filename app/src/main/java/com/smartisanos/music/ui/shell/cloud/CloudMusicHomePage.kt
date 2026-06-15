@@ -242,11 +242,15 @@ internal fun CloudHomeTrackPreviewSection(
     title: String,
     tracks: List<OnlineTrack>,
     onClick: () -> Unit,
+    cardTitle: String? = null,
+    countText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (tracks.isEmpty()) {
         return
     }
+    val resolvedCardTitle = cardTitle ?: stringResource(R.string.cloud_music_section_daily_recommend)
+    val resolvedCountText = countText ?: stringResource(R.string.cloud_music_playlist_track_count, tracks.size)
     Column(
         modifier = modifier.background(ComposeColor.White),
     ) {
@@ -258,6 +262,8 @@ internal fun CloudHomeTrackPreviewSection(
         )
         CloudHomeDailyRecommendCard(
             tracks = tracks,
+            title = resolvedCardTitle,
+            countText = resolvedCountText,
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
@@ -270,10 +276,11 @@ internal fun CloudHomeTrackPreviewSection(
 @Composable
 private fun CloudHomeDailyRecommendCard(
     tracks: List<OnlineTrack>,
+    title: String,
+    countText: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val weekDay = remember {
         val calendar = java.util.Calendar.getInstance()
         when (calendar.get(java.util.Calendar.DAY_OF_WEEK)) {
@@ -316,7 +323,7 @@ private fun CloudHomeDailyRecommendCard(
                 ),
             )
             Text(
-                text = stringResource(R.string.cloud_music_section_daily_recommend),
+                text = title,
                 style = TextStyle(
                     fontSize = 18.sp,
                     color = ComposeColor(0xE6000000),
@@ -326,7 +333,7 @@ private fun CloudHomeDailyRecommendCard(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
-                text = context.getString(R.string.cloud_music_playlist_track_count, tracks.size),
+                text = countText,
                 style = TextStyle(
                     fontSize = 12.sp,
                     color = CloudSecondaryTextColor,

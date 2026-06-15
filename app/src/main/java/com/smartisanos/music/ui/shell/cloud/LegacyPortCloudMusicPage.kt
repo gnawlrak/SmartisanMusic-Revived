@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -139,6 +141,71 @@ internal fun LegacyPortCloudMusicPage(
     var handledAccountRefreshRequest by remember { mutableStateOf(0) }
     var currentRoute by rememberSaveable(stateSaver = CloudMusicRoute.Saver) { mutableStateOf<CloudMusicRoute>(CloudMusicRoute.Home) }
     var searchActive by rememberSaveable { mutableStateOf(false) }
+    var artistListAuthRevision by remember { mutableStateOf(-1) }
+    var radioHomeAuthRevision by remember { mutableStateOf(-1) }
+
+    val artistScrollKey = currentRoute.artistScrollKey() ?: selectedArtist?.artistId.orEmpty()
+    val onlinePlaylistScrollKey = currentRoute.onlinePlaylistScrollKey() ?: selectedOnlinePlaylist?.playlistId.orEmpty()
+    val onlineAlbumScrollKey = currentRoute.onlineAlbumScrollKey() ?: selectedOnlineAlbum?.albumId.orEmpty()
+    val radioScrollKey = currentRoute.radioScrollKey() ?: selectedRadio?.radioId.orEmpty()
+    val accountPlaylistScrollKey =
+        (currentRoute as? CloudMusicRoute.AccountPlaylistTracks)?.playlist?.playlistId
+            ?: selectedAccountPlaylistId.orEmpty()
+    val featuredHomeScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val radioHomeScrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val mineScrollState = rememberSaveable(saver = CloudLegacyListScrollState.Saver) { CloudLegacyListScrollState() }
+    val artistsScrollState = rememberSaveable(saver = CloudLegacyListScrollState.Saver) { CloudLegacyListScrollState() }
+    val featuredArtistsScrollState = rememberSaveable(saver = CloudLegacyListScrollState.Saver) { CloudLegacyListScrollState() }
+    val featuredTracksScrollState = rememberSaveable(saver = CloudLegacyListScrollState.Saver) { CloudLegacyListScrollState() }
+    val radioTracksScrollState = rememberSaveable(saver = CloudLegacyListScrollState.Saver) { CloudLegacyListScrollState() }
+    val bannerTrackScrollState = rememberSaveable(saver = CloudLegacyListScrollState.Saver) { CloudLegacyListScrollState() }
+    val accountPlaylistTracksScrollState = rememberSaveable(
+        accountPlaylistScrollKey,
+        saver = CloudLegacyListScrollState.Saver,
+    ) {
+        CloudLegacyListScrollState()
+    }
+    val artistTracksScrollState = rememberSaveable(
+        artistScrollKey,
+        saver = CloudLegacyListScrollState.Saver,
+    ) {
+        CloudLegacyListScrollState()
+    }
+    val artistAlbumsListState = rememberSaveable(
+        artistScrollKey,
+        saver = LazyListState.Saver,
+    ) {
+        LazyListState()
+    }
+    val artistAlbumCarouselListState = rememberSaveable(
+        artistScrollKey,
+        saver = LazyListState.Saver,
+    ) {
+        LazyListState()
+    }
+    val radioProgramsScrollState = rememberSaveable(
+        radioScrollKey,
+        saver = CloudLegacyListScrollState.Saver,
+    ) {
+        CloudLegacyListScrollState()
+    }
+    val onlinePlaylistTracksScrollState = rememberSaveable(
+        onlinePlaylistScrollKey,
+        saver = CloudLegacyListScrollState.Saver,
+    ) {
+        CloudLegacyListScrollState()
+    }
+    val onlineAlbumTracksScrollState = rememberSaveable(
+        onlineAlbumScrollKey,
+        saver = CloudLegacyListScrollState.Saver,
+    ) {
+        CloudLegacyListScrollState()
+    }
+    val collectionsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val featuredPlaylistsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val featuredChartsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val featuredAlbumsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val radioListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
 
     LaunchedEffect(active) {
         if (active) {
@@ -271,8 +338,14 @@ internal fun LegacyPortCloudMusicPage(
         )
     }
 
-    LaunchedEffect(currentRoute, authRevision) {
-        if (currentRoute != CloudMusicRoute.Radio) {
+    LaunchedEffect(currentRoute.rootRoute(), authRevision) {
+        if (currentRoute.rootRoute() != CloudMusicRoute.Radio) {
+            return@LaunchedEffect
+        }
+        if (
+            radioHomeAuthRevision == authRevision &&
+            (radioHomeState is CloudRadioHomeState.Success || radioHomeState == CloudRadioHomeState.Empty)
+        ) {
             return@LaunchedEffect
         }
         radioHomeState = CloudRadioHomeState.Loading
@@ -291,6 +364,7 @@ internal fun LegacyPortCloudMusicPage(
                 CloudRadioHomeState.Error
             },
         )
+        radioHomeAuthRevision = authRevision
     }
 
     LaunchedEffect(
@@ -395,8 +469,14 @@ internal fun LegacyPortCloudMusicPage(
         )
     }
 
-    LaunchedEffect(currentRoute, authRevision, searchActive, query) {
-        if (currentRoute != CloudMusicRoute.Artists || searchActive && query.trim().isNotEmpty()) {
+    LaunchedEffect(currentRoute.rootRoute(), authRevision, searchActive, query) {
+        if (currentRoute.rootRoute() != CloudMusicRoute.Artists || searchActive && query.trim().isNotEmpty()) {
+            return@LaunchedEffect
+        }
+        if (
+            artistListAuthRevision == authRevision &&
+            (artistState is CloudArtistState.Success || artistState == CloudArtistState.Empty)
+        ) {
             return@LaunchedEffect
         }
         artistState = CloudArtistState.Loading
@@ -415,6 +495,7 @@ internal fun LegacyPortCloudMusicPage(
                 CloudArtistState.Error
             },
         )
+        artistListAuthRevision = authRevision
     }
 
     LaunchedEffect(currentRoute, authRevision) {
@@ -942,6 +1023,7 @@ internal fun LegacyPortCloudMusicPage(
                                     CloudFeaturedHomeContent(
                                         state = featuredHomeState,
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
+                                        scrollState = featuredHomeScrollState,
                                         onRetryClick = { authRevision += 1 },
                                         onTracksClick = ::openFeaturedTracks,
                                         onPlaylistsClick = ::openFeaturedPlaylists,
@@ -985,6 +1067,7 @@ internal fun LegacyPortCloudMusicPage(
                                             selectedPlaylistId = selectedAccountPlaylistId,
                                             active = active,
                                             playbackBarOverlayHeight = playbackBarOverlayHeight,
+                                            scrollState = mineScrollState,
                                             onPlaylistClick = { playlist ->
                                                 openAccountPlaylist(playlist)
                                             },
@@ -1011,6 +1094,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlinePlaylist(playlist, CloudMusicRoute.Collections)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        listState = collectionsListState,
                                         key = { playlist -> playlist.playlistId },
                                     )
                                 }
@@ -1023,6 +1107,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = featuredTracksScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1039,6 +1124,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlinePlaylist(playlist, CloudMusicRoute.FeaturedPlaylists)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        listState = featuredPlaylistsListState,
                                         key = { playlist -> playlist.playlistId },
                                     )
                                 }
@@ -1055,6 +1141,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlinePlaylist(playlist, CloudMusicRoute.FeaturedCharts)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        listState = featuredChartsListState,
                                         key = { playlist -> playlist.playlistId },
                                     )
                                 }
@@ -1071,6 +1158,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlineAlbum(album, CloudMusicRoute.FeaturedAlbums)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        listState = featuredAlbumsListState,
                                         key = { album -> album.albumId },
                                     )
                                 }
@@ -1084,6 +1172,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openArtist(artist, CloudMusicRoute.FeaturedArtists)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        scrollState = featuredArtistsScrollState,
                                     )
                                 }
                                 CloudMusicRoute.Artists -> {
@@ -1094,12 +1183,14 @@ internal fun LegacyPortCloudMusicPage(
                                         onRetryClick = { authRevision += 1 },
                                         onArtistClick = { artist -> openArtist(artist, CloudMusicRoute.Artists) },
                                         modifier = Modifier.fillMaxSize(),
+                                        scrollState = artistsScrollState,
                                     )
                                 }
                                 CloudMusicRoute.Radio -> {
                                     CloudRadioHomeContent(
                                         state = radioHomeState,
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
+                                        scrollState = radioHomeScrollState,
                                         onRetryClick = { authRevision += 1 },
                                         onTracksClick = ::openRadioTracks,
                                         onRadioListClick = ::openRadioList,
@@ -1114,6 +1205,7 @@ internal fun LegacyPortCloudMusicPage(
                                         onRetryClick = { authRevision += 1 },
                                         onRadioClick = { radio -> openRadioPrograms(radio) },
                                         modifier = Modifier.fillMaxSize(),
+                                        listState = radioListState,
                                     )
                                 }
                                 CloudMusicRoute.RadioTracks -> {
@@ -1125,6 +1217,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = radioTracksScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1196,6 +1289,7 @@ internal fun LegacyPortCloudMusicPage(
                                             currentRoute = route.returnTo
                                             authRevision += 1
                                         },
+                                        scrollState = accountPlaylistTracksScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1212,6 +1306,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = bannerTrackScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1228,6 +1323,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = artistTracksScrollState,
                                         extraContent = if (artistAlbums.isNotEmpty() || artistIntroductions.isNotEmpty()) {
                                             {
                                                 CloudArtistIntroductionSection(
@@ -1243,6 +1339,8 @@ internal fun LegacyPortCloudMusicPage(
                                                         openOnlineAlbum(album, route)
                                                     },
                                                     modifier = Modifier.fillMaxWidth(),
+                                                    listState = artistAlbumCarouselListState,
+                                                    maxItems = null,
                                                 )
                                             }
                                         } else {
@@ -1262,6 +1360,7 @@ internal fun LegacyPortCloudMusicPage(
                                             openOnlineAlbum(album, route)
                                         },
                                         modifier = Modifier.fillMaxSize(),
+                                        listState = artistAlbumsListState,
                                         key = { album -> album.albumId },
                                     )
                                 }
@@ -1278,6 +1377,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = radioProgramsScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1294,6 +1394,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = onlinePlaylistTracksScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1310,6 +1411,7 @@ internal fun LegacyPortCloudMusicPage(
                                         playbackBarOverlayHeight = playbackBarOverlayHeight,
                                         onRetryClick = { authRevision += 1 },
                                         onTrackMoreClick = onTrackMoreClick,
+                                        scrollState = onlineAlbumTracksScrollState,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -1563,6 +1665,31 @@ private enum class CloudMusicHomeEntry(
         labelRes = R.string.cloud_music_entry_artist,
         iconRes = R.drawable.net_icon_artist,
     ),
+}
+
+private fun CloudMusicRoute.artistScrollKey(): String? = when (this) {
+    is CloudMusicRoute.ArtistTracks -> artist.artistId
+    is CloudMusicRoute.ArtistAlbums -> artist.artistId
+    is CloudMusicRoute.OnlinePlaylistTracks -> returnTo.artistScrollKey()
+    is CloudMusicRoute.OnlineAlbumTracks -> returnTo.artistScrollKey()
+    is CloudMusicRoute.AccountPlaylistTracks -> returnTo.artistScrollKey()
+    is CloudMusicRoute.RadioPrograms -> returnTo.artistScrollKey()
+    else -> null
+}
+
+private fun CloudMusicRoute.onlinePlaylistScrollKey(): String? = when (this) {
+    is CloudMusicRoute.OnlinePlaylistTracks -> playlist.playlistId
+    else -> null
+}
+
+private fun CloudMusicRoute.onlineAlbumScrollKey(): String? = when (this) {
+    is CloudMusicRoute.OnlineAlbumTracks -> album.albumId
+    else -> null
+}
+
+private fun CloudMusicRoute.radioScrollKey(): String? = when (this) {
+    is CloudMusicRoute.RadioPrograms -> radio.radioId
+    else -> null
 }
 
 private suspend inline fun <T> runSuspendCatching(block: suspend () -> T): Result<T> {

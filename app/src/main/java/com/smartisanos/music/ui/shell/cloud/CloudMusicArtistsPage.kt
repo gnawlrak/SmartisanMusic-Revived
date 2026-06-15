@@ -16,6 +16,7 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -46,6 +47,7 @@ internal fun CloudMusicArtistStateContent(
     onRetryClick: () -> Unit,
     onArtistClick: (OnlineArtist) -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: CloudLegacyListScrollState? = null,
 ) {
     when (state) {
         CloudArtistState.Idle,
@@ -72,6 +74,7 @@ internal fun CloudMusicArtistStateContent(
             playbackBarOverlayHeight = playbackBarOverlayHeight,
             onArtistClick = onArtistClick,
             modifier = modifier,
+            scrollState = scrollState,
         )
     }
 }
@@ -84,9 +87,25 @@ internal fun CloudMusicArtistList(
     playbackBarOverlayHeight: Dp,
     onArtistClick: (OnlineArtist) -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: CloudLegacyListScrollState? = null,
 ) {
     val playbackBarOverlayHeightPx = with(LocalDensity.current) {
         playbackBarOverlayHeight.roundToPx()
+    }
+    val scrollListener = remember(scrollState) {
+        object : AbsListView.OnScrollListener {
+            override fun onScrollStateChanged(view: AbsListView?, scrollState: Int) = Unit
+
+            override fun onScroll(
+                view: AbsListView?,
+                firstVisibleItem: Int,
+                visibleItemCount: Int,
+                totalItemCount: Int,
+            ) {
+                val listView = view as? ListView ?: return
+                scrollState?.capture(listView)
+            }
+        }
     }
     AndroidView(
         modifier = modifier,
@@ -108,6 +127,7 @@ internal fun CloudMusicArtistList(
         update = { root ->
             root.visibility = if (active) View.VISIBLE else View.INVISIBLE
             val listView = root.findViewById<ListView>(R.id.list) ?: return@AndroidView
+            listView.setOnScrollListener(null)
             listView.apply {
                 val nextPaddingBottom = playbackBarOverlayHeightPx
                 if (paddingBottom != nextPaddingBottom || clipToPadding) {
@@ -128,12 +148,24 @@ internal fun CloudMusicArtistList(
                 nextSelectedArtistId = selectedArtistId,
             )
             if (changed) {
-                listView.scheduleLayoutAnimation()
+                if (scrollState?.hasPosition == true) {
+                    listView.restoreCloudLegacyListScroll(scrollState, force = true)
+                } else {
+                    listView.scheduleLayoutAnimation()
+                }
             } else {
                 adapter.updateVisibleRows(listView)
+                listView.restoreCloudLegacyListScroll(scrollState)
             }
+            listView.setOnScrollListener(scrollListener)
             listView.setOnItemClickListener { _, _, position, _ ->
                 adapter.itemAt(position)?.let(onArtistClick)
+            }
+        },
+        onRelease = { root ->
+            root.findViewById<ListView>(R.id.list)?.let { listView ->
+                scrollState?.capture(listView)
+                listView.setOnScrollListener(null)
             }
         },
     )

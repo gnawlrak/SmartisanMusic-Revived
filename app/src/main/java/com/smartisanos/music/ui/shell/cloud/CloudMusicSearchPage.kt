@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -435,6 +437,7 @@ internal fun <T> CloudSearchCoverResultList(
     imageUrl: (T) -> String?,
     onItemClick: (T) -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
     key: ((T) -> Any)? = null,
 ) {
     if (items.isEmpty()) {
@@ -447,7 +450,9 @@ internal fun <T> CloudSearchCoverResultList(
     }
     // 用 LazyColumn 替代 Column+verticalScroll+forEach：长列表只组合可见行，
     // 封面图随回收复用，避免一次性加载全部封面协程。
+    val resolvedListState = listState ?: rememberLazyListState()
     LazyColumn(
+        state = resolvedListState,
         modifier = modifier.background(ComposeColor.White),
         contentPadding = PaddingValues(bottom = playbackBarOverlayHeight + 10.dp),
     ) {

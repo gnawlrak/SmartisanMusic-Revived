@@ -77,6 +77,7 @@ internal fun CloudMusicMinePage(
     selectedPlaylistId: String?,
     active: Boolean,
     playbackBarOverlayHeight: Dp,
+    scrollState: CloudLegacyListScrollState? = null,
     onPlaylistClick: (OnlineAccountPlaylist) -> Unit,
     onAlbumClick: (OnlineAlbum) -> Unit,
     onRadioClick: (OnlineRadio) -> Unit,
@@ -117,6 +118,7 @@ internal fun CloudMusicMinePage(
                 selectedPlaylistId = selectedPlaylistId,
                 active = active,
                 playbackBarOverlayHeight = playbackBarOverlayHeight,
+                scrollState = scrollState,
                 onPlaylistClick = onPlaylistClick,
                 onAlbumClick = onAlbumClick,
                 onRadioClick = onRadioClick,
@@ -170,6 +172,7 @@ private fun CloudMusicAccountLibraryList(
     selectedPlaylistId: String?,
     active: Boolean,
     playbackBarOverlayHeight: Dp,
+    scrollState: CloudLegacyListScrollState? = null,
     onPlaylistClick: (OnlineAccountPlaylist) -> Unit,
     onAlbumClick: (OnlineAlbum) -> Unit,
     onRadioClick: (OnlineRadio) -> Unit,
@@ -177,6 +180,21 @@ private fun CloudMusicAccountLibraryList(
 ) {
     val playbackBarOverlayHeightPx = with(LocalDensity.current) {
         playbackBarOverlayHeight.roundToPx()
+    }
+    val scrollListener = remember(scrollState) {
+        object : AbsListView.OnScrollListener {
+            override fun onScrollStateChanged(view: AbsListView?, scrollState: Int) = Unit
+
+            override fun onScroll(
+                view: AbsListView?,
+                firstVisibleItem: Int,
+                visibleItemCount: Int,
+                totalItemCount: Int,
+            ) {
+                val listView = view as? ListView ?: return
+                scrollState?.capture(listView)
+            }
+        }
     }
     AndroidView(
         modifier = modifier,
@@ -198,6 +216,7 @@ private fun CloudMusicAccountLibraryList(
         update = { root ->
             root.visibility = if (active) View.VISIBLE else View.INVISIBLE
             val listView = root.findViewById<ListView>(R.id.list) ?: return@AndroidView
+            listView.setOnScrollListener(null)
             listView.apply {
                 val nextPaddingBottom = playbackBarOverlayHeightPx
                 if (paddingBottom != nextPaddingBottom || clipToPadding) {
@@ -218,10 +237,16 @@ private fun CloudMusicAccountLibraryList(
                 nextSelectedPlaylistId = selectedPlaylistId,
             )
             if (changed) {
-                listView.scheduleLayoutAnimation()
+                if (scrollState?.hasPosition == true) {
+                    listView.restoreCloudLegacyListScroll(scrollState, force = true)
+                } else {
+                    listView.scheduleLayoutAnimation()
+                }
             } else {
                 adapter.updateVisibleRows(listView)
+                listView.restoreCloudLegacyListScroll(scrollState)
             }
+            listView.setOnScrollListener(scrollListener)
             listView.setOnItemClickListener { _, _, position, _ ->
                 when (val item = adapter.itemAt(position)) {
                     is CloudAccountLibraryItem.Playlist -> onPlaylistClick(item.playlist)
@@ -229,6 +254,12 @@ private fun CloudMusicAccountLibraryList(
                     is CloudAccountLibraryItem.Radio -> onRadioClick(item.radio)
                     null -> Unit
                 }
+            }
+        },
+        onRelease = { root ->
+            root.findViewById<ListView>(R.id.list)?.let { listView ->
+                scrollState?.capture(listView)
+                listView.setOnScrollListener(null)
             }
         },
     )

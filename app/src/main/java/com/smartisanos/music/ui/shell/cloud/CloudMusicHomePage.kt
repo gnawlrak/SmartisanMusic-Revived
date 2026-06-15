@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -69,6 +71,7 @@ internal fun CloudFeaturedHomeContent(
     onAlbumClick: (OnlineAlbum) -> Unit,
     onArtistClick: (OnlineArtist) -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     when (state) {
         CloudFeaturedHomeState.Loading -> CloudMusicDelayedLoadingState(
@@ -91,7 +94,7 @@ internal fun CloudFeaturedHomeContent(
             val bottomPadding = playbackBarOverlayHeight + 10.dp
             Column(
                 modifier = modifier
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(bottom = bottomPadding),
             ) {
                 CloudHomeAnimatedSection(index = 0) {
@@ -158,6 +161,7 @@ internal fun <T> CloudFeaturedHomeCoverListContent(
     imageUrl: (T) -> String?,
     onItemClick: (T) -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
     key: ((T) -> Any)? = null,
 ) {
     when (state) {
@@ -185,6 +189,7 @@ internal fun <T> CloudFeaturedHomeCoverListContent(
             imageUrl = imageUrl,
             onItemClick = onItemClick,
             modifier = modifier,
+            listState = listState,
             key = key,
         )
     }
@@ -198,6 +203,7 @@ internal fun CloudFeaturedHomeArtistListContent(
     onRetryClick: () -> Unit,
     onArtistClick: (OnlineArtist) -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: CloudLegacyListScrollState? = null,
 ) {
     when (state) {
         CloudFeaturedHomeState.Loading -> CloudMusicDelayedLoadingState(
@@ -231,6 +237,7 @@ internal fun CloudFeaturedHomeArtistListContent(
                     playbackBarOverlayHeight = playbackBarOverlayHeight,
                     onArtistClick = onArtistClick,
                     modifier = modifier,
+                    scrollState = scrollState,
                 )
             }
         }
@@ -466,12 +473,14 @@ internal fun CloudHomeAlbumSection(
     onActionClick: (() -> Unit)? = null,
     onAlbumClick: (OnlineAlbum) -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
+    maxItems: Int? = CloudHomeCoverPreviewCount,
 ) {
     if (albums.isEmpty()) {
         return
     }
-    val visibleAlbums = remember(albums) {
-        albums.take(CloudHomeCoverPreviewCount)
+    val visibleAlbums = remember(albums, maxItems) {
+        maxItems?.let { itemLimit -> albums.take(itemLimit) } ?: albums
     }
     val fallbackArtist = stringResource(R.string.cloud_music_album_provider_netease)
     CloudHomeCoverSection(
@@ -479,6 +488,7 @@ internal fun CloudHomeAlbumSection(
         actionText = actionText,
         onActionClick = onActionClick,
         modifier = modifier,
+        listState = listState,
     ) {
         items(
             items = visibleAlbums,

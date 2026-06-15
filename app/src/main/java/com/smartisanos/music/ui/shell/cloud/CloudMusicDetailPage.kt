@@ -116,6 +116,7 @@ internal fun CloudMusicTrackDetailContent(
     playbackBarOverlayHeight: Dp,
     onRetryClick: () -> Unit,
     onTrackMoreClick: (MediaItem) -> Unit,
+    scrollState: CloudLegacyListScrollState? = null,
     extraContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -145,6 +146,7 @@ internal fun CloudMusicTrackDetailContent(
             playbackBarOverlayHeight = playbackBarOverlayHeight,
             onRetryClick = onRetryClick,
             onTrackMoreClick = onTrackMoreClick,
+            scrollState = scrollState,
             detailHeaderContent = detailHeaderContent,
             modifier = modifier,
         )
@@ -167,6 +169,7 @@ internal fun CloudMusicTrackDetailContent(
                 playbackBarOverlayHeight = playbackBarOverlayHeight,
                 onRetryClick = onRetryClick,
                 onTrackMoreClick = onTrackMoreClick,
+                scrollState = scrollState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -241,6 +244,7 @@ internal fun CloudMusicStateContent(
     accountPlaylist: OnlineAccountPlaylist? = null,
     onAccountPlaylistTracksChanged: () -> Unit = {},
     onAccountPlaylistDeleted: (OnlineAccountPlaylist) -> Unit = {},
+    scrollState: CloudLegacyListScrollState? = null,
     detailHeaderContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -316,6 +320,7 @@ internal fun CloudMusicStateContent(
             editableAccountPlaylist = accountPlaylist?.takeIf(OnlineAccountPlaylist::isEditable),
             onAccountPlaylistTracksChanged = onAccountPlaylistTracksChanged,
             onAccountPlaylistDeleted = onAccountPlaylistDeleted,
+            scrollState = scrollState,
             detailHeaderContent = detailHeaderContent,
             modifier = modifier,
         )
@@ -333,6 +338,7 @@ internal fun CloudMusicResultList(
     editableAccountPlaylist: OnlineAccountPlaylist? = null,
     onAccountPlaylistTracksChanged: () -> Unit = {},
     onAccountPlaylistDeleted: (OnlineAccountPlaylist) -> Unit = {},
+    scrollState: CloudLegacyListScrollState? = null,
     detailHeaderContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -620,6 +626,7 @@ internal fun CloudMusicResultList(
             editMode = editMode,
             selectedMediaIds = selectedMediaIds,
             headerContent = scrollingHeaderContent,
+            scrollState = scrollState,
             onTrackMoreClick = onTrackMoreClick,
             onSelectionChange = ::updateSelection,
             onTrackClick = { item, adapter, listView ->
@@ -654,6 +661,7 @@ internal fun CloudMusicResultList(
             browser = browser,
             editMode = editMode,
             selectedMediaIds = selectedMediaIds,
+            scrollState = scrollState,
             onTrackMoreClick = onTrackMoreClick,
             onSelectionChange = ::updateSelection,
             onTrackClick = { item, adapter, listView ->
@@ -689,11 +697,27 @@ private fun CloudMusicResultListView(
     editMode: Boolean,
     selectedMediaIds: Set<String>,
     headerContent: (@Composable () -> Unit)? = null,
+    scrollState: CloudLegacyListScrollState? = null,
     onTrackMoreClick: (MediaItem) -> Unit,
     onSelectionChange: (String, Boolean) -> Unit,
     onTrackClick: (MediaItem, LegacySongsAdapter, ListView) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scrollListener = remember(scrollState) {
+        object : AbsListView.OnScrollListener {
+            override fun onScrollStateChanged(view: AbsListView?, scrollState: Int) = Unit
+
+            override fun onScroll(
+                view: AbsListView?,
+                firstVisibleItem: Int,
+                visibleItemCount: Int,
+                totalItemCount: Int,
+            ) {
+                val listView = view as? ListView ?: return
+                scrollState?.capture(listView)
+            }
+        }
+    }
     AndroidView(
         modifier = modifier,
         factory = { viewContext ->
@@ -717,6 +741,7 @@ private fun CloudMusicResultListView(
         update = { root ->
             root.visibility = if (active) View.VISIBLE else View.INVISIBLE
             val listView = root.findViewById<ListView>(R.id.list) ?: return@AndroidView
+            listView.setOnScrollListener(null)
             (listView.getTag(R.id.cloud_music_detail_list_header) as? CloudMusicDetailListHeaderHost)
                 ?.bind(headerContent)
             listView.apply {
@@ -753,14 +778,21 @@ private fun CloudMusicResultListView(
                 nextSelectedMediaIds = selectedMediaIds,
             )
             if (listContentChanged) {
-                listView.setSelection(0)
-                listView.scheduleCloudRowsEntrance(active)
+                if (scrollState?.hasPosition == true) {
+                    listView.restoreCloudLegacyListScroll(scrollState, force = true)
+                    listView.resetCloudRowsEntrance()
+                } else {
+                    listView.setSelection(0)
+                    listView.scheduleCloudRowsEntrance(active)
+                }
             } else {
                 adapter.updateVisibleSongRows(
                     listView = listView,
                     animateEditMode = animateEditMode,
                 )
+                listView.restoreCloudLegacyListScroll(scrollState)
             }
+            listView.setOnScrollListener(scrollListener)
             if (listView.getTag(R.id.list) !== browser) {
                 (listView.getTag(R.id.text) as? Player.Listener)?.let { oldListener ->
                     (listView.getTag(R.id.list) as? Player)?.removeListener(oldListener)
@@ -811,6 +843,8 @@ private fun CloudMusicResultListView(
         onRelease = { root ->
             val listView = root.findViewById<ListView>(R.id.list)
             if (listView != null) {
+                scrollState?.capture(listView)
+                listView.setOnScrollListener(null)
                 (listView.getTag(R.id.text) as? Player.Listener)?.let { oldListener ->
                     (listView.getTag(R.id.list) as? Player)?.removeListener(oldListener)
                 }

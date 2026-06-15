@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -76,8 +78,10 @@ internal fun CloudHomeCoverSection(
     actionText: String? = null,
     onActionClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
     content: LazyListScope.() -> Unit,
 ) {
+    val resolvedListState = listState ?: rememberLazyListState()
     Column(
         modifier = modifier.background(ComposeColor.White),
     ) {
@@ -92,6 +96,7 @@ internal fun CloudHomeCoverSection(
         // 原实现的 padding(start=12,top=12,end=12,bottom=14) 由 contentPadding 还原；
         // 项间 10dp 由调用方承担的 Spacer 改为统一的 spacedBy。
         LazyRow(
+            state = resolvedListState,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),

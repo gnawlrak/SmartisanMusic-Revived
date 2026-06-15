@@ -4,4 +4,5 @@
     <item name="legacy_port_list_footer" type="id" />
     <item name="cloud_music_detail_list_header" type="id" />
     <item name="cloud_music_rows_enter_pre_draw_listener" type="id" />
+    <item name="cloud_music_scroll_state" type="id" />
 </resources>

@@ -43,7 +43,7 @@ private const val FeaturedAlbumLimit = 18
 private const val FeaturedRadioTrackLimit = 18
 private const val FeaturedRadioLimit = 18
 private const val ArtistTopTracksLimit = 60
-private const val ArtistAlbumLimit = 12
+private const val ArtistAlbumPageSize = 50
 private const val AlbumTracksLimit = 80
 private const val RadioTracksLimit = 80
 private const val FeaturedPlaylistId = "3778678"
@@ -835,7 +835,7 @@ internal class NeteaseOnlineMusicRepository(
         ) {
             client.getArtistAlbums(
                 artistId = artist.artistId,
-                limit = ArtistAlbumLimit,
+                expectedCount = artist.albumCount.takeIf { albumCount -> albumCount > 0 },
             )
         }
     }
@@ -1099,15 +1099,50 @@ internal class NeteaseCloudMusicClient(
             .orEmpty()
     }
 
-    suspend fun getArtistAlbums(artistId: String, limit: Int): List<OnlineAlbum> = withContext(Dispatchers.IO) {
+    suspend fun getArtistAlbums(artistId: String, expectedCount: Int?): List<OnlineAlbum> = withContext(Dispatchers.IO) {
         val id = artistId.trim().takeIf(String::isNotEmpty) ?: return@withContext emptyList()
-        val safeLimit = limit.coerceIn(1, ArtistAlbumLimit)
-        val url = "https://music.163.com/api/artist/albums/${id.urlEncoded()}?limit=$safeLimit&offset=0"
-        val response = JSONObject(readText(url))
-        response.optJSONArray("hotAlbums")
-            ?.toJsonObjects()
-            ?.mapNotNull(::parseAlbum)
-            .orEmpty()
+        val albums = mutableListOf<OnlineAlbum>()
+        val seenAlbumIds = linkedSetOf<String>()
+        var expectedTotalCount = expectedCount
+        var offset = 0
+        var more = true
+        while (more) {
+            val url = "https://music.163.com/api/artist/albums/${id.urlEncoded()}" +
+                "?limit=$ArtistAlbumPageSize&offset=$offset"
+            val response = JSONObject(readText(url))
+            val rawAlbums = response.optJSONArray("hotAlbums") ?: break
+            val rawCount = rawAlbums.length()
+            if (rawCount == 0) {
+                break
+            }
+            var addedCount = 0
+            rawAlbums
+                .toJsonObjects()
+                .mapNotNull(::parseAlbum)
+                .forEach { album ->
+                    if (seenAlbumIds.add(album.albumId)) {
+                        albums += album
+                        addedCount += 1
+                    }
+                }
+            if (addedCount == 0) {
+                break
+            }
+            offset += rawCount
+            val reportedAlbumCount = response.optJSONObject("artist")
+                ?.optInt("albumSize", 0)
+                ?.coerceAtLeast(0)
+                ?: 0
+            if (expectedTotalCount == null && reportedAlbumCount > 0) {
+                expectedTotalCount = reportedAlbumCount
+            }
+            val serverHasMore = response.optBoolean("more", false)
+            val countSuggestsMore = expectedTotalCount?.let { totalCount ->
+                albums.size < totalCount && rawCount >= ArtistAlbumPageSize
+            } ?: (rawCount >= ArtistAlbumPageSize)
+            more = serverHasMore || countSuggestsMore
+        }
+        albums
     }
 
     suspend fun getArtistIntroduction(artistId: String): List<OnlineArtistIntroduction> = withContext(Dispatchers.IO) {

@@ -3,6 +3,8 @@ package com.smartisanos.music.ui.shell.cloud
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -35,6 +37,7 @@ internal fun CloudRadioHomeContent(
     onRadioListClick: () -> Unit,
     onRadioClick: (OnlineRadio) -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     when (state) {
         CloudRadioHomeState.Loading -> CloudMusicDelayedLoadingState(
@@ -56,7 +59,7 @@ internal fun CloudRadioHomeContent(
         is CloudRadioHomeState.Success -> {
             Column(
                 modifier = modifier
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(bottom = playbackBarOverlayHeight + 10.dp),
             ) {
                 CloudHomeTrackPreviewSection(
@@ -87,6 +90,7 @@ internal fun CloudRadioListContent(
     onRetryClick: () -> Unit,
     onRadioClick: (OnlineRadio) -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
 ) {
     when (state) {
         CloudRadioHomeState.Loading -> CloudMusicDelayedLoadingState(
@@ -113,6 +117,7 @@ internal fun CloudRadioListContent(
             imageUrl = OnlineRadio::artworkUrl,
             onItemClick = onRadioClick,
             modifier = modifier,
+            listState = listState,
             key = { radio -> radio.radioId },
         )
     }
@@ -127,6 +132,7 @@ internal fun CloudRadioTrackStateContent(
     playbackBarOverlayHeight: Dp,
     onRetryClick: () -> Unit,
     onTrackMoreClick: (MediaItem) -> Unit,
+    scrollState: CloudLegacyListScrollState? = null,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -158,6 +164,7 @@ internal fun CloudRadioTrackStateContent(
             playbackBarOverlayHeight = playbackBarOverlayHeight,
             onRetryClick = onRetryClick,
             onTrackMoreClick = onTrackMoreClick,
+            scrollState = scrollState,
             modifier = modifier,
         )
     }

@@ -2036,27 +2036,30 @@ private fun JSONObject.hasNonNullValue(name: String): Boolean {
 }
 
 private fun JSONObject.optIntOrNull(name: String): Int? {
-    return when (val value = opt(name)) {
-        null, JSONObject.NULL -> null
-        is Number -> value.toInt()
-        is String -> value.toIntOrNull()
+    val value = opt(name)
+    return when {
+        value == null || value == JSONObject.NULL -> null
+        value is Number -> value.toInt()
+        value is String -> value.toIntOrNull()
         else -> null
     }
 }
 
 private fun JSONObject.optLongOrNull(name: String): Long? {
-    return when (val value = opt(name)) {
-        null, JSONObject.NULL -> null
-        is Number -> value.toLong()
-        is String -> value.toLongOrNull()
+    val value = opt(name)
+    return when {
+        value == null || value == JSONObject.NULL -> null
+        value is Number -> value.toLong()
+        value is String -> value.toLongOrNull()
         else -> null
     }
 }
 
 private fun JSONObject.optPlaybackDataObject(): JSONObject? {
-    return when (val data = opt("data")) {
-        is JSONObject -> data
-        is JSONArray -> data.toJsonObjects().firstOrNull()
+    val data = opt("data")
+    return when {
+        data is JSONObject -> data
+        data is JSONArray -> data.toJsonObjects().firstOrNull()
         else -> null
     }
 }

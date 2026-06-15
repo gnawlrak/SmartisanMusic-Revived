@@ -7,9 +7,7 @@ plugins {
 android {
     namespace = "com.smartisanos.music"
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     defaultConfig {
@@ -60,6 +58,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.dynamicanimation)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)

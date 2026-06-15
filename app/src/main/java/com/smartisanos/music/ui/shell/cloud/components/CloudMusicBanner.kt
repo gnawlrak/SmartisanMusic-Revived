@@ -1,10 +1,6 @@
 package com.smartisanos.music.ui.shell.cloud.components
 
-import android.graphics.Bitmap
-import android.net.Uri
-import android.util.Size
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,16 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -41,17 +32,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
+import coil3.compose.AsyncImage
 import com.smartisanos.music.R
 import com.smartisanos.music.data.online.OnlineBanner
 import com.smartisanos.music.data.online.OnlineMusicProvider
-import com.smartisanos.music.playback.loadArtworkBitmap
-import com.smartisanos.music.ui.shell.cloud.CloudBannerArtworkHeightPx
 import com.smartisanos.music.ui.shell.cloud.CloudBannerArtworkWidthPx
 import com.smartisanos.music.ui.shell.cloud.CloudBannerAutoScrollMs
 import com.smartisanos.music.ui.shell.cloud.CloudBannerHeight
 import com.smartisanos.music.ui.shell.cloud.CloudBannerMaxCount
+import com.smartisanos.music.util.fastScrollableImageRequest
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -201,35 +190,23 @@ internal fun CloudMusicBannerImage(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val bitmap by produceState<Bitmap?>(initialValue = null, imageUrl) {
-        value = null
-        val safeUrl = imageUrl?.takeIf(String::isNotBlank) ?: return@produceState
-        value = runCatching {
-            val mediaItem = MediaItem.Builder()
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setArtworkUri(Uri.parse(safeUrl))
-                        .build(),
-                )
-                .build()
-            loadArtworkBitmap(
-                context = context.applicationContext,
-                mediaItem = mediaItem,
-                size = Size(CloudBannerArtworkWidthPx, CloudBannerArtworkHeightPx),
-            )
-        }.getOrNull()
+    val safeUrl = imageUrl?.takeIf(String::isNotBlank)
+    if (safeUrl == null) {
+        Box(modifier = modifier.background(ComposeColor(0xFFB9312D)))
+        return
     }
-    val loadedBitmap = bitmap
-    if (loadedBitmap != null) {
-        Image(
-            bitmap = loadedBitmap.asImageBitmap(),
+    val request = fastScrollableImageRequest(
+        context = context,
+        data = safeUrl,
+        sizePx = CloudBannerArtworkWidthPx,
+    )
+    // 红色占位作为背景，加载未完成时透出，加载完成后被 Coil 绘制的位图覆盖。
+    Box(modifier = modifier.background(ComposeColor(0xFFB9312D))) {
+        AsyncImage(
+            model = request,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = modifier,
-        )
-    } else {
-        Box(
-            modifier = modifier.background(ComposeColor(0xFFB9312D)),
+            modifier = Modifier.matchParentSize(),
         )
     }
 }

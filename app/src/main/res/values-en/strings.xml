@@ -147,6 +147,9 @@
     <string name="cloud_music_logout_confirm_title">Log out of NetEase Cloud Music?</string>
     <string name="cloud_music_logout_confirm_message">After logging out, songs that require account access cannot be played.</string>
     <string name="cloud_music_logout_confirm_action">Log out</string>
+    <string name="settings_section_online_music">Account &amp; Online Music</string>
+    <string name="settings_section_playback">Playback</string>
+    <string name="settings_section_library">Library</string>
     <string name="online_music_settings_title">Online Music</string>
     <string name="online_music_play_quality">Online Playback Quality</string>
     <string name="online_music_quality_standard">Standard</string>

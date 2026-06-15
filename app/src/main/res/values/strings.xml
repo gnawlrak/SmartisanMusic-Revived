@@ -148,6 +148,9 @@
     <string name="cloud_music_logout_confirm_title">退出网易云音乐？</string>
     <string name="cloud_music_logout_confirm_message">退出后，将无法播放需要账号权限的在线歌曲。</string>
     <string name="cloud_music_logout_confirm_action">退出登录</string>
+    <string name="settings_section_online_music">账号与在线音乐</string>
+    <string name="settings_section_playback">播放体验</string>
+    <string name="settings_section_library">资料库</string>
     <string name="online_music_settings_title">在线音乐</string>
     <string name="online_music_play_quality">在线播放音质</string>
     <string name="online_music_quality_standard">标准</string>

@@ -278,16 +278,33 @@ internal fun LegacyPortSettingsPage(
 private fun TitleBar.setupLegacySettingsTitleBar(
     titleRes: Int,
     onClose: () -> Unit,
+    closeAffordance: LegacySettingsCloseAffordance,
 ) {
     removeAllLeftViews()
     removeAllRightViews()
     setShadowVisible(false)
     setCenterText(titleRes)
-    addLeftImageView(R.drawable.standard_icon_back_selector).apply {
-        setOnClickListener {
-            onClose()
+    when (closeAffordance) {
+        LegacySettingsCloseAffordance.Back -> {
+            addLeftImageView(R.drawable.standard_icon_back_selector).apply {
+                setOnClickListener {
+                    onClose()
+                }
+            }
+        }
+        LegacySettingsCloseAffordance.Done -> {
+            addRightImageView(R.drawable.standard_icon_complete_selector).apply {
+                setOnClickListener {
+                    onClose()
+                }
+            }
         }
     }
+}
+
+private enum class LegacySettingsCloseAffordance {
+    Back,
+    Done,
 }
 
 @Composable
@@ -319,6 +336,7 @@ private fun LegacySettingsRootPage(
             titleBar.setupLegacySettingsTitleBar(
                 titleRes = R.string.setting,
                 onClose = onClose,
+                closeAffordance = LegacySettingsCloseAffordance.Done,
             )
         }
         AndroidView(
@@ -370,6 +388,7 @@ private fun LegacyAudioFxSettingsPage(
             titleBar.setupLegacySettingsTitleBar(
                 titleRes = R.string.audio_fx,
                 onClose = onClose,
+                closeAffordance = LegacySettingsCloseAffordance.Back,
             )
         }
         AndroidView(
@@ -515,42 +534,34 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
             ),
         )
         content.addView(gapView(context))
+        content.addView(sectionTitleView(context, R.string.settings_section_online_music))
         content.addView(
             settingsGroup(
                 context,
-                neteaseAccountRow to LegacySettingsRowShape.Single,
+                neteaseAccountRow to LegacySettingsRowShape.Top,
+                playQualityRow to LegacySettingsRowShape.Bottom,
             ),
         )
         content.addView(gapView(context))
+        content.addView(sectionTitleView(context, R.string.settings_section_playback))
         content.addView(
             settingsGroup(
                 context,
-                playQualityRow to LegacySettingsRowShape.Single,
-            ),
-        )
-        content.addView(gapView(context))
-        content.addView(
-            settingsGroup(
-                context,
-                audioFxRow to LegacySettingsRowShape.Single,
-            ),
-        )
-        content.addView(gapView(context))
-        content.addView(
-            settingsGroup(
-                context,
-                scratchRow to LegacySettingsRowShape.Top,
+                audioFxRow to LegacySettingsRowShape.Top,
+                scratchRow to LegacySettingsRowShape.Middle,
                 axisRow to LegacySettingsRowShape.Middle,
                 popcornRow to LegacySettingsRowShape.Bottom,
             ),
         )
         content.addView(gapView(context))
+        content.addView(sectionTitleView(context, R.string.settings_section_library))
         content.addView(
             settingsGroup(
                 context,
                 artistSeparatorsRow to LegacySettingsRowShape.Single,
             ),
         )
+        content.addView(gapView(context))
     }
 
     fun bind(
@@ -597,13 +608,14 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         }
     }
 
-    private fun tipsView(context: Context, textRes: Int): TextView {
+    private fun sectionTitleView(context: Context, textRes: Int): TextView {
         val margin = context.resources.getDimensionPixelSize(R.dimen.list_item_left_right_margin)
         return TextView(context).apply {
             setText(textRes)
             setTextColor(context.getColor(R.color.setting_item_summary_text_color))
             setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.settings_item_tips_text_size))
-            setPadding(context.dpPx(18), context.dpPx(2), context.dpPx(18), context.dpPx(7))
+            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+            setPadding(context.dpPx(18), context.dpPx(0), context.dpPx(18), context.dpPx(7))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,

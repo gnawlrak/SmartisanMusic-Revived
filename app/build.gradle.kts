@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.smartisan.music"
+        applicationId = "app.smartisanmusic.revived"
         minSdk = 31
         targetSdk = 36
         versionCode = 212

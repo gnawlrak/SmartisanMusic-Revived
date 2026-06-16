@@ -249,6 +249,10 @@
     <dimen name="list_item_vertical_gap">14.0dp</dimen>
     <dimen name="mid_container_summary_margin">2.0dp</dimen>
     <dimen name="mid_container_top_bottom_padding">6.0dp</dimen>
+    <dimen name="settings_row_content_margin_start">18.0dp</dimen>
+    <dimen name="settings_row_title_accessory_gap">12.0dp</dimen>
+    <dimen name="settings_row_accessory_margin_end">8.0dp</dimen>
+    <dimen name="settings_row_value_arrow_gap">2.0dp</dimen>
     <dimen name="nav_divider_height">0.6700001dp</dimen>
     <dimen name="notification_control_btn_margin">9.0dp</dimen>
     <dimen name="play_back_content_height">61.0dp</dimen>

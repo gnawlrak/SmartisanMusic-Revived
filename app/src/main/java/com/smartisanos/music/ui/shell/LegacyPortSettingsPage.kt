@@ -417,7 +417,7 @@ private fun LegacyOnlineQualitySettingsPage(
             titleBar.setupLegacySettingsTitleBar(
                 titleRes = R.string.online_music_play_quality,
                 onClose = onClose,
-                closeAffordance = LegacySettingsCloseAffordance.Done,
+                closeAffordance = LegacySettingsCloseAffordance.Back,
             )
         }
         AndroidView(
@@ -554,8 +554,16 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         clipChildren = false
         clipToPadding = false
     }
-    private val neteaseAccountRow = LegacySettingsValueRow(context, R.string.cloud_music_account_netease)
-    private val playQualityRow = LegacySettingsValueRow(context, R.string.online_music_play_quality)
+    private val neteaseAccountRow = LegacySettingsValueRow(
+        context = context,
+        titleRes = R.string.cloud_music_account_netease,
+        showArrow = true,
+    )
+    private val playQualityRow = LegacySettingsValueRow(
+        context = context,
+        titleRes = R.string.online_music_play_quality,
+        showArrow = true,
+    )
     private val scratchRow = LegacySettingsSwitchRow(context, R.string.djing)
     private val axisRow = LegacySettingsSwitchRow(context, R.string.player_axis_enabled)
     private val popcornRow = LegacySettingsSwitchRow(context, R.string.popcorn_sound)
@@ -1439,6 +1447,7 @@ private class LegacyAudioFxCurveView(context: Context) : View(context) {
 private class LegacySettingsValueRow(
     context: Context,
     titleRes: Int,
+    private val showArrow: Boolean = false,
 ) : RelativeLayout(context) {
     private val titleView = TextView(context).apply {
         id = View.generateViewId()
@@ -1453,24 +1462,49 @@ private class LegacySettingsValueRow(
         id = View.generateViewId()
         gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         setSingleLine(true)
-        setTextColor(context.getColorStateList(R.color.setting_item_summary_text_colorlist))
+        setTextColor(context.getColorStateList(R.color.blue_btn_text_color_selector))
         setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.settings_item_tips_text_size))
         setDuplicateParentStateEnabled(true)
     }
+    private val arrowView = ImageView(context).apply {
+        id = View.generateViewId()
+        setBackgroundResource(R.drawable.selector_list_content_item_arrow)
+        setDuplicateParentStateEnabled(true)
+        visibility = if (showArrow) VISIBLE else GONE
+    }
 
     init {
+        val contentMarginStart = resources.getDimensionPixelSize(R.dimen.settings_row_content_margin_start)
+        val titleAccessoryGap = resources.getDimensionPixelSize(R.dimen.settings_row_title_accessory_gap)
+        val accessoryMarginEnd = resources.getDimensionPixelSize(R.dimen.settings_row_accessory_margin_end)
+        val valueArrowGap = resources.getDimensionPixelSize(R.dimen.settings_row_value_arrow_gap)
         setBackgroundResource(R.drawable.group_list_item_bg_single)
         isClickable = true
         isFocusable = true
         addView(
-            valueView,
+            arrowView,
             LayoutParams(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT,
             ).apply {
                 addRule(ALIGN_PARENT_RIGHT)
                 addRule(CENTER_VERTICAL)
-                rightMargin = dp(18)
+                rightMargin = accessoryMarginEnd
+            },
+        )
+        addView(
+            valueView,
+            LayoutParams(
+                LayoutParams.WRAP_CONTENT,
+                LayoutParams.WRAP_CONTENT,
+            ).apply {
+                if (showArrow) {
+                    addRule(LEFT_OF, arrowView.id)
+                } else {
+                    addRule(ALIGN_PARENT_RIGHT)
+                }
+                addRule(CENTER_VERTICAL)
+                rightMargin = if (showArrow) valueArrowGap else contentMarginStart
             },
         )
         addView(
@@ -1481,8 +1515,8 @@ private class LegacySettingsValueRow(
             ).apply {
                 addRule(CENTER_VERTICAL)
                 addRule(LEFT_OF, valueView.id)
-                leftMargin = dp(18)
-                rightMargin = dp(12)
+                leftMargin = contentMarginStart
+                rightMargin = titleAccessoryGap
             },
         )
     }
@@ -1495,9 +1529,6 @@ private class LegacySettingsValueRow(
         setOnClickListener { onClick() }
     }
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density + 0.5f).toInt()
-    }
 }
 
 private class LegacySettingsSwitchRow(
@@ -1526,6 +1557,9 @@ private class LegacySettingsSwitchRow(
     }
 
     init {
+        val contentMarginStart = resources.getDimensionPixelSize(R.dimen.settings_row_content_margin_start)
+        val titleAccessoryGap = resources.getDimensionPixelSize(R.dimen.settings_row_title_accessory_gap)
+        val accessoryMarginEnd = resources.getDimensionPixelSize(R.dimen.settings_row_accessory_margin_end)
         setBackgroundResource(R.drawable.group_list_item_bg_single)
         isClickable = true
         isFocusable = true
@@ -1537,7 +1571,7 @@ private class LegacySettingsSwitchRow(
             ).apply {
                 addRule(ALIGN_PARENT_RIGHT)
                 addRule(CENTER_VERTICAL)
-                rightMargin = dp(18)
+                rightMargin = accessoryMarginEnd
             },
         )
         addView(
@@ -1548,8 +1582,8 @@ private class LegacySettingsSwitchRow(
             ).apply {
                 addRule(CENTER_VERTICAL)
                 addRule(LEFT_OF, switchView.id)
-                leftMargin = dp(18)
-                rightMargin = dp(12)
+                leftMargin = contentMarginStart
+                rightMargin = titleAccessoryGap
             },
         )
         setOnClickListener {
@@ -1567,10 +1601,6 @@ private class LegacySettingsSwitchRow(
             switchView.isChecked = checked
             binding = false
         }
-    }
-
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density + 0.5f).toInt()
     }
 }
 

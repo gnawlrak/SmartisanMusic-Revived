@@ -14,8 +14,8 @@ android {
         applicationId = "app.smartisanmusic.revived"
         minSdk = 31
         targetSdk = 36
-        versionCode = 212
-        versionName = "2.1.2"
+        versionCode = 300
+        versionName = "3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

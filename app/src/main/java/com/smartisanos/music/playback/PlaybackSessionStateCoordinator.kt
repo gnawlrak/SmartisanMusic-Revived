@@ -193,10 +193,7 @@ private fun Player.toPlaybackSessionSnapshot(): PlaybackSessionSnapshot {
             val mediaId = item.mediaId.trim()
             if (mediaId.isNotEmpty()) {
                 add(
-                    PlaybackQueueSnapshotItem(
-                        mediaId = mediaId,
-                        stableKey = item.stableKey.orEmpty(),
-                    ),
+                    item.toPlaybackQueueSnapshotItem(mediaId),
                 )
             }
         }
@@ -212,6 +209,23 @@ private fun Player.toPlaybackSessionSnapshot(): PlaybackSessionSnapshot {
         positionMs = currentPosition.coerceAtLeast(0L),
         repeatMode = repeatMode.sanitizedRepeatMode(),
         shuffleModeEnabled = shuffleModeEnabled,
+    )
+}
+
+private fun MediaItem.toPlaybackQueueSnapshotItem(mediaId: String): PlaybackQueueSnapshotItem {
+    val metadata = mediaMetadata
+    return PlaybackQueueSnapshotItem(
+        mediaId = mediaId,
+        stableKey = stableKey.orEmpty(),
+        title = metadata.title?.toString()
+            ?: metadata.displayTitle?.toString()
+            ?: "",
+        artist = metadata.artist?.toString()
+            ?: metadata.subtitle?.toString()
+            ?: "",
+        album = metadata.albumTitle?.toString().orEmpty(),
+        durationMs = metadata.durationMs?.coerceAtLeast(0L) ?: 0L,
+        artworkUri = metadata.artworkUri?.toString().orEmpty(),
     )
 }
 

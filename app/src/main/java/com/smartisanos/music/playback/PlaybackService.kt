@@ -41,7 +41,7 @@ import com.smartisanos.music.data.online.isNeteasePreviewDuration
 import com.smartisanos.music.data.online.onlinePlaybackUriIdentityOrNull
 import com.smartisanos.music.data.online.onlineTrackIdentityOrNull
 import com.smartisanos.music.data.online.shouldRefreshOnlinePlaybackUrl
-import com.smartisanos.music.data.online.toOnlinePlaybackPlaceholderMediaItem
+import com.smartisanos.music.data.online.toOnlinePlaybackCacheKey
 import com.smartisanos.music.data.online.withOnlinePlaybackPlaceholderUri
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
@@ -311,7 +311,7 @@ class PlaybackService : MediaLibraryService() {
             .toList()
     }
 
-    private fun getAudioItemsByQueueKeys(queueKeys: List<PlaybackQueueSnapshotItem>): List<MediaItem> {
+    private suspend fun getAudioItemsByQueueKeys(queueKeys: List<PlaybackQueueSnapshotItem>): List<MediaItem> {
         if (queueKeys.isEmpty()) {
             return emptyList()
         }
@@ -323,7 +323,7 @@ class PlaybackService : MediaLibraryService() {
             val exclusions = if (exclusionsReady.isCompleted) {
                 exclusionsSnapshot
             } else {
-                runBlocking { exclusionsReady.await() }
+                exclusionsReady.await()
             }
             localAudioLibrary.getAudioItemsByQueueKeys(localQueueKeys)
                 .asSequence()
@@ -343,7 +343,7 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun restoreOnlineItemsByQueueKeys(
+    private suspend fun restoreOnlineItemsByQueueKeys(
         queueKeys: List<PlaybackQueueSnapshotItem>,
     ): List<MediaItem> {
         val identities = queueKeys
@@ -354,7 +354,28 @@ class PlaybackService : MediaLibraryService() {
         if (identities.isEmpty()) {
             return emptyList()
         }
-        return identities.map(OnlineTrackIdentity::toOnlinePlaybackPlaceholderMediaItem)
+        val incompleteIdentities = queueKeys
+            .asSequence()
+            .filter { key -> !key.hasOnlineDisplayMetadata() }
+            .mapNotNull { key -> key.mediaId.onlineTrackIdentityOrNull() }
+            .distinct()
+            .toList()
+        val fetchedItemsById = if (incompleteIdentities.isEmpty()) {
+            emptyMap()
+        } else {
+            onlineMusicRepository.getMediaItems(incompleteIdentities)
+                .map(MediaItem::withOnlinePlaybackPlaceholderUri)
+                .associateBy(MediaItem::mediaId)
+        }
+        return queueKeys.mapNotNull { key ->
+            val identity = key.mediaId.onlineTrackIdentityOrNull() ?: return@mapNotNull null
+            val snapshotItem = key.toOnlineSnapshotMediaItem(identity)
+            if (key.hasOnlineDisplayMetadata()) {
+                snapshotItem
+            } else {
+                fetchedItemsById[identity.toOnlinePlaybackCacheKey()] ?: snapshotItem
+            }
+        }
     }
 
     private fun createSessionActivityPendingIntent(): PendingIntent {

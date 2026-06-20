@@ -77,6 +77,23 @@ internal class OnlineMusicRepositoryRouter(
         return track?.toMediaItem()
     }
 
+    suspend fun getMediaItems(identities: List<OnlineTrackIdentity>): List<MediaItem> {
+        val neteaseTrackIds = identities
+            .asSequence()
+            .filter { identity -> identity.source == OnlineMusicProvider.Netease.sourceId }
+            .map(OnlineTrackIdentity::trackId)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+            .toList()
+        if (neteaseTrackIds.isEmpty()) {
+            return emptyList()
+        }
+        return runCatching {
+            neteaseRepository.getTracks(neteaseTrackIds).map(OnlineTrack::toMediaItem)
+        }.getOrDefault(emptyList())
+    }
+
     suspend fun lyrics(identity: OnlineTrackIdentity): OnlineLyrics? {
         return when (identity.source) {
             OnlineMusicProvider.Netease.sourceId -> neteaseRepository.lyrics(identity)

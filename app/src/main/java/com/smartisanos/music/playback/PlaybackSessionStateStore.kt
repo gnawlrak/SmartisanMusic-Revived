@@ -11,6 +11,8 @@ import androidx.media3.common.Player
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 private const val PlaybackSessionStateStoreName = "playback_session_state"
 private const val MediaIdSeparator = "\n"
@@ -36,6 +38,11 @@ internal data class PlaybackSessionSnapshot(
 internal data class PlaybackQueueSnapshotItem(
     val mediaId: String,
     val stableKey: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val album: String = "",
+    val durationMs: Long = 0L,
+    val artworkUri: String = "",
 )
 
 internal class PlaybackSessionStateStore(
@@ -48,7 +55,7 @@ internal class PlaybackSessionStateStore(
             PlaybackSessionSnapshot(
                 mediaIds = mediaIds,
                 queueItems = preferences[QueueItemsKey]
-                    ?.decodeQueueItems()
+                    ?.decodeQueueItemsFromStore()
                     ?.takeIf(List<PlaybackQueueSnapshotItem>::isNotEmpty)
                     ?: mediaIds.map { mediaId -> PlaybackQueueSnapshotItem(mediaId = mediaId) },
                 currentMediaId = preferences[CurrentMediaIdKey]?.takeIf(String::isNotBlank),
@@ -64,7 +71,7 @@ internal class PlaybackSessionStateStore(
     suspend fun save(snapshot: PlaybackSessionSnapshot) {
         context.playbackSessionStateDataStore.edit { preferences ->
             preferences[MediaIdsKey] = snapshot.mediaIds.encodeMediaIds()
-            preferences[QueueItemsKey] = snapshot.queueItems.encodeQueueItems()
+            preferences[QueueItemsKey] = snapshot.queueItems.encodeQueueItemsForStore()
             snapshot.currentMediaId?.let { currentMediaId ->
                 preferences[CurrentMediaIdKey] = currentMediaId
             } ?: preferences.remove(CurrentMediaIdKey)
@@ -90,15 +97,37 @@ private fun String.decodeMediaIds(): List<String> {
         .toList()
 }
 
-private fun List<PlaybackQueueSnapshotItem>.encodeQueueItems(): String {
-    return asSequence()
+internal fun List<PlaybackQueueSnapshotItem>.encodeQueueItemsForStore(): String {
+    val array = JSONArray()
+    asSequence()
         .filter { item -> item.mediaId.isNotBlank() }
-        .joinToString(QueueItemSeparator) { item ->
-            listOf(item.mediaId.trim(), item.stableKey.trim()).joinToString(QueueItemFieldSeparator)
+        .forEach { item ->
+            array.put(
+                JSONObject()
+                    .put(QueueItemMediaIdKey, item.mediaId.trim())
+                    .put(QueueItemStableKeyKey, item.stableKey.trim())
+                    .put(QueueItemTitleKey, item.title.trim())
+                    .put(QueueItemArtistKey, item.artist.trim())
+                    .put(QueueItemAlbumKey, item.album.trim())
+                    .put(QueueItemDurationMsKey, item.durationMs.coerceAtLeast(0L))
+                    .put(QueueItemArtworkUriKey, item.artworkUri.trim()),
+            )
         }
+    return array.toString()
 }
 
-private fun String.decodeQueueItems(): List<PlaybackQueueSnapshotItem> {
+internal fun String.decodeQueueItemsFromStore(): List<PlaybackQueueSnapshotItem> {
+    val rawValue = trim()
+    if (rawValue.isEmpty()) {
+        return emptyList()
+    }
+    if (rawValue.startsWith("[")) {
+        return decodeJsonQueueItems(rawValue)
+    }
+    return decodeLegacyQueueItems()
+}
+
+private fun String.decodeLegacyQueueItems(): List<PlaybackQueueSnapshotItem> {
     return lineSequence()
         .mapNotNull { line ->
             val parts = line.split(QueueItemFieldSeparator, limit = 2)
@@ -115,6 +144,30 @@ private fun String.decodeQueueItems(): List<PlaybackQueueSnapshotItem> {
         .toList()
 }
 
+private fun decodeJsonQueueItems(rawValue: String): List<PlaybackQueueSnapshotItem> {
+    val array = runCatching { JSONArray(rawValue) }.getOrNull() ?: return emptyList()
+    return buildList {
+        for (index in 0 until array.length()) {
+            val root = array.optJSONObject(index) ?: continue
+            val mediaId = root.optString(QueueItemMediaIdKey).trim()
+            if (mediaId.isBlank()) {
+                continue
+            }
+            add(
+                PlaybackQueueSnapshotItem(
+                    mediaId = mediaId,
+                    stableKey = root.optString(QueueItemStableKeyKey).trim(),
+                    title = root.optString(QueueItemTitleKey).trim(),
+                    artist = root.optString(QueueItemArtistKey).trim(),
+                    album = root.optString(QueueItemAlbumKey).trim(),
+                    durationMs = root.optLong(QueueItemDurationMsKey, 0L).coerceAtLeast(0L),
+                    artworkUri = root.optString(QueueItemArtworkUriKey).trim(),
+                ),
+            )
+        }
+    }
+}
+
 private val MediaIdsKey = stringPreferencesKey("media_ids")
 private val QueueItemsKey = stringPreferencesKey("queue_items")
 private val CurrentMediaIdKey = stringPreferencesKey("current_media_id")
@@ -122,3 +175,11 @@ private val CurrentIndexKey = intPreferencesKey("current_index")
 private val PositionMsKey = longPreferencesKey("position_ms")
 private val RepeatModeKey = intPreferencesKey("repeat_mode")
 private val ShuffleModeEnabledKey = booleanPreferencesKey("shuffle_mode_enabled")
+
+private const val QueueItemMediaIdKey = "mediaId"
+private const val QueueItemStableKeyKey = "stableKey"
+private const val QueueItemTitleKey = "title"
+private const val QueueItemArtistKey = "artist"
+private const val QueueItemAlbumKey = "album"
+private const val QueueItemDurationMsKey = "durationMs"
+private const val QueueItemArtworkUriKey = "artworkUri"

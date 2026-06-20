@@ -45,7 +45,6 @@ import com.smartisanos.music.data.online.toOnlinePlaybackCacheKey
 import com.smartisanos.music.data.online.withOnlinePlaybackPlaceholderUri
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
-import com.smartisanos.music.isExternalAudioLaunchItem
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -309,6 +308,63 @@ class PlaybackService : MediaLibraryService() {
                 !exclusions.isMediaHidden(item.mediaId, relativePath)
             }
             .toList()
+    }
+
+    private fun resolveSessionPlaybackMediaItems(mediaItems: List<MediaItem>): MutableList<MediaItem> {
+        mediaItems.resolveDirectSessionPlaybackItemsOrNull()?.let { directItems ->
+            return directItems
+        }
+        val localItemsById = getAudioItemsByIds(
+            mediaItems
+                .filterNot(MediaItem::canResolveDirectSessionPlaybackItem)
+                .map(MediaItem::mediaId),
+        ).associateBy(MediaItem::mediaId)
+        return mediaItems.mapNotNullTo(mutableListOf()) { item ->
+            item.toDirectSessionPlaybackItemOrNull() ?: localItemsById[item.mediaId]
+        }
+    }
+
+    private fun replaceResolvedQueueAndPlay(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        shuffleModeEnabled: Boolean,
+    ): SessionResult {
+        val safeStartIndex = playbackQueueStartIndex(
+            itemCount = mediaItems.size,
+            startIndex = startIndex,
+        ) ?: return SessionResult(SessionError.ERROR_BAD_VALUE)
+        val playbackPlayer = player ?: return SessionResult(SessionError.ERROR_UNKNOWN)
+        playbackPlayer.replaceQueueAndPlayDirect(
+            mediaItems = mediaItems,
+            startIndex = safeStartIndex,
+            shuffleModeEnabled = shuffleModeEnabled,
+        )
+        return SessionResult(SessionResult.RESULT_SUCCESS)
+    }
+
+    private fun replaceQueueAndPlayFromSessionCommand(args: Bundle): ListenableFuture<SessionResult> {
+        val mediaItems = args.decodeReplaceQueueAndPlayMediaItems()
+        val startIndex = args.getInt(ReplaceQueueStartIndexKey, 0)
+        val shuffleModeEnabled = args.getBoolean(ReplaceQueueShuffleModeKey, false)
+        mediaItems.resolveDirectSessionPlaybackItemsOrNull()?.let { directItems ->
+            return Futures.immediateFuture(
+                replaceResolvedQueueAndPlay(
+                    mediaItems = directItems,
+                    startIndex = startIndex,
+                    shuffleModeEnabled = shuffleModeEnabled,
+                ),
+            )
+        }
+        return libraryExecutor.submit<SessionResult> {
+            val resolvedItems = resolveSessionPlaybackMediaItems(mediaItems)
+            runBlocking(Dispatchers.Main.immediate) {
+                replaceResolvedQueueAndPlay(
+                    mediaItems = resolvedItems,
+                    startIndex = startIndex,
+                    shuffleModeEnabled = shuffleModeEnabled,
+                )
+            }
+        }
     }
 
     private suspend fun getAudioItemsByQueueKeys(queueKeys: List<PlaybackQueueSnapshotItem>): List<MediaItem> {
@@ -624,6 +680,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(RefreshLibraryCommand)
                 .add(InvalidateLibraryCommand)
                 .add(SetTrackRatingCommand)
+                .add(ReplaceQueueAndPlayCommand)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
@@ -705,20 +762,11 @@ class PlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
+            mediaItems.resolveDirectSessionPlaybackItemsOrNull()?.let { resolvedItems ->
+                return Futures.immediateFuture(resolvedItems)
+            }
             return libraryExecutor.submit<MutableList<MediaItem>> {
-                val itemsById = getAudioItemsByIds(
-                    mediaItems
-                        .filterNot(MediaItem::isOnlineMediaItem)
-                        .map { item -> item.mediaId },
-                )
-                    .associateBy { it.mediaId }
-                mediaItems.mapNotNullTo(mutableListOf()) { item ->
-                    when {
-                        item.isOnlineMediaItem() -> item.withOnlinePlaybackPlaceholderUri()
-                        item.isExternalAudioLaunchItem() -> item
-                        else -> itemsById[item.mediaId]
-                    }
-                }
+                resolveSessionPlaybackMediaItems(mediaItems)
             }
         }
 
@@ -750,6 +798,9 @@ class PlaybackService : MediaLibraryService() {
             if (customCommand.customAction == CancelSleepTimerAction) {
                 PlaybackSleepTimer.cancel()
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+            if (customCommand.customAction == ReplaceQueueAndPlayAction) {
+                return replaceQueueAndPlayFromSessionCommand(args)
             }
             if (customCommand.customAction == RefreshLibraryAction) {
                 return libraryRefreshExecutor.submit<SessionResult> {

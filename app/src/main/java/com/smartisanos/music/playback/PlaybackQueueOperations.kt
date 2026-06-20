@@ -3,6 +3,7 @@ package com.smartisanos.music.playback
 import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.session.MediaController
 import com.smartisanos.music.isExternalAudioLaunchItem
 import kotlin.random.Random
 
@@ -16,10 +17,35 @@ internal fun Player?.replaceQueueAndPlay(
         itemCount = mediaItems.size,
         startIndex = startIndex,
     ) ?: return
-    player.shuffleModeEnabled = shuffleModeEnabled
-    player.setMediaItems(mediaItems, safeStartIndex, 0L)
-    player.prepare()
-    player.play()
+    if (player is MediaController) {
+        player.sendReplaceQueueAndPlayCommand(
+            mediaItems = mediaItems,
+            startIndex = safeStartIndex,
+            shuffleModeEnabled = shuffleModeEnabled,
+        )
+        return
+    }
+    player.replaceQueueAndPlayDirect(
+        mediaItems = mediaItems,
+        startIndex = safeStartIndex,
+        shuffleModeEnabled = shuffleModeEnabled,
+    )
+}
+
+internal fun Player.replaceQueueAndPlayDirect(
+    mediaItems: List<MediaItem>,
+    startIndex: Int,
+    shuffleModeEnabled: Boolean = false,
+) {
+    val safeStartIndex = playbackQueueStartIndex(
+        itemCount = mediaItems.size,
+        startIndex = startIndex,
+    ) ?: return
+    this.shuffleModeEnabled = shuffleModeEnabled
+    playWhenReady = true
+    setMediaItems(mediaItems, safeStartIndex, 0L)
+    prepare()
+    play()
 }
 
 internal fun Player?.replaceQueueAndPlayShuffled(

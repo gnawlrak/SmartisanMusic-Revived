@@ -10,8 +10,6 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Size
 import androidx.media3.common.MediaItem
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -40,10 +38,7 @@ internal suspend fun loadArtworkBitmap(
     context: Context,
     mediaItem: MediaItem,
     size: Size,
-): Bitmap? = withContext(Dispatchers.IO) {
-    loadArtworkBitmapSync(context.applicationContext, mediaItem, size)
-        ?.also { bitmap -> bitmap.prepareToDraw() }
-}
+): Bitmap? = NowPlayingArtworkRepository.load(context, mediaItem, size)
 
 internal fun loadArtworkBitmapSync(
     context: Context,

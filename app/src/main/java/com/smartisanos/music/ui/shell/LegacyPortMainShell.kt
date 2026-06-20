@@ -90,6 +90,7 @@ import com.smartisanos.music.ui.shell.library.rememberLegacyLibraryMediaState
 import com.smartisanos.music.ui.shell.playback.LegacyPlaybackBarSnapshot
 import com.smartisanos.music.ui.shell.playback.LegacyPortPlaybackBar
 import com.smartisanos.music.ui.shell.playback.loadLegacyArtworkBitmap
+import com.smartisanos.music.ui.shell.playback.peekLegacyArtworkBitmap
 import com.smartisanos.music.ui.shell.playback.toExternalAudioMediaItem
 import com.smartisanos.music.ui.shell.search.LegacyPortSearchOverlay
 import com.smartisanos.music.ui.shell.search.LegacySearchDrilldownTarget
@@ -237,11 +238,19 @@ private fun LegacyPortMainShellContent(
     val legacyLibraryItems = remember(legacyLibrary.items, ratingOverrides) {
         legacyLibrary.items.withRatingOverrides(ratingOverrides)
     }
-    val artworkRequestKey = playbackBarContentSnapshot.mediaItem?.artworkRequestKey()
-    val artworkBitmap by produceState<Bitmap?>(initialValue = null, artworkRequestKey) {
-        value = playbackBarContentSnapshot.mediaItem?.let { mediaItem ->
-            loadLegacyArtworkBitmap(context.applicationContext, mediaItem)
+    val playbackBarMediaItem = playbackBarContentSnapshot.mediaItem
+    val artworkRequestKey = playbackBarMediaItem?.artworkRequestKey()
+    val artworkBitmap by produceState<Bitmap?>(
+        initialValue = playbackBarMediaItem?.let(::peekLegacyArtworkBitmap),
+        artworkRequestKey,
+    ) {
+        val mediaItem = playbackBarContentSnapshot.mediaItem
+        if (mediaItem == null) {
+            value = null
+            return@produceState
         }
+        value = peekLegacyArtworkBitmap(mediaItem) ?: value
+        value = loadLegacyArtworkBitmap(context.applicationContext, mediaItem)
     }
     val albumPredictiveBackState = rememberLegacyPortPredictiveBackState()
     val artistRootPredictiveBackState = rememberLegacyPortPredictiveBackState()

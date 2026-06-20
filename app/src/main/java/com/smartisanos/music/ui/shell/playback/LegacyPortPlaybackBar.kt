@@ -21,7 +21,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.R
 import com.smartisanos.music.isExternalAudioLaunchItem
-import com.smartisanos.music.playback.loadArtworkBitmap
+import com.smartisanos.music.playback.NowPlayingArtworkRepository
 import kotlin.math.roundToInt
 
 @Composable
@@ -72,7 +72,11 @@ internal data class LegacyPlaybackBarSnapshot(
 internal suspend fun loadLegacyArtworkBitmap(
     context: android.content.Context,
     mediaItem: MediaItem,
-): Bitmap? = loadArtworkBitmap(context, mediaItem, LegacyPlaybackBarArtworkDecodeSize)
+): Bitmap? = NowPlayingArtworkRepository.load(context, mediaItem, LegacyPlaybackBarArtworkDecodeSize)
+
+internal fun peekLegacyArtworkBitmap(
+    mediaItem: MediaItem,
+): Bitmap? = NowPlayingArtworkRepository.peek(mediaItem, LegacyPlaybackBarArtworkDecodeSize)
 
 private class LegacyPlaybackBarHostView(context: Context) : FrameLayout(context) {
     private val playbackBar: View =

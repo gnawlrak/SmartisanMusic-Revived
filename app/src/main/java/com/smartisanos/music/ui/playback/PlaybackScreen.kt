@@ -74,6 +74,7 @@ import com.smartisanos.music.playback.removeMediaItemsByMediaIds
 import com.smartisanos.music.playback.setScratchSeekModeEnabled
 import com.smartisanos.music.playback.startSleepTimer
 import com.smartisanos.music.ui.components.loadEmbeddedArtwork
+import com.smartisanos.music.ui.components.peekArtworkThumbnail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -560,12 +561,16 @@ fun PlaybackScreen(
     }
     val artworkRequestKey = state.mediaItem?.artworkRequestKey()
     val albumArtwork by produceState<ImageBitmap?>(
-        initialValue = null,
+        initialValue = state.mediaItem?.let(::peekArtworkThumbnail),
         artworkRequestKey,
     ) {
-        value = state.mediaItem?.let { mediaItem ->
-            loadEmbeddedArtwork(context, mediaItem)
+        val mediaItem = state.mediaItem
+        if (mediaItem == null) {
+            value = null
+            return@produceState
         }
+        value = peekArtworkThumbnail(mediaItem) ?: value
+        value = loadEmbeddedArtwork(context, mediaItem)
     }
 
     LaunchedEffect(

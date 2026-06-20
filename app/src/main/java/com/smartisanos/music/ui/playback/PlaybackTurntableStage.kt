@@ -757,13 +757,6 @@ private fun PlaybackTurntableDisc(
         manualRotationOffsetDegrees = manualRotationOffsetDegrees,
     )
 
-    // 保留上一个非 null 封面，避免切歌时旧封面瞬间消失
-    var lastArtwork by remember { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(albumArtwork) {
-        if (albumArtwork != null) lastArtwork = albumArtwork
-    }
-    val artworkToShow = albumArtwork ?: lastArtwork
-
     Box(modifier = modifier) {
         Image(
             painter = painterResource(R.drawable.playing_lp),
@@ -781,9 +774,9 @@ private fun PlaybackTurntableDisc(
                     rotationZ = discRotation.value
                 },
         )
-        if (artworkToShow != null) {
+        if (albumArtwork != null) {
             PlaybackTurntableAlbumArt(
-                artwork = artworkToShow,
+                artwork = albumArtwork,
                 turntableWidth = turntableWidth,
                 discRotation = discRotation,
                 modifier = Modifier

@@ -6,7 +6,7 @@ import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.media3.common.MediaItem
-import com.smartisanos.music.playback.loadArtworkBitmap
+import com.smartisanos.music.playback.NowPlayingArtworkRepository
 
 suspend fun loadEmbeddedArtwork(
     context: Context,
@@ -16,14 +16,20 @@ suspend fun loadEmbeddedArtwork(
 suspend fun loadArtwork(
     context: Context,
     mediaItem: MediaItem,
-): ImageBitmap? = loadArtworkBitmap(context, mediaItem, ArtworkFullSize)
+): ImageBitmap? = NowPlayingArtworkRepository.load(context, mediaItem, ArtworkFullSize)
     ?.toPreparedImageBitmap()
 
 suspend fun loadArtworkThumbnail(
     context: Context,
     mediaItem: MediaItem,
     size: Size,
-): ImageBitmap? = loadArtworkBitmap(context, mediaItem, size)
+): ImageBitmap? = NowPlayingArtworkRepository.load(context, mediaItem, size)
+    ?.toPreparedImageBitmap()
+
+fun peekArtworkThumbnail(
+    mediaItem: MediaItem,
+    size: Size = ArtworkThumbnailSize,
+): ImageBitmap? = NowPlayingArtworkRepository.peek(mediaItem, size)
     ?.toPreparedImageBitmap()
 
 private fun Bitmap.toPreparedImageBitmap(): ImageBitmap {

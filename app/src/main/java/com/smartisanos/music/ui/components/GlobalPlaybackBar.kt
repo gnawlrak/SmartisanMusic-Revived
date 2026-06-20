@@ -29,6 +29,7 @@ import com.smartisanos.music.playback.artworkRequestKey
 import com.smartisanos.music.ui.shell.playback.LegacyPlaybackBarSnapshot
 import com.smartisanos.music.ui.shell.playback.LegacyPortPlaybackBar
 import com.smartisanos.music.ui.shell.playback.loadLegacyArtworkBitmap
+import com.smartisanos.music.ui.shell.playback.peekLegacyArtworkBitmap
 import kotlinx.coroutines.launch
 
 @Composable
@@ -72,7 +73,11 @@ fun GlobalPlaybackBar(
 
     val mediaItem = snapshot.mediaItem ?: return
     val artworkRequestKey = mediaItem.artworkRequestKey()
-    val artworkBitmap by produceState<Bitmap?>(initialValue = null, artworkRequestKey) {
+    val artworkBitmap by produceState<Bitmap?>(
+        initialValue = peekLegacyArtworkBitmap(mediaItem),
+        artworkRequestKey,
+    ) {
+        value = peekLegacyArtworkBitmap(mediaItem) ?: value
         value = loadLegacyArtworkBitmap(context.applicationContext, mediaItem)
     }
 

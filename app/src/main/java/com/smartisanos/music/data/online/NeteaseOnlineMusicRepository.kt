@@ -11,6 +11,7 @@ import com.smartisanos.music.data.settings.fallbackCandidates
 import com.smartisanos.music.playback.LocalAudioLibrary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -373,6 +374,7 @@ internal class NeteaseOnlineMusicRepository(
         key: String,
         codec: OnlinePageCacheCodec<T>,
         loader: suspend () -> T,
+        shouldCache: (T) -> Boolean = { true },
     ) {
         val scope = pageCacheRefreshScope ?: return
         if (!refreshingPageCacheKeys.add(key)) {
@@ -381,6 +383,9 @@ internal class NeteaseOnlineMusicRepository(
         scope.launch {
             runCatching {
                 val value = loader()
+                if (!shouldCache(value)) {
+                    return@runCatching
+                }
                 val loadedAtMs = System.currentTimeMillis()
                 NeteaseOnlineMemoryCache.put(key, value, loadedAtMs)
                 pageDiskCache?.put(
@@ -434,26 +439,89 @@ internal class NeteaseOnlineMusicRepository(
         if (normalizedQuery.isEmpty()) {
             return OnlineSearchResults(query = normalizedQuery)
         }
-        return cachedPage(
-            key = cacheKey("search:all", normalizedQuery),
-            ttlMs = NeteaseSearchCacheTtlMs,
-            codec = OnlinePageCacheCodecs.SearchResults,
-        ) {
-            OnlineSearchResults(
-                query = normalizedQuery,
-                tracks = runCatching {
-                    client.searchSongs(normalizedQuery, limit = SearchLimit)
-                }.getOrDefault(emptyList()),
-                artists = runCatching {
-                    client.searchArtists(normalizedQuery, limit = ArtistSearchLimit)
-                }.getOrDefault(emptyList()),
-                albums = runCatching {
-                    client.searchAlbums(normalizedQuery, limit = AlbumSearchLimit)
-                }.getOrDefault(emptyList()),
-                playlists = runCatching {
-                    client.searchPlaylists(normalizedQuery, limit = PlaylistSearchLimit)
-                }.getOrDefault(emptyList()),
+        val key = cacheKey("search:all", normalizedQuery)
+        val nowMs = System.currentTimeMillis()
+        // 只命中「有结果」的缓存：空结果（网络抖动/风控导致）不缓存，避免 5 分钟内持续返回空。
+        NeteaseOnlineMemoryCache.getFreshValue<OnlineSearchResults>(key, NeteaseSearchCacheTtlMs, nowMs)
+            ?.value
+            ?.takeIf { it.hasResults }
+            ?.let { return it }
+        val diskEntry = pageDiskCache?.get(key, OnlinePageCacheCodecs.SearchResults)
+        if (diskEntry != null && diskEntry.value.hasResults) {
+            NeteaseOnlineMemoryCache.put(key, diskEntry.value, diskEntry.cachedAtMs)
+            if (nowMs - diskEntry.cachedAtMs > NeteaseSearchCacheTtlMs) {
+                refreshPageCacheInBackground(
+                    key = key,
+                    codec = OnlinePageCacheCodecs.SearchResults,
+                    loader = { performSearch(normalizedQuery) },
+                    // 后台刷新遇风控/空响应时不要覆盖已有的有效缓存。
+                    shouldCache = { it.hasResults },
+                )
+            }
+            return diskEntry.value
+        }
+        val results = performSearch(normalizedQuery)
+        // 仅缓存有结果的成功响应；空结果可能是瞬时风控，缓存它会让用户 5 分钟内持续看到空。
+        if (results.hasResults) {
+            val loadedAtMs = System.currentTimeMillis()
+            NeteaseOnlineMemoryCache.put(key, results, loadedAtMs)
+            pageDiskCache?.put(
+                key = key,
+                value = results,
+                codec = OnlinePageCacheCodecs.SearchResults,
+                cachedAtMs = loadedAtMs,
             )
+        }
+        return results
+    }
+
+    /**
+     * 并行执行四类搜索。任一类型失败不拖垮其他类型（返回部分结果）；仅当全部失败时上抛异常，
+     * 让 UI 显示 Error 而非静默吞成空列表。
+     *
+     * 注意：不能用 runCatching 包裹协程调用——它会吞掉 CancellationException 导致协程取消信号丢失。
+     * 这里用 safeSearchCall 手动捕获非取消异常。
+     */
+    private suspend fun performSearch(query: String): OnlineSearchResults = coroutineScope {
+        val tracksDeferred = async { safeSearchCall { client.searchSongs(query, limit = SearchLimit) } }
+        val artistsDeferred = async { safeSearchCall { client.searchArtists(query, limit = ArtistSearchLimit) } }
+        val albumsDeferred = async { safeSearchCall { client.searchAlbums(query, limit = AlbumSearchLimit) } }
+        val playlistsDeferred = async { safeSearchCall { client.searchPlaylists(query, limit = PlaylistSearchLimit) } }
+
+        val tracksResult = tracksDeferred.await()
+        val artistsResult = artistsDeferred.await()
+        val albumsResult = albumsDeferred.await()
+        val playlistsResult = playlistsDeferred.await()
+
+        // 全部失败时上抛最后一个异常，让 UI 显示 Error。
+        if (tracksResult.isFailure && artistsResult.isFailure &&
+            albumsResult.isFailure && playlistsResult.isFailure
+        ) {
+            throw tracksResult.exceptionOrNull()
+                ?: artistsResult.exceptionOrNull()
+                ?: albumsResult.exceptionOrNull()
+                ?: playlistsResult.exceptionOrNull()
+                ?: IOException("NetEase search failed for all categories")
+        }
+        OnlineSearchResults(
+            query = query,
+            tracks = tracksResult.getOrDefault(emptyList()),
+            artists = artistsResult.getOrDefault(emptyList()),
+            albums = albumsResult.getOrDefault(emptyList()),
+            playlists = playlistsResult.getOrDefault(emptyList()),
+        )
+    }
+
+    /**
+     * 捕获搜索调用中的非取消异常，CancellationException 重新抛出以保留协程取消语义。
+     */
+    private suspend fun <T> safeSearchCall(block: suspend () -> List<T>): Result<List<T>> {
+        return try {
+            Result.success(block())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(e)
         }
     }
 
@@ -1197,24 +1265,49 @@ internal class NeteaseCloudMusicClient(
 
     suspend fun searchSongs(query: String, limit: Int): List<OnlineTrack> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, SearchLimit)
-        val url = "https://music.163.com/api/search/get/web" +
-            "?s=${query.urlEncoded()}&type=1&limit=$safeLimit&offset=0"
-        val response = JSONObject(readText(url))
+        val response = JSONObject(
+            callWeApi(
+                path = "/cloudsearch/get/web",
+                params = mapOf(
+                    "s" to query,
+                    "type" to "1",
+                    "limit" to safeLimit.toString(),
+                    "offset" to "0",
+                    "total" to "true",
+                ),
+            ),
+        )
         val songs = response.optJSONObject("result")
             ?.optJSONArray("songs")
             ?: return@withContext emptyList()
         val baseTracks = songs.toJsonObjects()
             .mapNotNull(::parseSong)
-        val detailsById = getSongs(baseTracks.map(OnlineTrack::trackId))
-            .associateBy(OnlineTrack::trackId)
+        // 详情补全失败不应连累搜索结果：失败时沿用基础信息。
+        // 注意不能用 runCatching——它会吞掉 CancellationException 导致协程取消信号丢失。
+        val detailsById = try {
+            getSongs(baseTracks.map(OnlineTrack::trackId))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            emptyList()
+        }.associateBy(OnlineTrack::trackId)
         baseTracks.map { track -> detailsById[track.trackId] ?: track }
     }
 
     suspend fun searchArtists(query: String, limit: Int): List<OnlineArtist> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, ArtistSearchLimit)
-        val url = "https://music.163.com/api/search/get/web" +
-            "?s=${query.urlEncoded()}&type=100&limit=$safeLimit&offset=0"
-        val response = JSONObject(readText(url))
+        val response = JSONObject(
+            callWeApi(
+                path = "/cloudsearch/get/web",
+                params = mapOf(
+                    "s" to query,
+                    "type" to "100",
+                    "limit" to safeLimit.toString(),
+                    "offset" to "0",
+                    "total" to "true",
+                ),
+            ),
+        )
         response.optJSONObject("result")
             ?.optJSONArray("artists")
             ?.toJsonObjects()
@@ -1224,9 +1317,18 @@ internal class NeteaseCloudMusicClient(
 
     suspend fun searchAlbums(query: String, limit: Int): List<OnlineAlbum> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, AlbumSearchLimit)
-        val url = "https://music.163.com/api/search/get/web" +
-            "?s=${query.urlEncoded()}&type=10&limit=$safeLimit&offset=0"
-        val response = JSONObject(readText(url))
+        val response = JSONObject(
+            callWeApi(
+                path = "/cloudsearch/get/web",
+                params = mapOf(
+                    "s" to query,
+                    "type" to "10",
+                    "limit" to safeLimit.toString(),
+                    "offset" to "0",
+                    "total" to "true",
+                ),
+            ),
+        )
         response.optJSONObject("result")
             ?.optJSONArray("albums")
             ?.toJsonObjects()
@@ -1236,9 +1338,18 @@ internal class NeteaseCloudMusicClient(
 
     suspend fun searchPlaylists(query: String, limit: Int): List<OnlinePlaylist> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, PlaylistSearchLimit)
-        val url = "https://music.163.com/api/search/get/web" +
-            "?s=${query.urlEncoded()}&type=1000&limit=$safeLimit&offset=0"
-        val response = JSONObject(readText(url))
+        val response = JSONObject(
+            callWeApi(
+                path = "/cloudsearch/get/web",
+                params = mapOf(
+                    "s" to query,
+                    "type" to "1000",
+                    "limit" to safeLimit.toString(),
+                    "offset" to "0",
+                    "total" to "true",
+                ),
+            ),
+        )
         response.optJSONObject("result")
             ?.optJSONArray("playlists")
             ?.toJsonObjects()

@@ -1395,8 +1395,17 @@ internal class NeteaseCloudMusicClient(
 
     suspend fun getPersonalizedPlaylists(limit: Int): List<OnlinePlaylist> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, FeaturedPlaylistLimit)
-        val url = "https://music.163.com/api/personalized/playlist?limit=$safeLimit"
-        val response = JSONObject(readText(url))
+        val response = JSONObject(
+            callWeApi(
+                path = "/personalized/playlist",
+                params = mapOf(
+                    "limit" to safeLimit.toString(),
+                    "offset" to "0",
+                    "total" to "true",
+                    "n" to "1000",
+                ),
+            ),
+        )
         response.optJSONArray("result")
             ?.toJsonObjects()
             ?.mapNotNull { playlist ->
@@ -1564,8 +1573,15 @@ internal class NeteaseCloudMusicClient(
     suspend fun getAlbumSongs(albumId: String, limit: Int): List<OnlineTrack> = withContext(Dispatchers.IO) {
         val id = albumId.trim().takeIf(String::isNotEmpty) ?: return@withContext emptyList()
         val safeLimit = limit.coerceIn(1, AlbumTracksLimit)
-        val url = "https://music.163.com/api/v1/album/${id.urlEncoded()}"
-        val response = JSONObject(readText(url))
+        val response = JSONObject(
+            callWeApi(
+                path = "/v1/album/${id.urlEncoded()}",
+                params = mapOf(
+                    "n" to safeLimit.toString(),
+                    "s" to "8",
+                ),
+            ),
+        )
         response.optJSONArray("songs")
             ?.toJsonObjects()
             ?.mapNotNull(::parseSong)
@@ -1609,9 +1625,17 @@ internal class NeteaseCloudMusicClient(
             return@withContext emptyList()
         }
         val safeLimit = limit.coerceIn(1, AccountPlaylistLimit)
-        val url = "https://music.163.com/api/user/playlist/" +
-            "?uid=$userId&limit=$safeLimit&offset=0"
-        val response = readText(url)
+        val response = requestWithLoginRetry {
+            callWeApi(
+                path = "/user/playlist",
+                params = mapOf(
+                    "uid" to userId.toString(),
+                    "limit" to safeLimit.toString(),
+                    "offset" to "0",
+                    "includeVideo" to "true",
+                ),
+            )
+        }
         parseNeteaseUserPlaylistsResponse(response)
     }
 
@@ -1620,19 +1644,21 @@ internal class NeteaseCloudMusicClient(
             return@withContext emptyList()
         }
         val safeLimit = limit.coerceIn(1, AccountAlbumLimit)
-        val response = callEApi(
-            path = "/mine/rn/resource/list",
-            params = mapOf(
-                "userId" to userId.toString(),
-                "offset" to "0",
-                "limit" to safeLimit.toString(),
-                "pageType" to "3",
-                "needRcmd" to "0",
-                "isVistor" to "false",
-                "includeStarPodcast" to "true",
-            ),
-            host = "interface3.music.163.com",
-        )
+        val response = requestWithLoginRetry {
+            callEApi(
+                path = "/mine/rn/resource/list",
+                params = mapOf(
+                    "userId" to userId.toString(),
+                    "offset" to "0",
+                    "limit" to safeLimit.toString(),
+                    "pageType" to "3",
+                    "needRcmd" to "0",
+                    "isVistor" to "false",
+                    "includeStarPodcast" to "true",
+                ),
+                host = "interface3.music.163.com",
+            )
+        }
         parseNeteaseAccountAlbumsResponse(response).take(safeLimit)
     }
 
@@ -1641,14 +1667,16 @@ internal class NeteaseCloudMusicClient(
             return@withContext emptyList()
         }
         val safeLimit = limit.coerceIn(1, AccountRadioLimit)
-        val response = callWeApi(
-            path = "/user/djradio/get/subed",
-            params = mapOf(
-                "uid" to userId.toString(),
-                "offset" to "0",
-                "limit" to safeLimit.toString(),
-            ),
-        )
+        val response = requestWithLoginRetry {
+            callWeApi(
+                path = "/user/djradio/get/subed",
+                params = mapOf(
+                    "uid" to userId.toString(),
+                    "offset" to "0",
+                    "limit" to safeLimit.toString(),
+                ),
+            )
+        }
         parseNeteaseAccountRadiosResponse(response).take(safeLimit)
     }
 
@@ -1731,21 +1759,58 @@ internal class NeteaseCloudMusicClient(
 
     suspend fun getLyrics(trackId: String): OnlineLyrics = withContext(Dispatchers.IO) {
         val id = trackId.trim().takeIf(String::isNotEmpty) ?: return@withContext OnlineLyrics(null, null)
-        val url = "https://music.163.com/api/song/lyric" +
-            "?id=${id.urlEncoded()}&lv=-1&tv=-1&rv=-1&kv=-1&yv=-1&ytv=-1&yrv=-1"
-        val response = JSONObject(readText(url))
-        OnlineLyrics(
-            lyric = response.optJSONObject("lrc")
-                ?.optNonBlankString("lyric")
-                ?: response.optJSONObject("yrc")?.optNonBlankString("lyric"),
-            translatedLyric = response.optJSONObject("tlyric")
-                ?.optNonBlankString("lyric")
-                ?: response.optJSONObject("ytlrc")?.optNonBlankString("lyric"),
+        // 使用 eapi /song/lyric/v1（与官方 PC 客户端一致），比旧版明文 /api/song/lyric 更稳定，
+        // 对版权/会员歌词返回更完整。参数对齐 NeriPlayer：lv=原词, tv=翻译, yv=逐字歌词, ytv=逐字翻译。
+        val params = mapOf(
+            "id" to id,
+            "cp" to "false",
+            "lv" to "0",
+            "tv" to "1",
+            "rv" to "0",
+            "yv" to "1",
+            "ytv" to "1",
+            "yrv" to "0",
+        )
+        val response = requestLyricsWithSessionRetry { callEApi("/song/lyric/v1", params) }
+        parseLyricsResponse(response)
+    }
+
+    private fun requestLyricsWithSessionRetry(request: () -> String): String {
+        var response = runCatching { request() }.getOrNull() ?: ""
+        // 已登录且接口返回 code=301（登录态/csrf 过期）时，预热会话后重试一次。
+        // 注意网易云返回的是 HTTP 200 + JSON code=301，不会抛异常，必须解析响应体判断。
+        if (hasLogin() && responseJsonRequiresLogin(response)) {
+            ensureWeapiSession()
+            response = runCatching { request() }.getOrNull() ?: ""
+        }
+        return response
+    }
+
+    private fun parseLyricsResponse(response: String): OnlineLyrics {
+        if (response.isBlank()) {
+            return OnlineLyrics(null, null)
+        }
+        val json = runCatching { JSONObject(response) }.getOrNull()
+            ?: return OnlineLyrics(null, null)
+        // code=301 表示需要登录态，此时歌词字段为空。
+        val code = json.optInt("code", 0)
+        if (code == 301) {
+            return OnlineLyrics(null, null)
+        }
+        // 优先普通歌词 lrc；本项目歌词解析器只支持 [mm:ss.xx] 的 LRC 格式，
+        // 不支持 yrc 的 [start,duration](word) 逐字格式，因此 yrc 仅作 lrc 缺失时的兜底。
+        return OnlineLyrics(
+            lyric = json.optJSONObject("lrc")?.optNonBlankString("lyric")
+                ?: json.optJSONObject("yrc")?.optNonBlankString("lyric"),
+            translatedLyric = json.optJSONObject("tlyric")?.optNonBlankString("lyric")
+                ?: json.optJSONObject("ytlrc")?.optNonBlankString("lyric"),
         )
     }
 
     suspend fun getCurrentUserProfile(): NeteaseAccountProfile? = withContext(Dispatchers.IO) {
-        val response = callWeApi("/w/nuser/account/get", emptyMap())
+        val response = requestWithLoginRetry {
+            callWeApi("/w/nuser/account/get", emptyMap())
+        }
         parseNeteaseAccountProfileResponse(response)
     }
 
@@ -2075,6 +2140,28 @@ internal class NeteaseCloudMusicClient(
         return runCatching {
             parseNeteasePlaylistCreateResponse(request())
         }.getOrDefault(OnlineAccountPlaylistCreateResult(NeteaseAccountActionStatus.Failed))
+    }
+
+    /**
+     * 通用的登录态读接口 session retry：首次请求若返回 code=301（需重新登录态/csrf）且已登录，
+     * 则 ensureWeapiSession 预热后重试一次。适用于 getCurrentUserProfile/getUserPlaylists/
+     * getUserAlbums/getUserRadios 等没有专用 Result 类型的读接口。
+     */
+    private fun requestWithLoginRetry(request: () -> String): String {
+        var response = runCatching { request() }.getOrNull() ?: ""
+        if (hasLogin() && responseJsonRequiresLogin(response)) {
+            ensureWeapiSession()
+            response = runCatching { request() }.getOrNull() ?: ""
+        }
+        return response
+    }
+
+    private fun responseJsonRequiresLogin(response: String): Boolean {
+        if (response.isBlank()) {
+            return false
+        }
+        val code = runCatching { JSONObject(response).optInt("code", 0) }.getOrDefault(0)
+        return code == 301
     }
 
     private fun hasLogin(): Boolean {

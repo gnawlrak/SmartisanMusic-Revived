@@ -89,6 +89,17 @@ internal class NeteaseAuthStore(context: Context) {
 }
 
 private fun openPreferences(context: Context): SharedPreferences {
+    return createEncryptedPrefs(context) ?: run {
+        // 加密存储创建失败（如 Keystore 损坏），删除可能损坏的文件后重试一次。
+        // 绝不降级为明文 MODE_PRIVATE——MUSIC_U 等登录凭据明文落盘是不可接受的安全风险。
+        runCatching { context.deleteSharedPreferences(NeteaseAuthPrefsName) }
+        // 使用进程级共享实例：本项目在设置页、云音乐页、Repository、播放服务各自 new NeteaseAuthStore，
+        // 若各自创建独立的内存存储，登录保存后其他实例读不到，会误判为未登录。
+        createEncryptedPrefs(context) ?: InMemorySharedPreferences
+    }
+}
+
+private fun createEncryptedPrefs(context: Context): SharedPreferences? {
     return runCatching {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -100,9 +111,95 @@ private fun openPreferences(context: Context): SharedPreferences {
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
-    }.getOrElse {
-        context.getSharedPreferences(NeteaseAuthPrefsName, Context.MODE_PRIVATE)
+    }.getOrNull()
+}
+
+/**
+ * 加密存储彻底不可用时的进程级兜底：内存内可读写 SharedPreferences，不落盘。
+ * 所有 NeteaseAuthStore 实例共享同一份，写入的数据本次会话内有效，重启 App 后丢失。
+ * 凭据绝不以明文形式留在磁盘上。
+ */
+private object InMemorySharedPreferences : SharedPreferences {
+    private val store = java.util.concurrent.ConcurrentHashMap<String, Any?>()
+    private val listeners = java.util.Collections.synchronizedSet(mutableSetOf<SharedPreferences.OnSharedPreferenceChangeListener>())
+
+    @Suppress("UNCHECKED_CAST")
+    override fun getAll(): MutableMap<String, *> = store.toMap() as MutableMap<String, *>
+    override fun getString(key: String?, defValue: String?): String? = (store[key] as? String) ?: defValue
+    @Suppress("UNCHECKED_CAST")
+    override fun getStringSet(key: String?, defValues: MutableSet<String>?) = (store[key] as? MutableSet<String>) ?: defValues
+    override fun getInt(key: String?, defValue: Int): Int = (store[key] as? Int) ?: defValue
+    override fun getLong(key: String?, defValue: Long): Long = (store[key] as? Long) ?: defValue
+    override fun getFloat(key: String?, defValue: Float): Float = (store[key] as? Float) ?: defValue
+    override fun getBoolean(key: String?, defValue: Boolean): Boolean = (store[key] as? Boolean) ?: defValue
+    override fun contains(key: String?): Boolean = store.containsKey(key)
+    override fun edit(): SharedPreferences.Editor = Editor(store, listeners)
+    override fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) {
+        listeners.add(listener)
     }
+    override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) {
+        listeners.remove(listener)
+    }
+
+    private class Editor(
+        private val store: java.util.concurrent.ConcurrentHashMap<String, Any?>,
+        private val listeners: MutableSet<SharedPreferences.OnSharedPreferenceChangeListener>,
+    ) : SharedPreferences.Editor {
+        private val pending = java.util.concurrent.ConcurrentHashMap<String, Any?>()
+        private var doClear = false
+
+        override fun putString(key: String?, value: String?): SharedPreferences.Editor {
+            if (key != null) pending[key] = value
+            return this
+        }
+        override fun putStringSet(key: String?, values: MutableSet<String>?): SharedPreferences.Editor {
+            if (key != null) pending[key] = values
+            return this
+        }
+        override fun putInt(key: String?, value: Int): SharedPreferences.Editor {
+            if (key != null) pending[key] = value
+            return this
+        }
+        override fun putLong(key: String?, value: Long): SharedPreferences.Editor {
+            if (key != null) pending[key] = value
+            return this
+        }
+        override fun putFloat(key: String?, value: Float): SharedPreferences.Editor {
+            if (key != null) pending[key] = value
+            return this
+        }
+        override fun putBoolean(key: String?, value: Boolean): SharedPreferences.Editor {
+            if (key != null) pending[key] = value
+            return this
+        }
+        override fun remove(key: String?): SharedPreferences.Editor {
+            if (key != null) pending[key] = REMOVE_MARKER
+            return this
+        }
+        override fun clear(): SharedPreferences.Editor {
+            doClear = true
+            return this
+        }
+        override fun commit(): Boolean {
+            apply()
+            return true
+        }
+        override fun apply() {
+            if (doClear) {
+                store.clear()
+            }
+            pending.forEach { (key, value) ->
+                if (value === REMOVE_MARKER) {
+                    store.remove(key)
+                } else {
+                    store[key] = value
+                }
+            }
+            listeners.forEach { it.onSharedPreferenceChanged(null, null) }
+        }
+    }
+
+    private val REMOVE_MARKER = Any()
 }
 
 internal fun parseNeteaseCookieHeader(rawCookieHeader: String): Map<String, String> {

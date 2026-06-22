@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -83,6 +84,7 @@ class PlaybackService : MediaLibraryService() {
     private var lastOnlineMediaRefreshKey: String? = null
     private var lastOnlineMediaRefreshAtMs: Long = 0L
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val resumeFadeController = ResumeVolumeFadeController(serviceScope)
     @Volatile private var exclusionsSnapshot: LibraryExclusions = LibraryExclusions()
     private val exclusionsReady = CompletableDeferred<LibraryExclusions>()
     private val audioFxPlayerListener = object : Player.Listener {
@@ -103,6 +105,16 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onPlayerError(error: PlaybackException) {
             refreshCurrentOnlineMediaUrlAfterError()
+        }
+    }
+    private val resumeFadePlayerListener = object : Player.Listener {
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            val playbackPlayer = player ?: return
+            resumeFadeController.onPlayWhenReadyChanged(playbackPlayer, playWhenReady)
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            resumeFadeController.onIsPlayingChanged(isPlaying)
         }
     }
 
@@ -153,6 +165,7 @@ class PlaybackService : MediaLibraryService() {
         }
         exoPlayer.addListener(audioFxPlayerListener)
         exoPlayer.addListener(onlineMediaRefreshListener)
+        exoPlayer.addListener(resumeFadePlayerListener)
         playbackMetadataPreloader = PlaybackMetadataPreloader(
             context = this,
             player = exoPlayer,
@@ -163,7 +176,7 @@ class PlaybackService : MediaLibraryService() {
         mediaSessionArtworkBitmapLoader = artworkBitmapLoader
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
-            exoPlayer,
+            ResumeFadePlayer(exoPlayer, resumeFadeController),
             PlaybackLibrarySessionCallback(),
         )
             .setSessionActivity(createSessionActivityPendingIntent())
@@ -246,6 +259,8 @@ class PlaybackService : MediaLibraryService() {
         PlaybackSleepTimer.cancel()
         player?.removeListener(audioFxPlayerListener)
         player?.removeListener(onlineMediaRefreshListener)
+        player?.removeListener(resumeFadePlayerListener)
+        resumeFadeController.release(player)
         onlineMediaRefreshJob?.cancel()
         onlineMediaRefreshJob = null
         playbackAudioFxController?.release()
@@ -334,6 +349,7 @@ class PlaybackService : MediaLibraryService() {
             startIndex = startIndex,
         ) ?: return SessionResult(SessionError.ERROR_BAD_VALUE)
         val playbackPlayer = player ?: return SessionResult(SessionError.ERROR_UNKNOWN)
+        resumeFadeController.resetForNewPlayback(playbackPlayer)
         playbackPlayer.replaceQueueAndPlayDirect(
             mediaItems = mediaItems,
             startIndex = safeStartIndex,
@@ -910,6 +926,113 @@ class PlaybackService : MediaLibraryService() {
         private const val RatingLibraryRefreshDebounceMs = 250L
         private const val OnlineMediaRefreshCooldownMs = 30_000L
         private const val PlaylistPreloadDurationUs = 12_000_000L
+    }
+}
+
+private class ResumeFadePlayer(
+    private val playbackPlayer: Player,
+    private val fadeController: ResumeVolumeFadeController,
+) : ForwardingPlayer(playbackPlayer) {
+
+    override fun play() {
+        fadeController.fadeIfNeeded(playbackPlayer)
+        super.play()
+    }
+
+    override fun setPlayWhenReady(playWhenReady: Boolean) {
+        if (playWhenReady) {
+            fadeController.fadeIfNeeded(playbackPlayer)
+        }
+        super.setPlayWhenReady(playWhenReady)
+    }
+}
+
+private class ResumeVolumeFadeController(
+    private val scope: CoroutineScope,
+) {
+    private var fadeJob: Job? = null
+    private var lastPausedAtMs: Long = 0L
+    private var hasPlayed = false
+
+    fun onPlayWhenReadyChanged(playbackPlayer: Player, playWhenReady: Boolean) {
+        if (playWhenReady) {
+            fadeIfNeeded(playbackPlayer)
+            return
+        }
+        cancel(playbackPlayer, resetVolumeToFull = true)
+        if (hasPlayed && playbackPlayer.currentMediaItem != null) {
+            lastPausedAtMs = SystemClock.elapsedRealtime()
+        }
+    }
+
+    fun onIsPlayingChanged(isPlaying: Boolean) {
+        if (isPlaying) {
+            hasPlayed = true
+        }
+    }
+
+    fun fadeIfNeeded(playbackPlayer: Player) {
+        if (fadeJob != null || !shouldFade(playbackPlayer)) {
+            return
+        }
+        startFade(playbackPlayer)
+    }
+
+    fun resetForNewPlayback(playbackPlayer: Player) {
+        lastPausedAtMs = 0L
+        hasPlayed = false
+        cancel(playbackPlayer, resetVolumeToFull = true)
+    }
+
+    fun release(playbackPlayer: Player?) {
+        cancel(playbackPlayer, resetVolumeToFull = true)
+    }
+
+    private fun shouldFade(playbackPlayer: Player): Boolean {
+        if (playbackPlayer.playbackState != Player.STATE_READY) {
+            return false
+        }
+        if (playbackPlayer.currentMediaItem == null || lastPausedAtMs <= 0L) {
+            return false
+        }
+        return SystemClock.elapsedRealtime() - lastPausedAtMs >= ResumeFadeThresholdMs
+    }
+
+    private fun startFade(playbackPlayer: Player) {
+        cancel(playbackPlayer = null, resetVolumeToFull = false)
+        playbackPlayer.volume = 0f
+        val steps = (ResumeFadeDurationMs / ResumeFadeStepIntervalMs)
+            .toInt()
+            .coerceIn(ResumeFadeMinSteps, ResumeFadeMaxSteps)
+        val stepDelay = (ResumeFadeDurationMs / steps).coerceAtLeast(1L)
+        fadeJob = scope.launch {
+            repeat(steps) { step ->
+                delay(stepDelay)
+                playbackPlayer.volume = ((step + 1).toFloat() / steps).coerceAtMost(1f)
+            }
+            playbackPlayer.volume = 1f
+            fadeJob = null
+        }
+    }
+
+    private fun cancel(
+        playbackPlayer: Player?,
+        resetVolumeToFull: Boolean,
+    ) {
+        val hadActiveFade = fadeJob?.isActive == true
+        fadeJob?.cancel()
+        fadeJob = null
+        if (resetVolumeToFull && hadActiveFade) {
+            playbackPlayer?.volume = 1f
+        }
+    }
+
+    private companion object {
+        private const val ResumeFadeThresholdMs = 800L
+        private const val ResumeFadeDurationMs = 120L
+        private const val ResumeFadeStepIntervalMs = 40L
+        private const val ResumeFadeMinSteps = 4
+        private const val ResumeFadeMaxSteps = 30
     }
 }
 

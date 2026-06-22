@@ -32,6 +32,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.ListeningExecutorService
 import com.google.common.util.concurrent.MoreExecutors
+import com.google.common.util.concurrent.SettableFuture
 import com.smartisanos.music.MainActivity
 import com.smartisanos.music.data.library.LibraryExclusions
 import com.smartisanos.music.data.library.LibraryExclusionsStore
@@ -59,6 +60,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 class PlaybackService : MediaLibraryService() {
 
@@ -79,12 +81,15 @@ class PlaybackService : MediaLibraryService() {
     private var mediaSessionArtworkBitmapLoader: MediaSessionArtworkBitmapLoader? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
     private var pendingRatingLibraryRefreshJob: Job? = null
+    private var pendingPlaybackStartJob: Job? = null
+    private var pendingPlaybackStartFuture: SettableFuture<SessionResult>? = null
     private var onlineMediaRefreshJob: Job? = null
     private var onlineMediaRefreshJobForceRefresh = false
     private var lastOnlineMediaRefreshKey: String? = null
     private var lastOnlineMediaRefreshAtMs: Long = 0L
+    private val playbackStartRequestGeneration = AtomicLong()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val resumeFadeController = ResumeVolumeFadeController(serviceScope)
+    private val playbackStartFadeController = PlaybackStartFadeController(serviceScope)
     @Volatile private var exclusionsSnapshot: LibraryExclusions = LibraryExclusions()
     private val exclusionsReady = CompletableDeferred<LibraryExclusions>()
     private val audioFxPlayerListener = object : Player.Listener {
@@ -107,14 +112,15 @@ class PlaybackService : MediaLibraryService() {
             refreshCurrentOnlineMediaUrlAfterError()
         }
     }
-    private val resumeFadePlayerListener = object : Player.Listener {
+    private val playbackStartFadePlayerListener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             val playbackPlayer = player ?: return
-            resumeFadeController.onPlayWhenReadyChanged(playbackPlayer, playWhenReady)
+            playbackStartFadeController.onPlayWhenReadyChanged(playbackPlayer, playWhenReady)
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            resumeFadeController.onIsPlayingChanged(isPlaying)
+            val playbackPlayer = player ?: return
+            playbackStartFadeController.onIsPlayingChanged(playbackPlayer, isPlaying)
         }
     }
 
@@ -165,7 +171,7 @@ class PlaybackService : MediaLibraryService() {
         }
         exoPlayer.addListener(audioFxPlayerListener)
         exoPlayer.addListener(onlineMediaRefreshListener)
-        exoPlayer.addListener(resumeFadePlayerListener)
+        exoPlayer.addListener(playbackStartFadePlayerListener)
         playbackMetadataPreloader = PlaybackMetadataPreloader(
             context = this,
             player = exoPlayer,
@@ -176,7 +182,7 @@ class PlaybackService : MediaLibraryService() {
         mediaSessionArtworkBitmapLoader = artworkBitmapLoader
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
-            ResumeFadePlayer(exoPlayer, resumeFadeController),
+            PlaybackStartFadePlayer(exoPlayer, playbackStartFadeController),
             PlaybackLibrarySessionCallback(),
         )
             .setSessionActivity(createSessionActivityPendingIntent())
@@ -255,12 +261,13 @@ class PlaybackService : MediaLibraryService() {
         pendingRatingLibraryRefreshJob = null
         playbackMetadataPreloader?.stop()
         playbackMetadataPreloader = null
+        cancelPendingPlaybackStart()
         serviceScope.cancel()
         PlaybackSleepTimer.cancel()
         player?.removeListener(audioFxPlayerListener)
         player?.removeListener(onlineMediaRefreshListener)
-        player?.removeListener(resumeFadePlayerListener)
-        resumeFadeController.release(player)
+        player?.removeListener(playbackStartFadePlayerListener)
+        playbackStartFadeController.release(player)
         onlineMediaRefreshJob?.cancel()
         onlineMediaRefreshJob = null
         playbackAudioFxController?.release()
@@ -339,6 +346,24 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    private suspend fun resolveSessionPlaybackMediaItemsForPlaybackStart(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+    ): MutableList<MediaItem> {
+        val resolvedItems = resolveSessionPlaybackMediaItems(mediaItems)
+        val startItem = resolvedItems.getOrNull(startIndex) ?: return resolvedItems
+        if (!startItem.isOnlineMediaItem() || !startItem.shouldRefreshOnlinePlaybackUrl()) {
+            return resolvedItems
+        }
+        val playableStartItem = onlineMusicRepository.resolvePlayableMediaItem(
+            mediaItem = startItem,
+            includeLyrics = false,
+            forceRefresh = false,
+        ) ?: return resolvedItems
+        resolvedItems[startIndex] = playableStartItem
+        return resolvedItems
+    }
+
     private fun replaceResolvedQueueAndPlay(
         mediaItems: List<MediaItem>,
         startIndex: Int,
@@ -349,7 +374,7 @@ class PlaybackService : MediaLibraryService() {
             startIndex = startIndex,
         ) ?: return SessionResult(SessionError.ERROR_BAD_VALUE)
         val playbackPlayer = player ?: return SessionResult(SessionError.ERROR_UNKNOWN)
-        resumeFadeController.resetForNewPlayback(playbackPlayer)
+        playbackStartFadeController.protectNextPlayback(playbackPlayer)
         playbackPlayer.replaceQueueAndPlayDirect(
             mediaItems = mediaItems,
             startIndex = safeStartIndex,
@@ -362,25 +387,65 @@ class PlaybackService : MediaLibraryService() {
         val mediaItems = args.decodeReplaceQueueAndPlayMediaItems()
         val startIndex = args.getInt(ReplaceQueueStartIndexKey, 0)
         val shuffleModeEnabled = args.getBoolean(ReplaceQueueShuffleModeKey, false)
-        mediaItems.resolveDirectSessionPlaybackItemsOrNull()?.let { directItems ->
-            return Futures.immediateFuture(
-                replaceResolvedQueueAndPlay(
-                    mediaItems = directItems,
-                    startIndex = startIndex,
-                    shuffleModeEnabled = shuffleModeEnabled,
-                ),
-            )
-        }
-        return libraryExecutor.submit<SessionResult> {
-            val resolvedItems = resolveSessionPlaybackMediaItems(mediaItems)
-            runBlocking(Dispatchers.Main.immediate) {
-                replaceResolvedQueueAndPlay(
-                    mediaItems = resolvedItems,
-                    startIndex = startIndex,
-                    shuffleModeEnabled = shuffleModeEnabled,
-                )
+        val safeStartIndex = playbackQueueStartIndex(
+            itemCount = mediaItems.size,
+            startIndex = startIndex,
+        ) ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
+        val requestGeneration = playbackStartRequestGeneration.incrementAndGet()
+        cancelPendingPlaybackStart()
+
+        val resultFuture = SettableFuture.create<SessionResult>()
+        pendingPlaybackStartFuture = resultFuture
+        lateinit var startJob: Job
+        startJob = serviceScope.launch {
+            val result = try {
+                val resolvedItems = withContext(Dispatchers.IO) {
+                    resolveSessionPlaybackMediaItemsForPlaybackStart(
+                        mediaItems = mediaItems,
+                        startIndex = safeStartIndex,
+                    )
+                }
+                if (playbackStartRequestGeneration.get() != requestGeneration) {
+                    SessionResult(SessionResult.RESULT_SUCCESS)
+                } else {
+                    replaceResolvedQueueAndPlay(
+                        mediaItems = resolvedItems,
+                        startIndex = safeStartIndex,
+                        shuffleModeEnabled = shuffleModeEnabled,
+                    )
+                }
+            } catch (_: CancellationException) {
+                SessionResult(SessionResult.RESULT_SUCCESS)
+            } catch (_: Exception) {
+                SessionResult(SessionError.ERROR_UNKNOWN)
+            }
+            if (!resultFuture.isDone) {
+                resultFuture.set(result)
+            }
+            if (pendingPlaybackStartJob === startJob) {
+                pendingPlaybackStartJob = null
+                pendingPlaybackStartFuture = null
             }
         }
+        pendingPlaybackStartJob = startJob
+        resultFuture.addListener(
+            {
+                if (resultFuture.isCancelled) {
+                    startJob.cancel()
+                }
+            },
+            MoreExecutors.directExecutor(),
+        )
+        return resultFuture
+    }
+
+    private fun cancelPendingPlaybackStart() {
+        pendingPlaybackStartJob?.cancel()
+        pendingPlaybackStartJob = null
+        pendingPlaybackStartFuture
+            ?.takeUnless(SettableFuture<SessionResult>::isDone)
+            ?.set(SessionResult(SessionResult.RESULT_SUCCESS))
+        pendingPlaybackStartFuture = null
     }
 
     private suspend fun getAudioItemsByQueueKeys(queueKeys: List<PlaybackQueueSnapshotItem>): List<MediaItem> {
@@ -929,78 +994,112 @@ class PlaybackService : MediaLibraryService() {
     }
 }
 
-private class ResumeFadePlayer(
+private class PlaybackStartFadePlayer(
     private val playbackPlayer: Player,
-    private val fadeController: ResumeVolumeFadeController,
+    private val fadeController: PlaybackStartFadeController,
 ) : ForwardingPlayer(playbackPlayer) {
 
     override fun play() {
-        fadeController.fadeIfNeeded(playbackPlayer)
+        fadeController.protectResumeIfNeeded(playbackPlayer)
         super.play()
     }
 
     override fun setPlayWhenReady(playWhenReady: Boolean) {
         if (playWhenReady) {
-            fadeController.fadeIfNeeded(playbackPlayer)
+            fadeController.protectResumeIfNeeded(playbackPlayer)
         }
         super.setPlayWhenReady(playWhenReady)
     }
 }
 
-private class ResumeVolumeFadeController(
+private class PlaybackStartFadeController(
     private val scope: CoroutineScope,
 ) {
     private var fadeJob: Job? = null
+    private var fadeArmTimeoutJob: Job? = null
+    private var fadeArmed = false
     private var lastPausedAtMs: Long = 0L
+    private var lastPausedMediaId: String? = null
     private var hasPlayed = false
 
     fun onPlayWhenReadyChanged(playbackPlayer: Player, playWhenReady: Boolean) {
         if (playWhenReady) {
-            fadeIfNeeded(playbackPlayer)
+            protectResumeIfNeeded(playbackPlayer)
             return
         }
         cancel(playbackPlayer, resetVolumeToFull = true)
-        if (hasPlayed && playbackPlayer.currentMediaItem != null) {
+        val currentMediaItem = playbackPlayer.currentMediaItem
+        if (hasPlayed && currentMediaItem != null) {
             lastPausedAtMs = SystemClock.elapsedRealtime()
+            lastPausedMediaId = currentMediaItem.mediaId
         }
     }
 
-    fun onIsPlayingChanged(isPlaying: Boolean) {
+    fun onIsPlayingChanged(playbackPlayer: Player, isPlaying: Boolean) {
         if (isPlaying) {
             hasPlayed = true
+            startFadeIfArmed(playbackPlayer)
         }
     }
 
-    fun fadeIfNeeded(playbackPlayer: Player) {
-        if (fadeJob != null || !shouldFade(playbackPlayer)) {
+    fun protectResumeIfNeeded(playbackPlayer: Player) {
+        if (fadeJob != null || fadeArmed || !shouldProtectResume(playbackPlayer)) {
             return
         }
-        startFade(playbackPlayer)
+        lastPausedAtMs = 0L
+        lastPausedMediaId = null
+        armFade(playbackPlayer, startImmediatelyIfPlaying = true)
     }
 
-    fun resetForNewPlayback(playbackPlayer: Player) {
+    fun protectNextPlayback(playbackPlayer: Player) {
         lastPausedAtMs = 0L
+        lastPausedMediaId = null
         hasPlayed = false
-        cancel(playbackPlayer, resetVolumeToFull = true)
+        armFade(playbackPlayer, startImmediatelyIfPlaying = false)
     }
 
     fun release(playbackPlayer: Player?) {
         cancel(playbackPlayer, resetVolumeToFull = true)
     }
 
-    private fun shouldFade(playbackPlayer: Player): Boolean {
-        if (playbackPlayer.playbackState != Player.STATE_READY) {
+    private fun shouldProtectResume(playbackPlayer: Player): Boolean {
+        val currentMediaItem = playbackPlayer.currentMediaItem ?: return false
+        if (lastPausedAtMs <= 0L) {
             return false
         }
-        if (playbackPlayer.currentMediaItem == null || lastPausedAtMs <= 0L) {
+        val pausedMediaId = lastPausedMediaId
+        if (!pausedMediaId.isNullOrBlank() && currentMediaItem.mediaId != pausedMediaId) {
             return false
         }
         return SystemClock.elapsedRealtime() - lastPausedAtMs >= ResumeFadeThresholdMs
     }
 
-    private fun startFade(playbackPlayer: Player) {
+    private fun armFade(
+        playbackPlayer: Player,
+        startImmediatelyIfPlaying: Boolean,
+    ) {
         cancel(playbackPlayer = null, resetVolumeToFull = false)
+        fadeArmed = true
         playbackPlayer.volume = 0f
+        fadeArmTimeoutJob = scope.launch {
+            delay(StartFadeArmTimeoutMs)
+            if (fadeArmed && fadeJob == null) {
+                playbackPlayer.volume = 1f
+                fadeArmed = false
+                fadeArmTimeoutJob = null
+            }
+        }
+        if (startImmediatelyIfPlaying && playbackPlayer.isPlaying) {
+            startFadeIfArmed(playbackPlayer)
+        }
+    }
+
+    private fun startFadeIfArmed(playbackPlayer: Player) {
+        if (!fadeArmed || fadeJob != null) {
+            return
+        }
+        fadeArmTimeoutJob?.cancel()
+        fadeArmTimeoutJob = null
         val steps = (ResumeFadeDurationMs / ResumeFadeStepIntervalMs)
             .toInt()
             .coerceIn(ResumeFadeMinSteps, ResumeFadeMaxSteps)
@@ -1012,6 +1111,8 @@ private class ResumeVolumeFadeController(
             }
             playbackPlayer.volume = 1f
             fadeJob = null
+            fadeArmed = false
+            lastPausedMediaId = null
         }
     }
 
@@ -1019,10 +1120,14 @@ private class ResumeVolumeFadeController(
         playbackPlayer: Player?,
         resetVolumeToFull: Boolean,
     ) {
-        val hadActiveFade = fadeJob?.isActive == true
+        val shouldRestoreVolume = resetVolumeToFull &&
+            (fadeArmed || fadeJob?.isActive == true || fadeArmTimeoutJob?.isActive == true)
         fadeJob?.cancel()
         fadeJob = null
-        if (resetVolumeToFull && hadActiveFade) {
+        fadeArmTimeoutJob?.cancel()
+        fadeArmTimeoutJob = null
+        fadeArmed = false
+        if (shouldRestoreVolume) {
             playbackPlayer?.volume = 1f
         }
     }
@@ -1031,6 +1136,7 @@ private class ResumeVolumeFadeController(
         private const val ResumeFadeThresholdMs = 800L
         private const val ResumeFadeDurationMs = 120L
         private const val ResumeFadeStepIntervalMs = 40L
+        private const val StartFadeArmTimeoutMs = 5_000L
         private const val ResumeFadeMinSteps = 4
         private const val ResumeFadeMaxSteps = 30
     }

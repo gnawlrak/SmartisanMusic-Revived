@@ -132,6 +132,7 @@ internal fun PlaybackBottomControls(
     onVolumeChange: (Float) -> Unit,
 ) {
     val density = LocalDensity.current
+    val bottomSpacing = playbackBottomControlsBottomSpacing(bottomInset)
     val volumeEntranceProgress = playbackEntranceProgress(
         timeMillis = entranceTimeMillis,
         delayMillis = PlaybackVolumeEntranceDelayMillis,
@@ -148,8 +149,7 @@ internal fun PlaybackBottomControls(
         Column(
             modifier = Modifier
                 .width(width)
-                .height(186.dp)
-                .padding(bottom = 19.dp),
+                .padding(bottom = PlaybackBottomControlsContentBottomPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             PlaybackControlButtons(
@@ -166,7 +166,7 @@ internal fun PlaybackBottomControls(
             )
             PlaybackVolumeBar(
                 modifier = Modifier
-                    .padding(top = 18.dp)
+                    .padding(top = PlaybackBottomControlsVolumeTopPadding)
                     .graphicsLayer {
                         translationY = (1f - volumeEntranceProgress) * controlEntranceOffsetPx
                     },
@@ -175,8 +175,13 @@ internal fun PlaybackBottomControls(
                 onValueChange = onVolumeChange,
             )
         }
-        Spacer(modifier = Modifier.height((14.dp + bottomInset).coerceAtLeast(16.dp)))
+        Spacer(modifier = Modifier.height(bottomSpacing))
     }
+}
+
+private fun playbackBottomControlsBottomSpacing(bottomInset: Dp): Dp {
+    return (PlaybackBottomControlsBottomSpacing + bottomInset)
+        .coerceAtLeast(PlaybackBottomControlsMinimumBottomSpacing)
 }
 
 @Composable

@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -63,8 +64,6 @@ import kotlin.math.roundToInt
 
 @Composable
 internal fun PlaybackVisualStage(
-    turntableWidth: Dp,
-    scale: Float,
     currentVisualPage: PlaybackVisualPage,
     coverPositionMs: Long,
     lyricsPositionMs: Long,
@@ -97,137 +96,162 @@ internal fun PlaybackVisualStage(
     onNeedleSeekCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val turntableHeight = 356.5938.dp * scale
-    val moreButtonMargin = 12.dp * scale
-    val moreButtonTopMargin = 38.dp * scale
-    val actionButtonSize = PlaybackActionButtonSize * scale
-    val isLyricsPage = currentVisualPage == PlaybackVisualPage.Lyrics
-
-    Box(
-        modifier = modifier.height(turntableHeight + 52.dp * scale),
+    BoxWithConstraints(
+        modifier = modifier,
+        contentAlignment = Alignment.TopCenter,
     ) {
-        PressedDrawableButton(
-            normalRes = R.drawable.more_btn,
-            pressedRes = R.drawable.more_btn_down,
-            contentDescription = stringResource(R.string.player_more_actions),
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .zIndex(2f)
-                .padding(start = moreButtonMargin, top = moreButtonTopMargin)
-                .size(actionButtonSize),
-            onClick = onMoreClick,
-        )
-        AnimatedVisibility(
-            visible = isLyricsPage,
-            enter = fadeIn(
-                animationSpec = tween(
-                    durationMillis = PlaybackVisualPageEnterDurationMillis,
-                    delayMillis = PlaybackLyricsActionEnterDelayMillis,
-                    easing = PlaybackLegacyDecelerateEasing,
-                ),
-            ) + scaleIn(
-                initialScale = 0.92f,
-                animationSpec = tween(
-                    durationMillis = PlaybackVisualPageEnterDurationMillis,
-                    delayMillis = PlaybackLyricsActionEnterDelayMillis,
-                    easing = PlaybackLegacyDecelerateEasing,
-                ),
-            ),
-            exit = fadeOut(
-                animationSpec = tween(
-                    durationMillis = PlaybackVisualPageExitDurationMillis,
-                    easing = PlaybackLegacyDecelerateEasing,
-                ),
-            ) + scaleOut(
-                targetScale = 0.92f,
-                animationSpec = tween(
-                    durationMillis = PlaybackVisualPageExitDurationMillis,
-                    easing = PlaybackLegacyDecelerateEasing,
-                ),
-            ),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .zIndex(2f)
-                .padding(end = moreButtonMargin, top = moreButtonTopMargin),
-        ) {
-            val screenSwitchNormalRes = if (keepLyricsScreenAwake) {
-                R.drawable.sun_btn_on
-            } else {
-                R.drawable.sun_btn_off
-            }
-            val screenSwitchPressedRes = if (keepLyricsScreenAwake) {
-                R.drawable.sun_btn_on_down
-            } else {
-                R.drawable.sun_btn_off_down
-            }
-            PressedDrawableButton(
-                normalRes = screenSwitchNormalRes,
-                pressedRes = screenSwitchPressedRes,
-                contentDescription = stringResource(R.string.always_on),
-                modifier = Modifier.size(actionButtonSize),
-                onClick = onKeepLyricsScreenAwakeToggle,
-            )
+        val turntableWidth = playbackVisualStageWidth(maxWidth, maxHeight)
+        if (turntableWidth <= 0.dp) {
+            return@BoxWithConstraints
         }
+        val scale = turntableWidth.value / OriginalTurntableBaseWidthDp
+        val turntableHeight = turntableWidth * PlaybackTurntableHeightToWidthRatio
+        val moreButtonMargin = 12.dp * scale
+        val moreButtonTopMargin = 38.dp * scale
+        val actionButtonSize = PlaybackActionButtonSize * scale
+        val isLyricsPage = currentVisualPage == PlaybackVisualPage.Lyrics
+
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
                 .width(turntableWidth)
-                .height(turntableHeight),
-            contentAlignment = Alignment.Center,
+                .height(turntableWidth * PlaybackVisualStageHeightToWidthRatio),
         ) {
-            AnimatedContent(
-                targetState = currentVisualPage,
-                transitionSpec = {
-                    playbackVisualPageTransform(
-                        enteringLyrics = targetState == PlaybackVisualPage.Lyrics,
-                    )
-                },
-                label = "playbackVisualPage",
-                modifier = Modifier.matchParentSize(),
-            ) { targetPage ->
-                when (targetPage) {
-                    PlaybackVisualPage.Cover -> PlaybackCoverPage(
-                        turntableWidth = turntableWidth,
-                        scale = scale,
-                        currentPositionMs = coverPositionMs,
-                        durationMs = durationMs,
-                        scratchEnabled = scratchEnabled,
-                        hidePlayerAxisEnabled = hidePlayerAxisEnabled,
-                        albumArtwork = albumArtwork,
-                        hasMediaItem = hasMediaItem,
-                        isPlaying = isPlaying,
-                        coverDragMode = coverDragMode,
-                        previewPositionMs = previewPositionMs,
-                        needlePreviewRotationDegrees = needlePreviewRotationDegrees,
-                        needleParkedOutside = needleParkedOutside,
-                        discManualRotationOffsetDegrees = discManualRotationOffsetDegrees,
-                        mediaId = mediaId,
-                        onVisualPageToggle = onVisualPageToggle,
-                        onDiscScratchStart = onDiscScratchStart,
-                        onDiscScratchMotion = onDiscScratchMotion,
-                        onDiscScratchPositionChange = onDiscScratchPositionChange,
-                        onDiscScratchEnd = onDiscScratchEnd,
-                        onDiscScratchCancel = onDiscScratchCancel,
-                        onNeedleSeekStart = onNeedleSeekStart,
-                        onNeedleSeekPositionChange = onNeedleSeekPositionChange,
-                        onNeedleSeekEnd = onNeedleSeekEnd,
-                        onNeedleSeekCancel = onNeedleSeekCancel,
-                        modifier = Modifier.matchParentSize(),
-                    )
+            PressedDrawableButton(
+                normalRes = R.drawable.more_btn,
+                pressedRes = R.drawable.more_btn_down,
+                contentDescription = stringResource(R.string.player_more_actions),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .zIndex(2f)
+                    .padding(start = moreButtonMargin, top = moreButtonTopMargin)
+                    .size(actionButtonSize),
+                onClick = onMoreClick,
+            )
+            AnimatedVisibility(
+                visible = isLyricsPage,
+                enter = fadeIn(
+                    animationSpec = tween(
+                        durationMillis = PlaybackVisualPageEnterDurationMillis,
+                        delayMillis = PlaybackLyricsActionEnterDelayMillis,
+                        easing = PlaybackLegacyDecelerateEasing,
+                    ),
+                ) + scaleIn(
+                    initialScale = 0.92f,
+                    animationSpec = tween(
+                        durationMillis = PlaybackVisualPageEnterDurationMillis,
+                        delayMillis = PlaybackLyricsActionEnterDelayMillis,
+                        easing = PlaybackLegacyDecelerateEasing,
+                    ),
+                ),
+                exit = fadeOut(
+                    animationSpec = tween(
+                        durationMillis = PlaybackVisualPageExitDurationMillis,
+                        easing = PlaybackLegacyDecelerateEasing,
+                    ),
+                ) + scaleOut(
+                    targetScale = 0.92f,
+                    animationSpec = tween(
+                        durationMillis = PlaybackVisualPageExitDurationMillis,
+                        easing = PlaybackLegacyDecelerateEasing,
+                    ),
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .zIndex(2f)
+                    .padding(end = moreButtonMargin, top = moreButtonTopMargin),
+            ) {
+                val screenSwitchNormalRes = if (keepLyricsScreenAwake) {
+                    R.drawable.sun_btn_on
+                } else {
+                    R.drawable.sun_btn_off
+                }
+                val screenSwitchPressedRes = if (keepLyricsScreenAwake) {
+                    R.drawable.sun_btn_on_down
+                } else {
+                    R.drawable.sun_btn_off_down
+                }
+                PressedDrawableButton(
+                    normalRes = screenSwitchNormalRes,
+                    pressedRes = screenSwitchPressedRes,
+                    contentDescription = stringResource(R.string.always_on),
+                    modifier = Modifier.size(actionButtonSize),
+                    onClick = onKeepLyricsScreenAwakeToggle,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .width(turntableWidth)
+                    .height(turntableHeight),
+                contentAlignment = Alignment.Center,
+            ) {
+                AnimatedContent(
+                    targetState = currentVisualPage,
+                    transitionSpec = {
+                        playbackVisualPageTransform(
+                            enteringLyrics = targetState == PlaybackVisualPage.Lyrics,
+                        )
+                    },
+                    label = "playbackVisualPage",
+                    modifier = Modifier.matchParentSize(),
+                ) { targetPage ->
+                    when (targetPage) {
+                        PlaybackVisualPage.Cover -> PlaybackCoverPage(
+                            turntableWidth = turntableWidth,
+                            scale = scale,
+                            currentPositionMs = coverPositionMs,
+                            durationMs = durationMs,
+                            scratchEnabled = scratchEnabled,
+                            hidePlayerAxisEnabled = hidePlayerAxisEnabled,
+                            albumArtwork = albumArtwork,
+                            hasMediaItem = hasMediaItem,
+                            isPlaying = isPlaying,
+                            coverDragMode = coverDragMode,
+                            previewPositionMs = previewPositionMs,
+                            needlePreviewRotationDegrees = needlePreviewRotationDegrees,
+                            needleParkedOutside = needleParkedOutside,
+                            discManualRotationOffsetDegrees = discManualRotationOffsetDegrees,
+                            mediaId = mediaId,
+                            onVisualPageToggle = onVisualPageToggle,
+                            onDiscScratchStart = onDiscScratchStart,
+                            onDiscScratchMotion = onDiscScratchMotion,
+                            onDiscScratchPositionChange = onDiscScratchPositionChange,
+                            onDiscScratchEnd = onDiscScratchEnd,
+                            onDiscScratchCancel = onDiscScratchCancel,
+                            onNeedleSeekStart = onNeedleSeekStart,
+                            onNeedleSeekPositionChange = onNeedleSeekPositionChange,
+                            onNeedleSeekEnd = onNeedleSeekEnd,
+                            onNeedleSeekCancel = onNeedleSeekCancel,
+                            modifier = Modifier.matchParentSize(),
+                        )
 
-                    PlaybackVisualPage.Lyrics -> PlaybackLyricsPage(
-                        mediaId = mediaId,
-                        lyrics = embeddedLyrics,
-                        fallbackLyricsLines = fallbackLyricsLines,
-                        currentPositionMs = lyricsPositionMs,
-                        onVisualPageToggle = onVisualPageToggle,
-                        modifier = Modifier.matchParentSize(),
-                    )
+                        PlaybackVisualPage.Lyrics -> PlaybackLyricsPage(
+                            mediaId = mediaId,
+                            lyrics = embeddedLyrics,
+                            fallbackLyricsLines = fallbackLyricsLines,
+                            currentPositionMs = lyricsPositionMs,
+                            onVisualPageToggle = onVisualPageToggle,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+private fun playbackVisualStageWidth(maxWidth: Dp, maxHeight: Dp): Dp {
+    val heightBoundWidth = maxHeight.value / PlaybackVisualStageHeightToWidthRatio
+    val width = minOf(maxWidth.value, heightBoundWidth)
+        .takeIf { it.isFinite() }
+        ?.coerceAtLeast(0f)
+        ?: 0f
+    return width.dp
+}
+
+private const val PlaybackTurntableHeightToWidthRatio = 356.5938f / OriginalTurntableBaseWidthDp
+private const val PlaybackVisualStageHeightToWidthRatio =
+    (356.5938f + 52f) / OriginalTurntableBaseWidthDp
 
 private fun playbackVisualPageTransform(
     enteringLyrics: Boolean,

@@ -52,11 +52,30 @@ private val OriginalNeedleLargeMetrics = OriginalNeedleMetrics(
 )
 
 internal fun originalNeedleMetrics(turntableScale: Float): OriginalNeedleMetrics {
-    return if (turntableScale >= OriginalLargeNeedleBreakpointScale) {
+    val metrics = if (turntableScale >= OriginalLargeNeedleBreakpointScale) {
         OriginalNeedleLargeMetrics
     } else {
         OriginalNeedleBaseMetrics
     }
+    val shrinkScale = turntableScale.coerceIn(0f, 1f)
+    return if (shrinkScale < 1f) {
+        metrics.scaled(shrinkScale)
+    } else {
+        metrics
+    }
+}
+
+private fun OriginalNeedleMetrics.scaled(scale: Float): OriginalNeedleMetrics {
+    return copy(
+        widthDp = widthDp * scale,
+        heightDp = heightDp * scale,
+        topWidthDp = topWidthDp * scale,
+        topMarginDp = topMarginDp * scale,
+        rightMarginDp = rightMarginDp * scale,
+        shadowRightMarginDp = shadowRightMarginDp * scale,
+        pivotXDp = pivotXDp * scale,
+        pivotYDp = pivotYDp * scale,
+    )
 }
 
 @Composable
@@ -206,7 +225,6 @@ internal fun scratchPositionAfterAngle(
     ).roundToLong().coerceIn(0L, durationMs)
 }
 
-@Suppress("UNUSED_PARAMETER")
 internal fun playbackNeedleGeometry(
     containerSize: IntSize,
     densityPxPerDp: Float,

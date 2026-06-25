@@ -214,6 +214,30 @@ class NeedleSeekMappingTest {
     }
 
     @Test
+    fun `compact turntable scales needle metrics with visual stage`() {
+        val turntableScale = 0.75f
+        val geometry = playbackNeedleGeometry(
+            containerSize = IntSize(width = 270, height = 267),
+            densityPxPerDp = 1f,
+            turntableScale = turntableScale,
+            rotationDegrees = 12f,
+        )
+
+        assertEquals(OriginalNeedleWidthBaseDp * turntableScale, geometry.width, 0.001f)
+        assertEquals(OriginalNeedleHeightBaseDp * turntableScale, geometry.height, 0.001f)
+        assertEquals(OriginalNeedleTopMarginBaseDp * turntableScale, geometry.top, 0.001f)
+        assertEquals(
+            270f -
+                (OriginalNeedleRightMarginDp * turntableScale) -
+                (OriginalNeedleWidthBaseDp * turntableScale),
+            geometry.left,
+            0.001f,
+        )
+        assertEquals(OriginalNeedlePivotXDp * turntableScale, geometry.pivotLocal.x, 0.001f)
+        assertEquals(OriginalNeedlePivotYDp * turntableScale, geometry.pivotLocal.y, 0.001f)
+    }
+
+    @Test
     fun `disc tap inside touch slop can toggle lyrics`() {
         val center = Offset(100f, 100f)
         val initialPosition = Offset(140f, 100f)

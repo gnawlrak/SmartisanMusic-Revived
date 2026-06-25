@@ -67,6 +67,7 @@ internal const val PlaybackTurntableAxisDiameterRatio = 62f / 1080f
 internal const val PlaybackTurntableAxisSourceDiameterPx = 60
 
 internal val PlaybackContentHorizontalPadding = 16.dp
+internal val PlaybackVisualStageTopPadding = 16.dp
 internal val PlaybackSeekBarHeight = 48.dp
 internal val PlaybackSeekTimeWidth = 44.dp
 internal val PlaybackSeekTrackHeight = 8.dp
@@ -78,6 +79,11 @@ internal val PlaybackVolumeHorizontalPadding = 26.5.dp
 internal val PlaybackVolumeThumbOffset = 5.dp
 internal val PlaybackActionButtonSize = 31.dp
 internal val PlaybackControlEntranceOffset = 186.dp
+internal val PlaybackControlButtonsTopPadding = 6.dp
+internal val PlaybackBottomControlsVolumeTopPadding = 18.dp
+internal val PlaybackBottomControlsContentBottomPadding = 19.dp
+internal val PlaybackBottomControlsBottomSpacing = 14.dp
+internal val PlaybackBottomControlsMinimumBottomSpacing = 16.dp
 
 internal const val PlaybackEntranceTotalDurationMillis = 980
 internal const val PlaybackTurntableEntranceDurationMillis = 300

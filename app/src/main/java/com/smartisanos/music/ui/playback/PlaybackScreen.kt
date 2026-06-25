@@ -19,13 +19,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,7 +46,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -695,9 +692,7 @@ fun PlaybackScreen(
         val bottomInset = with(density) {
             WindowInsets.safeDrawing.getBottom(this).toDp()
         }
-        val turntableWidth = maxWidth
-        val bottomControlsWidth = turntableWidth
-        val scale = turntableWidth.value / OriginalTurntableBaseWidthDp
+        val bottomControlsWidth = maxWidth
         val turntableEntranceProgress = playbackEntranceProgress(
             timeMillis = entranceTimeMillis.value,
             delayMillis = 0,
@@ -732,16 +727,15 @@ fun PlaybackScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp)
+                    .weight(1f)
+                    .padding(top = PlaybackVisualStageTopPadding)
                     .graphicsLayer {
                         translationY = (1f - turntableEntranceProgress) * screenHeightPx.toFloat()
                     },
                 contentAlignment = Alignment.TopCenter,
             ) {
                 PlaybackVisualStage(
-                    modifier = Modifier.width(turntableWidth),
-                    turntableWidth = turntableWidth,
-                    scale = scale,
+                    modifier = Modifier.fillMaxSize(),
                     currentVisualPage = currentVisualPage,
                     coverPositionMs = displayPositionMs,
                     lyricsPositionMs = boundedLivePositionMs,
@@ -897,7 +891,6 @@ fun PlaybackScreen(
                     },
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
             PlaybackBottomControls(
                 width = bottomControlsWidth,
                 bottomInset = bottomInset,

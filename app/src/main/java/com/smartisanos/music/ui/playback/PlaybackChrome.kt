@@ -247,7 +247,7 @@ internal fun PlaybackControlButtons(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 6.dp),
+            .padding(top = PlaybackControlButtonsTopPadding),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

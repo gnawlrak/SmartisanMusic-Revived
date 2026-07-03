@@ -379,4 +379,8 @@
         <item quantity="other">已隐藏 %1$d 项</item>
     </plurals>
     <string name="bottom_tab_all_visible">全部显示</string>
+    <string name="lyrics_live_update_channel_name">歌词实况</string>
+    <string name="lyrics_live_update_channel_description">在通知栏显示当前播放歌曲的逐字歌词</string>
+    <string name="lyrics_spotlight_channel_name">歌词实况</string>
+    <string name="lyrics_spotlight_channel_description">在超级岛/焦点通知显示当前播放歌曲的逐字歌词</string>
 </resources>

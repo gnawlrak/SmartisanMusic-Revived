@@ -47,6 +47,7 @@ import com.smartisanos.music.data.online.toOnlinePlaybackCacheKey
 import com.smartisanos.music.data.online.withOnlinePlaybackPlaceholderUri
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
+import com.smartisanos.music.playback.liveupdate.LyricsLiveUpdateManager
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -79,6 +80,7 @@ class PlaybackService : MediaLibraryService() {
     private var playbackAudioFxController: PlaybackAudioFxController? = null
     private var playbackMetadataPreloader: PlaybackMetadataPreloader? = null
     private var mediaSessionArtworkBitmapLoader: MediaSessionArtworkBitmapLoader? = null
+    private var lyricsLiveUpdateManager: LyricsLiveUpdateManager? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
     private var pendingRatingLibraryRefreshJob: Job? = null
     private var pendingPlaybackStartJob: Job? = null
@@ -190,6 +192,14 @@ class PlaybackService : MediaLibraryService() {
             .setPeriodicPositionUpdateEnabled(false)
             .build()
 
+        lyricsLiveUpdateManager = LyricsLiveUpdateManager(
+            context = this,
+            player = exoPlayer,
+            sessionActivity = createSessionActivityPendingIntent(),
+        ).also { manager ->
+            manager.start()
+        }
+
         playbackPlayCountTracker = PlaybackPlayCountTracker(
             player = exoPlayer,
             repository = playbackStatsRepository,
@@ -272,6 +282,8 @@ class PlaybackService : MediaLibraryService() {
         onlineMediaRefreshJob = null
         playbackAudioFxController?.release()
         playbackAudioFxController = null
+        lyricsLiveUpdateManager?.stop()
+        lyricsLiveUpdateManager = null
         mediaLibrarySession?.release()
         mediaLibrarySession = null
 

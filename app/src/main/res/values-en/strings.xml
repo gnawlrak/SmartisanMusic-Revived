@@ -382,4 +382,8 @@
         <item quantity="other">%1$d hidden</item>
     </plurals>
     <string name="bottom_tab_all_visible">All shown</string>
+    <string name="lyrics_live_update_channel_name">Lyrics Live Update</string>
+    <string name="lyrics_live_update_channel_description">Show word-by-word lyrics for the currently playing song in the notification</string>
+    <string name="lyrics_spotlight_channel_name">Lyrics Spotlight</string>
+    <string name="lyrics_spotlight_channel_description">Show word-by-word lyrics for the currently playing song in the Super Island / Spotlight</string>
 </resources>

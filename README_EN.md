@@ -1,33 +1,35 @@
 # Smartisan Music Revived
 
-English | [中文](./README.md)
+> An unofficial recreation of Smartisan Music 8.1.0, rebuilt with modern Android technology while preserving the original visual assets.
 
-[![Release](https://img.shields.io/github/v/release/wowohut/SmartisanMusic-Revived?logo=github)](https://github.com/wowohut/SmartisanMusic-Revived/releases)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-7F52FF?logo=kotlin)](https://kotlinlang.org)
-[![AGP](https://img.shields.io/badge/AGP-9.2.1-3DDC84?logo=android)](https://developer.android.com/build)
-[![API](https://img.shields.io/badge/minSdk-31-3DDC84?logo=android)](https://developer.android.com/about/versions/12)
-[![License](https://img.shields.io/badge/License-Custom%20NonCommercial-lightgrey)](./LICENSE)
+Build artifact for this project: `SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
 
-> “This is for you.”
+---
 
-Smartisan Music has always been one of my favorite apps on Smartisan OS.
+## What changed from the original project
 
-Smartisan OS is long gone, and the original music player stayed behind on old Android releases. But that vinyl turntable, tonearm drag, scratch effect, lighting, and little animations are still hard to replace. So I brought it back to modern Android, and added the things a modern music player needs: online streaming, sound effects, and lyrics.
+The original project (Smartisan Music 8.1.0 official APK / People-11's port) is a system music player designed for Smartisan OS. It relies on private Smartisan OS frameworks and cannot run stably on stock Android devices. It also lacks modern features like cloud music, lyrics display, and sound effects.
 
-> [!NOTE]
-> This project does not provide a public cloud music catalog or media distribution service. Online music features require authorization with your own NetEase Cloud Music account. Membership or restricted content is still subject to NetEase Cloud Music's platform rules.
+This project keeps the 8.1.0 visual resources (XML layouts, drawables, dimens, selectors, animations) and interaction style, but makes the following core changes:
 
-## Project Status
+- **UI shell vs. logic separation**: The UI is recreated using the 8.1.0 legacy View shell; playback, media scanning, queue, favorites, settings, data persistence, and background services are all rewritten with modern Android technology.
+- **Package name changed**: `applicationId` is set to `app.smartisanmusic.revived` so it can be installed as a standalone app without depending on the Smartisan OS system signature or framework.
+- **Playback pipeline rewritten**: Based on Media3 `1.10.1`, implementing background playback service, local media library, playback queue, and playback state management.
+- **Data storage rewritten**: Uses Room `2.8.4` + DataStore Preferences `1.2.1` instead of the original system-database-dependent content providers.
+- **Image loading rewritten**: Uses Coil `3.5.0` for local and online cover art.
+- **Build and SDK upgraded**: AGP `9.2.1`, Kotlin `2.4.0`, `minSdk 31` / `targetSdk 36` / `compileSdk 37`.
 
-The current release is in a relatively complete and stable state. The main interface and playback screen have been refined through many rounds of reverse engineering, side-by-side comparison, and real-device tuning. The overall look, page hierarchy, animations, and core interactions are now where I want them.
+---
 
-### Local Playback
+## What features are implemented
 
-- Local music scanning, background playback, favorites, playlists, play counts
+### Local playback
+
+- Local media scanning, background playback, favorites, playlists, play counts
 - Opening external audio files, basic sound effects, custom artist separators
 - Song sorting and filtering, multi-select swipe, alphabetical sidebar
 
-### Online Music (New in 3.0)
+### Cloud music (NetEase Cloud Music)
 
 - NetEase Cloud Music account login, home recommendations, search
 - Playlist, album, artist, radio / podcast browsing
@@ -36,63 +38,48 @@ The current release is in a relatively complete and stable state. The main inter
 - Online playback URL refresh, online queue restoration, online cover art and lyrics
 - In-memory / disk caching for pages, lyrics, and streaming
 
-Online features depend on your own NetEase Cloud Music account authorization. This app does not provide a public music catalog; what you can search, play, and manage depends on your account status and NetEase Cloud Music's rules.
+> Online music features require authorization with your own NetEase Cloud Music account. This project does not provide a public cloud music catalog or media distribution service.
 
-### Visuals & Interaction
+### Visuals and interaction
 
 - Bottom playback bar, search, dialogs
 - Vinyl turntable, tonearm drag, scratch effect
 - Lyrics / control area, expandable playback queue with drag-to-reorder
 
-### Lyrics Notifications & Cross-Process Sharing (New)
+### Lyrics notification and cross-process lyrics sharing
 
-- **HyperOS Super Island Focus Notification** — Real-time lyrics display on Xiaomi/HyperOS devices' super island, with album art, song title, artist info, and per-line lyrics
-- **Android Live Update** — Android 16+ uses `ProgressStyle` for system live update notifications with song progress bar; falls back to `BigTextStyle` on older versions
-- **Multi-mode switching** — Independently toggle super island lyrics, live update, or LSPosed hook mode for the standalone module
-- **~15Hz polling** — `notify()` only triggers when display content changes, battery-friendly
-- **Album art color extraction** — Extracts Vibrant/Muted colors from album art for adaptive light/dark theming
-- **Cross-process lyrics sharing** — Exposes lyrics snapshots via ContentProvider (authority `com.smartisanos.music.lyric`) to the LSPosed module (SystemUI process), protected by a custom signature permission
-- **LyricStateHolder** — Cross-process lyric state snapshot, continuously updated by the player, read by the LSPosed hook
-- **Standalone LSPosed module** — Works with [`LyricsIsland-LSPosed-For-SmartisanMusic-Revived`](https://github.com/wowohut/SmartisanMusic-Revived) for word-level highlighting, gradient progress, feathered edges, and marquee scrolling in the super island
+- **HyperOS Super Island focus notification**: Real-time lyrics display on Xiaomi / HyperOS devices' super island, with album art, song title, artist info, and per-line lyrics
+- **Android Live Update**: Android 16+ uses `ProgressStyle` for system live update notifications with song progress bar; falls back to `BigTextStyle` on older versions
+- **Multi-mode switching**: Independently toggle super island lyrics, live update, or LSPosed hook mode for the standalone module
+- **~15Hz lyrics polling**: `notify()` only triggers when display content changes, battery-friendly
+- **Album art color extraction**: Extracts Vibrant/Muted colors from album art for adaptive light/dark theming
+- **Cross-process lyrics sharing**: Exposes lyrics snapshots via ContentProvider (authority `com.smartisanos.music.lyric`) to the LSPosed module (SystemUI process), protected by a custom signature permission
+- **LyricStateHolder**: Cross-process lyric state snapshot, continuously updated by the player, read by the LSPosed hook
 
-Going forward, work will mostly be stability maintenance, detail polish, performance improvements, and fixing bugs I haven't found yet.
+Works with the LSPosed module [`LyricsIsland-LSPosed-For-SmartisanMusic-Revived`](../LyricsIsland-LSPosed-For-SmartisanMusic-Revived/) for word-level highlighting, gradient progress, feathered edges, and marquee scrolling in the super island.
 
-## Screenshots
+---
 
-<p align="center">
-  <img src="docs/images/device-shot-01.jpeg" width="200" />
-  <img src="docs/images/device-shot-02.jpeg" width="200" />
-  <img src="docs/images/device-shot-03.jpeg" width="200" />
-  <img src="docs/images/device-shot-04.jpeg" width="200" />
-</p>
-<p align="center">
-  <img src="docs/images/device-shot-05.jpeg" width="200" />
-  <img src="docs/images/device-shot-06.jpeg" width="200" />
-  <img src="docs/images/device-shot-07.jpeg" width="200" />
-  <img src="docs/images/device-shot-08.jpeg" width="200" />
-</p>
+## Build artifacts
 
-> Album covers, artist images, brand logos, and music content shown in the screenshots belong to their respective rights holders and are used only to demonstrate the app's interface.
+- **Music App Release APK**: `SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
+- **LSPosed Module Release APK**: `LyricsIsland-LSPosed-For-SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
 
-## Download & Feedback
+The two subprojects do not share source code and can be compiled independently. The release build currently has no release signing configuration, so the output is `*-unsigned.apk`. To install, sign it with your own release key.
 
-Download the latest APK from [GitHub Releases](https://github.com/wowohut/SmartisanMusic-Revived/releases).
+```bash
+# Music App
+cd SmartisanMusic-Revived
+./gradlew :app:assembleRelease
 
-For issues or suggestions, feel free to open an [Issue](https://github.com/wowohut/SmartisanMusic-Revived/issues).
+# LSPosed Module
+cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
+./gradlew :app:assembleRelease
+```
 
-## Project Background
+---
 
-This project started as a pure Jetpack Compose rebuild based on Smartisan OS 6.8.0 (Nut R1). That history is preserved in the `archive/6.8.0-compose` branch.
-
-That version was functional — the playback pipeline and core features worked. But for a true 1:1 recreation of Smartisan Music, it always fell short. The app's details aren't just about placing elements in the right spots; they depend on the old View/XML system's measurements, shadows, selectors, list layering, typography, press states, and animation timing.
-
-The Compose version couldn't capture those details well enough.
-
-So I switched to the 8.1.0 legacy View approach. Wherever possible, this version preserves the original XML, drawables, dimens, selectors, animations, and view structure. Playback, scanning, favorites, queue, settings, and background services are rebuilt with modern Android technology.
-
-Note that the original 8.1.0 release did not include online music, lyrics, sound effects, or custom artist separators. Those were added during this recreation as modern music player capabilities.
-
-## Tech Stack
+## Tech stack
 
 | Category | Technology |
 | --- | --- |
@@ -105,47 +92,15 @@ Note that the original 8.1.0 release did not include online music, lyrics, sound
 | Images | Coil `3.5.0` |
 | SDK | `minSdk 31` / `targetSdk 36` / `compileSdk 37` |
 
-## Project Structure
-
-```text
-.
-├── app/
-│   └── src/main/
-│       ├── java/com/smartisanos/music/
-│       │   ├── SmartisanMusicApplication.kt  # Application entry point
-│       │   ├── MainActivity.kt               # Legacy View main shell entry
-│       │   ├── data/                         # Room, DataStore, Repository
-│       │   │   ├── online/                   # NetEase Cloud Music data layer, auth, cache, parsing
-│       │   │   └── settings/                 # Various settings stores
-│       │   ├── hook/                         # [New] Cross-process lyrics sharing
-│       │   │   ├── LyricContract.kt          # Lyric data contract (shared with LSPosed module)
-│       │   │   └── LyricProviderContentProvider.kt  # ContentProvider exposing lyrics snapshots
-│       │   ├── playback/                     # Media3 service, local library, queue, covers, lyrics
-│       │   │   ├── PlaybackService.kt        # Background playback service
-│       │   │   └── liveupdate/               # [New] Lyrics notification module
-│       │   │       ├── LyricsLiveUpdateManager.kt      # Super island + live update manager
-│       │   │       ├── LyricStateHolder.kt             # Cross-process lyric state snapshot
-│       │   │       ├── LyricsNotificationSettings.kt   # Lyrics notification settings store
-│       │   │       └── LyricsNotificationSettingsPage.kt # Lyrics notification settings UI
-│       │   └── ui/
-│       │       ├── shell/                    # 8.1.0 legacy shell, pages, transitions, dialogs
-│       │       │   └── cloud/                # Online music pages, routing, lists, detail pages
-│       │       ├── online/                   # NetEase account login and online feature UI
-│       │       ├── playback/                 # Playback screen, turntable, scratch, overlays, controls
-│       │       └── widgets/                  # Recreated legacy View / shim controls
-│       └── res/                              # 8.1.0 migrated assets and modern Android resources
-├── docs/
-├── reverse/
-└── gradle/
-```
-
-For more on the legacy shell design, see [docs/legacy-shell-structure.md](./docs/legacy-shell-structure.md).
+---
 
 ## Acknowledgments
 
-Thanks to [People-11](https://github.com/People-11/) for the [SmartisanOS_APP_Port](https://github.com/People-11/SmartisanOS_APP_Port/) project. Its `Music_8.1.0.apk` filled in many of the gaps between the original music APK and the Smartisan OS framework, allowing the 8.1.0 version to run on non-Smartisan devices, and providing a reliable visual and interaction baseline for this recreation.
+- Thanks to [People-11](https://github.com/People-11/) for the [SmartisanOS_APP_Port](https://github.com/People-11/SmartisanOS_APP_Port/) project; its `Music_8.1.0.apk` provided the visual and interaction baseline for this recreation.
+- Thanks to [limczhh](https://github.com/limczhh/) for [HyperLyric](https://github.com/limczhh/HyperLyric), which inspired the LSPosed module implementation.
+- Thanks to [LSPosed](https://github.com/LSPosed/LSPosed) for the Xposed framework.
 
-People-11's work is about porting the original Smartisan OS app so the original APK can run as faithfully as possible on other systems. This repository is a recreation: the UI stays close to 8.1.0, but playback, scanning, queue, favorites, settings, data persistence, and background services are rebuilt with modern Android technology, making ongoing maintenance and extensions possible without breaking the original feel.
+---
 
 ## Disclaimer
 
@@ -155,12 +110,8 @@ This project is not affiliated with ByteDance. It is an unofficial recreation dr
 - The 8.1.0 APK resource files are included or referenced only for learning, research, and preservation purposes; copyright belongs to the original rights holders.
 - Online music features require authorization with your own NetEase Cloud Music account. This project does not provide a public music catalog, media distribution service, or third-party platform membership benefits.
 - Original source code is for non-commercial use only.
-- This project is provided "AS IS". The author assumes no liability for any direct or indirect damages resulting from the use of this project, including but not limited to account restrictions, data loss, copyright disputes, or service interruptions.
+- This project is provided "AS IS". The author assumes no liability for any direct or indirect damages resulting from the use of this project.
 
 ## License
 
 Original source code is licensed under a custom non-commercial license. See [LICENSE](./LICENSE) for details.
-
----
-
-Recreating it isn't just nostalgia. It's the hope that when you open it, you feel the same joy I do.

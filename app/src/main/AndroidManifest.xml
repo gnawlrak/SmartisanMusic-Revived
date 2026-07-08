@@ -2,8 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 跨进程歌词读取权限。LSPosed 模块（SystemUI 进程）需声明同名的
+         uses-permission 才能访问。双方签名一致时自动通过。 -->
+    <permission
+        android:name="com.smartisanos.music.permission.READ_LYRIC"
+        android:protectionLevel="signature" />
+    <!-- LSPosed 模块（SystemUI 进程）声明此 uses-permission 以读取歌词。 -->
+    <uses-permission android:name="com.smartisanos.music.permission.READ_LYRIC" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -70,6 +80,16 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!--
+          把当前歌词快照暴露给独立的 LSPosed 模块（:lsposed，运行在 SystemUI 进程）。
+          按 LyricContract 契约（authority=com.smartisanos.music.lyric）跨进程同步读取。
+        -->
+        <provider
+            android:name="com.smartisanos.music.hook.LyricProviderContentProvider"
+            android:authorities="com.smartisanos.music.lyric"
+            android:exported="true"
+            android:readPermission="com.smartisanos.music.permission.READ_LYRIC" />
     </application>
 
 </manifest>

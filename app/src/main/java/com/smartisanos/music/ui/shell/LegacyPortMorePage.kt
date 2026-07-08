@@ -32,6 +32,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -44,7 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.smartisanos.music.R
@@ -135,6 +139,7 @@ internal fun LegacyPortMorePage(
     modifier: Modifier = Modifier,
 ) {
     var secondaryTarget by remember { mutableStateOf<LegacyMoreSecondaryTarget?>(null) }
+    var showLyricsNotificationSettings by remember { mutableStateOf(false) }
     val secondaryPredictiveBackState = rememberLegacyPortPredictiveBackState()
 
     LaunchedEffect(active, secondaryTarget) {
@@ -239,11 +244,32 @@ internal fun LegacyPortMorePage(
                         onNeteasePlaybackQualityChange = onNeteasePlaybackQualityChange,
                         onNeteaseAuthChanged = onNeteaseAuthChanged,
                         onTabVisibilityChange = onTabVisibilityChange,
+                        onLyricsNotificationClick = { showLyricsNotificationSettings = true },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
             },
         )
+    }
+
+    if (showLyricsNotificationSettings) {
+        Dialog(
+            onDismissRequest = { showLyricsNotificationSettings = false },
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = ComposeColor.White,
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                    .padding(16.dp),
+            ) {
+                com.smartisanos.music.playback.liveupdate.LyricsNotificationSettingsPage(
+                    onClose = { showLyricsNotificationSettings = false },
+                )
+            }
+        }
     }
 }
 

@@ -89,8 +89,10 @@ internal class NeteaseWebLoginActivity : ComponentActivity() {
             webChromeClient = WebChromeClient()
             webViewClient = LoginWebViewClient()
         }
+        // 第三方 Cookie 会增加 XSS 攻击面（恶意 163.com 子域脚本可窃取登录态）。
+        // 如果需要第三方社交账号登录（微信/微博），可改回 true。
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            cookieManager.setAcceptThirdPartyCookies(webView, true)
+            cookieManager.setAcceptThirdPartyCookies(webView, false)
         }
         root.addView(statusBarSpacer)
         root.addView(toolbar)

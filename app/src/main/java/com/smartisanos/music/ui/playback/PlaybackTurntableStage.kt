@@ -848,6 +848,8 @@ private fun PlaybackTurntableAxisOverlay(
     turntableWidth: Dp,
     modifier: Modifier = Modifier,
 ) {
+    // ImageBitmap.imageResource 是 @Composable 函数，首次 composition 时解码。
+    // 后续 recomposition 因 key 不变不会重复解码。
     val axisBitmap = ImageBitmap.imageResource(id = R.drawable.playing_lp)
     val srcLeft = (axisBitmap.width - PlaybackTurntableAxisSourceDiameterPx) / 2
     val srcTop = (axisBitmap.height - PlaybackTurntableAxisSourceDiameterPx) / 2

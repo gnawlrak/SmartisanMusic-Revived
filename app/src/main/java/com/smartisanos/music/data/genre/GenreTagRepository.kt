@@ -90,9 +90,14 @@ class GenreTagRepository(
     companion object {
         private val CacheLock = Any()
         private var cachedMediaStoreVersion: String? = null
-        private val genreCache = mutableMapOf<String, String?>()
+        private val genreCache = object : LinkedHashMap<String, String?>() {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String?>): Boolean {
+                return size > MAX_CACHE_SIZE
+            }
+        }
         private val retrieverResolvedIds = mutableSetOf<String>()
         private var mediaStoreCachePrimed = false
+        private const val MAX_CACHE_SIZE = 5_000
 
         internal fun resetCacheForTest() {
             synchronized(CacheLock) {

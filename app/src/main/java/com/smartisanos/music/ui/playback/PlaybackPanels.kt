@@ -266,13 +266,14 @@ internal fun PlaybackLyricsOverlay(
                 renderModel.mode,
                 autoFollowState.suspended,
             ) {
+                if (renderModel.focusIndex < 0) return@LaunchedEffect
                 when (renderModel.mode) {
                     PlaybackLyricsMode.Timed -> {
                         if (autoFollowState.suspended) return@LaunchedEffect
                         if (autoFollowState.shouldAnimateTo(renderModel.focusIndex)) {
-                            listState.animateScrollToItem(index = renderModel.focusIndex)
+                            runCatching { listState.animateScrollToItem(index = renderModel.focusIndex) }
                         } else {
-                            listState.scrollToItem(index = renderModel.focusIndex)
+                            runCatching { listState.scrollToItem(index = renderModel.focusIndex) }
                         }
                     }
                     PlaybackLyricsMode.Fallback -> {

@@ -47,6 +47,7 @@ import com.smartisanos.music.data.online.toOnlinePlaybackCacheKey
 import com.smartisanos.music.data.online.withOnlinePlaybackPlaceholderUri
 import com.smartisanos.music.data.playback.PlaybackStatsRepository
 import com.smartisanos.music.data.settings.PlaybackSettingsStore
+import com.smartisanos.music.playback.liveupdate.LyricsLiveUpdateManager
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -79,12 +80,14 @@ class PlaybackService : MediaLibraryService() {
     private var playbackAudioFxController: PlaybackAudioFxController? = null
     private var playbackMetadataPreloader: PlaybackMetadataPreloader? = null
     private var mediaSessionArtworkBitmapLoader: MediaSessionArtworkBitmapLoader? = null
+    private var lyricsLiveUpdateManager: LyricsLiveUpdateManager? = null
     private var pendingStatsLibraryRefreshJob: Job? = null
     private var pendingRatingLibraryRefreshJob: Job? = null
     private var pendingPlaybackStartJob: Job? = null
     private var pendingPlaybackStartFuture: SettableFuture<SessionResult>? = null
     private var onlineMediaRefreshJob: Job? = null
     private var onlineMediaRefreshJobForceRefresh = false
+    private val onlineMediaRefreshLock = Any()
     private var lastOnlineMediaRefreshKey: String? = null
     private var lastOnlineMediaRefreshAtMs: Long = 0L
     private val playbackStartRequestGeneration = AtomicLong()
@@ -190,6 +193,14 @@ class PlaybackService : MediaLibraryService() {
             .setPeriodicPositionUpdateEnabled(false)
             .build()
 
+        lyricsLiveUpdateManager = LyricsLiveUpdateManager(
+            context = this,
+            player = exoPlayer,
+            sessionActivity = createSessionActivityPendingIntent(),
+        ).also { manager ->
+            manager.start()
+        }
+
         playbackPlayCountTracker = PlaybackPlayCountTracker(
             player = exoPlayer,
             repository = playbackStatsRepository,
@@ -242,18 +253,17 @@ class PlaybackService : MediaLibraryService() {
         if (!exclusionsReady.isCompleted) {
             exclusionsReady.complete(exclusionsSnapshot)
         }
-        playbackSessionStateCoordinator?.let { coordinator ->
-            runBlocking {
+        // 使用 NonCancellable 确保保存操作即使 scope 被取消也执行完成
+        serviceScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            playbackSessionStateCoordinator?.let { coordinator ->
                 coordinator.saveNow()
+                coordinator.stop()
             }
-            coordinator.stop()
-        }
-        playbackSessionStateCoordinator = null
-        playbackPlayCountTracker?.let { tracker ->
-            runBlocking {
+            playbackPlayCountTracker?.let { tracker ->
                 tracker.stopAndFlush()
             }
         }
+        playbackSessionStateCoordinator = null
         playbackPlayCountTracker = null
         pendingStatsLibraryRefreshJob?.cancel()
         pendingStatsLibraryRefreshJob = null
@@ -272,6 +282,8 @@ class PlaybackService : MediaLibraryService() {
         onlineMediaRefreshJob = null
         playbackAudioFxController?.release()
         playbackAudioFxController = null
+        lyricsLiveUpdateManager?.stop()
+        lyricsLiveUpdateManager = null
         mediaLibrarySession?.release()
         mediaLibrarySession = null
 
@@ -637,12 +649,15 @@ class PlaybackService : MediaLibraryService() {
         forceRefresh: Boolean,
         skipOnFailure: Boolean = false,
     ) {
-        val activeRefreshJob = onlineMediaRefreshJob
-        if (activeRefreshJob?.isActive == true) {
-            if (!forceRefresh || onlineMediaRefreshJobForceRefresh) {
-                return
+        // 同步检查并取消已有刷新任务，防止两个同时调用绕过守卫
+        synchronized(onlineMediaRefreshLock) {
+            val activeRefreshJob = onlineMediaRefreshJob
+            if (activeRefreshJob?.isActive == true) {
+                if (!forceRefresh || onlineMediaRefreshJobForceRefresh) {
+                    return
+                }
+                activeRefreshJob.cancel()
             }
-            activeRefreshJob.cancel()
         }
         if (!item.isOnlineMediaItem()) {
             return

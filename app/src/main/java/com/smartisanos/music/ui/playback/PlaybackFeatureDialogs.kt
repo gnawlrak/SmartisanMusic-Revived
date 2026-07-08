@@ -142,10 +142,15 @@ internal fun PlaybackConfirmDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val activity = context as? androidx.activity.ComponentActivity
     val latestOnConfirm by rememberUpdatedState(onConfirm)
     val latestOnDismiss by rememberUpdatedState(onDismiss)
 
     DisposableEffect(context, title, message, confirmText, dismissText) {
+        // 如果 Activity 已销毁，显示对话框会抛 BadTokenException
+        if (activity != null && (activity.isFinishing || activity.isDestroyed)) {
+            return@DisposableEffect onDispose {}
+        }
         val dialog = RevonePlaybackConfirmDialog(
             context = context,
             title = title,
@@ -271,6 +276,11 @@ private class RevonePlaybackConfirmDialog(
     }
 
     fun show() {
+        // 如果 context 是 Activity 且已销毁，dialog.show() 抛 BadTokenException
+        if (context is android.app.Activity) {
+            val act = context as android.app.Activity
+            if (act.isFinishing || act.isDestroyed) return
+        }
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(AndroidColor.TRANSPARENT))

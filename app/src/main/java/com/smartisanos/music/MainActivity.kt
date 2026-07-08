@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MusicTheme(darkTheme = false, dynamicColor = false) {
                 RequestAudioPermissionOnLaunch()
+                RequestNotificationPermissionOnLaunch()
                 LegacyPortMainShell(
                     playbackLaunchRequest = playbackLaunchRequest,
                     externalAudioLaunchRequest = externalAudioLaunchRequest,
@@ -176,6 +177,20 @@ private fun RequestAudioPermissionOnLaunch() {
     LaunchedEffect(permission) {
         if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(permission)
+        }
+    }
+}
+
+@Composable
+private fun RequestNotificationPermissionOnLaunch() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { }
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }

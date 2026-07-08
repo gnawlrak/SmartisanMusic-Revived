@@ -244,7 +244,11 @@ internal class ScratchSoundController(
         sourceGeneration += 1
         decodeExecutor.shutdownNow()
         wakePlaybackThread()
+        // join() 等待线程结束；超时后 interrupt() 确保线程能响应中断退出
         playbackThread.join(500)
+        if (playbackThread.isAlive) {
+            playbackThread.interrupt()
+        }
     }
 
     private fun wakePlaybackThread() {
@@ -663,7 +667,7 @@ private fun decodeScratchBuffer(
                 )
             }
         }
-    } catch (_: Throwable) {
+    } catch (_: Exception) {
         null
     } finally {
         runCatching { codec?.stop() }

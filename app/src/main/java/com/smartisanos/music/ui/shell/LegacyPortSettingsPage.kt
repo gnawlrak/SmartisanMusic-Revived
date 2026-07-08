@@ -94,6 +94,7 @@ internal fun LegacyPortSettingsPage(
     onNeteasePlaybackQualityChange: (NeteaseAudioQuality) -> Unit,
     onNeteaseAuthChanged: () -> Unit,
     onTabVisibilityChange: (String, Boolean) -> Unit,
+    onLyricsNotificationClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -205,6 +206,7 @@ internal fun LegacyPortSettingsPage(
                 onNavigationClick = {
                     secondaryPage = LegacySettingsSecondaryPage.Navigation
                 },
+                onLyricsNotificationClick = onLyricsNotificationClick,
                 modifier = Modifier.fillMaxSize(),
             )
         },
@@ -328,6 +330,7 @@ private fun LegacySettingsRootPage(
     onAudioFxClick: () -> Unit,
     onArtistSeparatorsClick: () -> Unit,
     onNavigationClick: () -> Unit,
+    onLyricsNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -368,6 +371,7 @@ private fun LegacySettingsRootPage(
                     onAudioFxClick = onAudioFxClick,
                     onArtistSeparatorsClick = onArtistSeparatorsClick,
                     onNavigationClick = onNavigationClick,
+                    onLyricsNotificationClick = onLyricsNotificationClick,
                 )
             },
         )
@@ -658,6 +662,11 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         titleRes = R.string.bottom_tab_visibility,
         showArrow = true,
     )
+    private val lyricsNotificationRow = LegacySettingsValueRow(
+        context = context,
+        titleRes = R.string.lyrics_notification_settings_title,
+        showArrow = true,
+    )
 
     init {
         setBackgroundResource(R.drawable.account_background)
@@ -710,6 +719,14 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
             ),
         )
         content.addView(gapView(context))
+        content.addView(sectionTitleView(context, R.string.settings_section_lyrics_notification))
+        content.addView(
+            settingsGroup(
+                context,
+                lyricsNotificationRow to LegacySettingsRowShape.Single,
+            ),
+        )
+        content.addView(gapView(context))
     }
 
     fun bind(
@@ -726,6 +743,7 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         onAudioFxClick: () -> Unit,
         onArtistSeparatorsClick: () -> Unit,
         onNavigationClick: () -> Unit,
+        onLyricsNotificationClick: () -> Unit,
     ) {
         neteaseAccountRow.bind(
             value = neteaseAuthState.toAccountSummary(context),
@@ -749,6 +767,10 @@ private class LegacySettingsContentView(context: Context) : ScrollView(context) 
         bottomTabRow.bind(
             value = navigationSettings.toHiddenSummary(context),
             onClick = onNavigationClick,
+        )
+        lyricsNotificationRow.bind(
+            value = "",
+            onClick = onLyricsNotificationClick,
         )
     }
 

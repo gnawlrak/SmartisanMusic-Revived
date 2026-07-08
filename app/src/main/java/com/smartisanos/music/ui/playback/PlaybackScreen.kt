@@ -453,7 +453,9 @@ fun PlaybackScreen(
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // 在 onDispose 时重新获取 window，避免 Activity 重建后
+            // DisposableEffect 持有旧 Activity 的 window 引用
+            context.findActivity()?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 

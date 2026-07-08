@@ -44,6 +44,17 @@ Online features depend on your own NetEase Cloud Music account authorization. Th
 - Vinyl turntable, tonearm drag, scratch effect
 - Lyrics / control area, expandable playback queue with drag-to-reorder
 
+### Lyrics Notifications & Cross-Process Sharing (New)
+
+- **HyperOS Super Island Focus Notification** — Real-time lyrics display on Xiaomi/HyperOS devices' super island, with album art, song title, artist info, and per-line lyrics
+- **Android Live Update** — Android 16+ uses `ProgressStyle` for system live update notifications with song progress bar; falls back to `BigTextStyle` on older versions
+- **Multi-mode switching** — Independently toggle super island lyrics, live update, or LSPosed hook mode for the standalone module
+- **~15Hz polling** — `notify()` only triggers when display content changes, battery-friendly
+- **Album art color extraction** — Extracts Vibrant/Muted colors from album art for adaptive light/dark theming
+- **Cross-process lyrics sharing** — Exposes lyrics snapshots via ContentProvider (authority `com.smartisanos.music.lyric`) to the LSPosed module (SystemUI process), protected by a custom signature permission
+- **LyricStateHolder** — Cross-process lyric state snapshot, continuously updated by the player, read by the LSPosed hook
+- **Standalone LSPosed module** — Works with [`LyricsIsland-LSPosed-For-SmartisanMusic-Revived`](https://github.com/wowohut/SmartisanMusic-Revived) for word-level highlighting, gradient progress, feathered edges, and marquee scrolling in the super island
+
 Going forward, work will mostly be stability maintenance, detail polish, performance improvements, and fixing bugs I haven't found yet.
 
 ## Screenshots
@@ -104,9 +115,18 @@ Note that the original 8.1.0 release did not include online music, lyrics, sound
 │       │   ├── SmartisanMusicApplication.kt  # Application entry point
 │       │   ├── MainActivity.kt               # Legacy View main shell entry
 │       │   ├── data/                         # Room, DataStore, Repository
-│       │   │   └── online/                   # NetEase Cloud Music data layer, auth, cache, parsing
+│       │   │   ├── online/                   # NetEase Cloud Music data layer, auth, cache, parsing
+│       │   │   └── settings/                 # Various settings stores
+│       │   ├── hook/                         # [New] Cross-process lyrics sharing
+│       │   │   ├── LyricContract.kt          # Lyric data contract (shared with LSPosed module)
+│       │   │   └── LyricProviderContentProvider.kt  # ContentProvider exposing lyrics snapshots
 │       │   ├── playback/                     # Media3 service, local library, queue, covers, lyrics
-│       │   │   └── PlaybackService.kt        # Background playback service
+│       │   │   ├── PlaybackService.kt        # Background playback service
+│       │   │   └── liveupdate/               # [New] Lyrics notification module
+│       │   │       ├── LyricsLiveUpdateManager.kt      # Super island + live update manager
+│       │   │       ├── LyricStateHolder.kt             # Cross-process lyric state snapshot
+│       │   │       ├── LyricsNotificationSettings.kt   # Lyrics notification settings store
+│       │   │       └── LyricsNotificationSettingsPage.kt # Lyrics notification settings UI
 │       │   └── ui/
 │       │       ├── shell/                    # 8.1.0 legacy shell, pages, transitions, dialogs
 │       │       │   └── cloud/                # Online music pages, routing, lists, detail pages

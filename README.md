@@ -42,6 +42,17 @@ Smartisan OS 早已退出历史舞台，原版音乐播放器也留在了旧 And
 - 黑胶唱盘、唱针拖拽、搓碟
 - 歌词 / 控制区、播放队列展开和队列拖拽排序
 
+### 歌词通知与跨进程歌词（本仓库新增）
+
+- **HyperOS 超级岛焦点通知** — 在小米 / HyperOS 设备的超级岛中实时显示歌词，支持专辑封面、歌名、艺人信息和逐行歌词
+- **Android 实况通知（Live Update）** — Android 16+ 使用 `ProgressStyle` 注册系统实况通知，带歌曲进度条；低版本回退 `BigTextStyle` 持续通知
+- **多模式切换** — 可独立开关超级岛歌词和实况通知，也可启用 LSPosed hook 模式交由独立模块渲染
+- **歌词轮询 ~15Hz** — 仅在显示内容变化时触发 notify，性能友好
+- **封面取色** — 从专辑封面提取 Vibrant/Muted 主色，自动适配亮暗主题
+- **跨进程歌词共享** — 通过 ContentProvider（authority `com.smartisanos.music.lyric`）将歌词快照暴露给 LSPosed 模块（SystemUI 进程），含自定义签名权限保护
+- **LyricStateHolder** — 跨进程歌词状态快照，播放器侧持续更新，LSPosed hook 侧读取
+- **LSPosed 独立模块** — 配合 [`LyricsIsland-LSPosed-For-SmartisanMusic-Revived`](https://github.com/wowohut/SmartisanMusic-Revived) 在超级岛中实现逐字高亮、渐变进度、羽化边缘、走马灯等高级歌词渲染
+
 后面如果继续改，主要就是维护稳定性、继续优化细节和性能，以及修复我还没发现的 Bug。
 
 ## 真机截图
@@ -98,9 +109,18 @@ Compose 版在细节还原上仍有明显差距。
 │       │   ├── SmartisanMusicApplication.kt  # 应用入口
 │       │   ├── MainActivity.kt               # legacy View 主壳入口
 │       │   ├── data/                         # Room、DataStore、Repository
-│       │   │   └── online/                   # 网易云音乐数据层、账号状态、缓存和接口解析
+│       │   │   ├── online/                   # 网易云音乐数据层、账号状态、缓存和接口解析
+│       │   │   └── settings/                 # 各项设置存储
+│       │   ├── hook/                         # [新增] 跨进程歌词共享
+│       │   │   ├── LyricContract.kt          # 歌词数据公共契约（与 LSPosed 模块约定）
+│       │   │   └── LyricProviderContentProvider.kt  # ContentProvider 暴露歌词快照
 │       │   ├── playback/                     # Media3 播放服务、本地媒体库、队列、封面和歌词
-│       │   │   └── PlaybackService.kt        # 后台播放服务
+│       │   │   ├── PlaybackService.kt        # 后台播放服务
+│       │   │   └── liveupdate/               # [新增] 歌词通知模块
+│       │   │       ├── LyricsLiveUpdateManager.kt      # 超级岛+实况通知管理器
+│       │   │       ├── LyricStateHolder.kt             # 跨进程歌词状态快照
+│       │   │       ├── LyricsNotificationSettings.kt   # 歌词通知设置存储
+│       │   │       └── LyricsNotificationSettingsPage.kt # 歌词通知设置页面
 │       │   └── ui/
 │       │       ├── shell/                    # 8.1.0 legacy 主壳、页面、转场和弹窗
 │       │       │   └── cloud/                # 云音乐页面、路由、列表和详情页

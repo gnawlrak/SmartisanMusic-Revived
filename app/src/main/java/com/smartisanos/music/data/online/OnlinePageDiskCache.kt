@@ -115,6 +115,11 @@ internal class OnlinePageDiskCache(
                     .listFiles { file -> file.isFile && file.extension == CacheFileExtension }
                     .orEmpty()
                     .forEach { file ->
+                        // 跳过损坏/过大的缓存文件
+                        if (file.length() > MAX_CACHE_FILE_BYTES) {
+                            file.delete()
+                            return@forEach
+                        }
                         val cachedKey = runCatching {
                             JSONObject(file.readText()).optString(CacheKeyKey)
                         }.getOrNull()

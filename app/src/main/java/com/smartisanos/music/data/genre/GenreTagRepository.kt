@@ -95,7 +95,15 @@ class GenreTagRepository(
                 return size > MAX_CACHE_SIZE
             }
         }
-        private val retrieverResolvedIds = mutableSetOf<String>()
+        // LinkedHashSet 保持插入顺序，超出 MAX_CACHE_SIZE 时自动淘汰最早添加的 ID
+        private val retrieverResolvedIds = object : LinkedHashSet<String>() {
+            override fun add(element: String): Boolean {
+                if (size >= MAX_CACHE_SIZE) {
+                    remove(first())
+                }
+                return super.add(element)
+            }
+        }
         private var mediaStoreCachePrimed = false
         private const val MAX_CACHE_SIZE = 5_000
 

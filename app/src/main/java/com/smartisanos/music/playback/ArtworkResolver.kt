@@ -207,18 +207,18 @@ private fun decodeStreamSampled(
     uri: Uri,
     size: Size,
 ): Bitmap? {
+    // 一次读取到字节数组，避免 ContentResolver 两次 IPC
+    val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+        input.readBytes()
+    } ?: return null
     val boundsOptions = BitmapFactory.Options().apply {
         inJustDecodeBounds = true
     }
-    context.contentResolver.openInputStream(uri)?.use { stream ->
-        BitmapFactory.decodeStream(stream, null, boundsOptions)
-    } ?: return null
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOptions)
     val sampleOptions = BitmapFactory.Options().apply {
         inSampleSize = calculateInSampleSize(boundsOptions, size)
     }
-    return context.contentResolver.openInputStream(uri)?.use { stream ->
-        BitmapFactory.decodeStream(stream, null, sampleOptions)
-    }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, sampleOptions)
 }
 
 private fun Uri.isNetworkUri(): Boolean {

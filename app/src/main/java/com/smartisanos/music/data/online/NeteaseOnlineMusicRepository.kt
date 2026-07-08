@@ -474,7 +474,7 @@ internal class NeteaseOnlineMusicRepository(
                 )
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Throwable) {
+            } catch (_: Exception) {
                 // Keep serving stale cache if a background refresh fails.
             } finally {
                 refreshingPageCacheKeys.remove(key)
@@ -508,7 +508,7 @@ internal class NeteaseOnlineMusicRepository(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Throwable) {
+            } catch (_: Exception) {
                 // Keep serving stale cache if a background refresh fails.
             } finally {
                 refreshingPageCacheKeys.remove(key)
@@ -626,7 +626,7 @@ internal class NeteaseOnlineMusicRepository(
             Result.success(block())
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }
@@ -1482,7 +1482,7 @@ internal class NeteaseCloudMusicClient(
             getSongs(baseTracks.map(OnlineTrack::trackId))
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             emptyList()
         }.associateBy(OnlineTrack::trackId)
         baseTracks.map { track -> detailsById[track.trackId] ?: track }

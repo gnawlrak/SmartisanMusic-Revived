@@ -20,13 +20,11 @@
 
 ## 编译产物
 
+目前已发布第一版3.0.1Fork release版
+
 ```bash
 # 音乐 App
 cd SmartisanMusic-Revived
-./gradlew :app:assembleRelease
-
-# LSPosed 模块
-cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
 ./gradlew :app:assembleRelease
 ```
 

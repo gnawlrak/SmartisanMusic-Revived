@@ -30,6 +30,7 @@ internal object PlaybackSleepTimer {
 
     private var countDownTimer: CountDownTimer? = null
     private var onFinishAction: (() -> Unit)? = null
+    @Volatile private var isFinishing = false
 
     fun start(
         durationMs: Long,
@@ -88,15 +89,19 @@ internal object PlaybackSleepTimer {
         countDownTimer = null
         onFinishAction = null
         mutableState.value = PlaybackSleepTimerState()
+        isFinishing = false
     }
 
     private fun finish() {
+        if (isFinishing) return
+        isFinishing = true
         countDownTimer?.cancel()
         countDownTimer = null
         val finishAction = onFinishAction
         onFinishAction = null
         mutableState.value = PlaybackSleepTimerState()
         finishAction?.invoke()
+        isFinishing = false
     }
 
     private fun elapsedRealtime(): Long = SystemClock.elapsedRealtime()

@@ -88,8 +88,8 @@ class PlaybackService : MediaLibraryService() {
     private var onlineMediaRefreshJob: Job? = null
     private var onlineMediaRefreshJobForceRefresh = false
     private val onlineMediaRefreshLock = Any()
-    private var lastOnlineMediaRefreshKey: String? = null
-    private var lastOnlineMediaRefreshAtMs: Long = 0L
+    @Volatile private var lastOnlineMediaRefreshKey: String? = null
+    @Volatile private var lastOnlineMediaRefreshAtMs: Long = 0L
     private val playbackStartRequestGeneration = AtomicLong()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val playbackStartFadeController = PlaybackStartFadeController(serviceScope)
@@ -452,12 +452,14 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun cancelPendingPlaybackStart() {
-        pendingPlaybackStartJob?.cancel()
-        pendingPlaybackStartJob = null
-        pendingPlaybackStartFuture
-            ?.takeUnless(SettableFuture<SessionResult>::isDone)
-            ?.set(SessionResult(SessionResult.RESULT_SUCCESS))
-        pendingPlaybackStartFuture = null
+        synchronized(playbackStartRequestGeneration) {
+            pendingPlaybackStartJob?.cancel()
+            pendingPlaybackStartJob = null
+            pendingPlaybackStartFuture
+                ?.takeUnless(SettableFuture<SessionResult>::isDone)
+                ?.set(SessionResult(SessionResult.RESULT_SUCCESS))
+            pendingPlaybackStartFuture = null
+        }
     }
 
     private suspend fun getAudioItemsByQueueKeys(queueKeys: List<PlaybackQueueSnapshotItem>): List<MediaItem> {
@@ -750,16 +752,18 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun recordOnlineMediaRefreshAttempt(refreshKey: String): Boolean {
-        val now = SystemClock.elapsedRealtime()
-        if (
-            lastOnlineMediaRefreshKey == refreshKey &&
-            now - lastOnlineMediaRefreshAtMs < OnlineMediaRefreshCooldownMs
-        ) {
-            return false
+        synchronized(onlineMediaRefreshLock) {
+            val now = SystemClock.elapsedRealtime()
+            if (
+                lastOnlineMediaRefreshKey == refreshKey &&
+                now - lastOnlineMediaRefreshAtMs < OnlineMediaRefreshCooldownMs
+            ) {
+                return false
+            }
+            lastOnlineMediaRefreshKey = refreshKey
+            lastOnlineMediaRefreshAtMs = now
+            return true
         }
-        lastOnlineMediaRefreshKey = refreshKey
-        lastOnlineMediaRefreshAtMs = now
-        return true
     }
 
     private inner class PlaybackLibrarySessionCallback : MediaLibrarySession.Callback {
@@ -768,6 +772,15 @@ class PlaybackService : MediaLibraryService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
+            // 只允许本应用和已知可信的调用者
+            val callerPkg = controller.packageName?.takeIf(String::isNotBlank)
+            if (callerPkg == null ||
+                (callerPkg != this@PlaybackService.packageName && callerPkg != "com.android.systemui")
+            ) {
+                // 拒绝未知调用者：返回空命令集的已接受结果
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .build()
+            }
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(ScratchSeekModeCommand)

@@ -34,6 +34,7 @@ object LyricStateHolder {
     fun snapshot(): Snapshot = Snapshot(
         title = title,
         artist = artist,
+        album = album,
         currentLine = currentLine,
         positionMs = positionMs,
         durationMs = durationMs,
@@ -42,11 +43,16 @@ object LyricStateHolder {
         isPlaying = isPlaying,
         hasLyrics = hasLyrics,
         packageName = packageName,
+        currentLineTokens = currentLineTokens,
+        primaryColor = primaryColor,
+        secondaryColor = secondaryColor,
+        coverUri = coverUri,
     )
 
     data class Snapshot(
         @JvmField val title: String,
         @JvmField val artist: String,
+        @JvmField val album: String,
         @JvmField val currentLine: String,
         @JvmField val positionMs: Long,
         @JvmField val durationMs: Long,
@@ -55,5 +61,9 @@ object LyricStateHolder {
         @JvmField val isPlaying: Boolean,
         @JvmField val hasLyrics: Boolean,
         @JvmField val packageName: String,
+        @JvmField val currentLineTokens: String,
+        @JvmField val primaryColor: Int,
+        @JvmField val secondaryColor: Int,
+        @JvmField val coverUri: String,
     )
 }

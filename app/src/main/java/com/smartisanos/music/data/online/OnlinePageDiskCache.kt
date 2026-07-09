@@ -12,7 +12,6 @@ private const val PageCacheSchemaVersion = 1
 private const val DefaultMaxPageCacheFiles = 512
 private const val DefaultMaxPageCacheEntryBytes = 8L * 1024L * 1024L
 private const val DefaultMaxPageCacheTotalBytes = 64L * 1024L * 1024L
-private const val MAX_CACHE_FILE_BYTES = 5L * 1024L * 1024L  // 单文件上限 5MB
 
 internal data class OnlinePageCacheCodec<T>(
     val encode: (T) -> JSONObject,
@@ -45,8 +44,8 @@ internal class OnlinePageDiskCache(
             if (!file.isFile) {
                 return@synchronized null
             }
-            // 限制最大缓存文件为 5MB，防止损坏文件导致 OOM
-            if (file.length() > MAX_CACHE_FILE_BYTES) {
+            // 限制最大缓存文件，防止损坏文件导致 OOM
+            if (file.length() > maxEntryBytes) {
                 file.delete()
                 return@synchronized null
             }
@@ -116,7 +115,7 @@ internal class OnlinePageDiskCache(
                     .orEmpty()
                     .forEach { file ->
                         // 跳过损坏/过大的缓存文件
-                        if (file.length() > MAX_CACHE_FILE_BYTES) {
+                        if (file.length() > maxEntryBytes) {
                             file.delete()
                             return@forEach
                         }

@@ -26,13 +26,15 @@ class GenreTagRepository(
     )
 
     suspend fun loadGenres(mediaItems: List<MediaItem>): Map<String, String?> = withContext(Dispatchers.IO) {
-        val mediaStoreVersion = mediaStoreVersionProvider()
-        ensureCacheVersion(mediaStoreVersion)
-        primeCacheFromMediaStore(mediaStoreVersion)
+        synchronized(CacheLock) {
+            val mediaStoreVersion = mediaStoreVersionProvider()
+            ensureCacheVersion(mediaStoreVersion)
+            primeCacheFromMediaStore(mediaStoreVersion)
 
-        buildMap(mediaItems.size) {
-            mediaItems.forEach { item ->
-                put(item.mediaId, loadGenre(mediaStoreVersion, item))
+            buildMap(mediaItems.size) {
+                mediaItems.forEach { item ->
+                    put(item.mediaId, loadGenre(mediaStoreVersion, item))
+                }
             }
         }
     }

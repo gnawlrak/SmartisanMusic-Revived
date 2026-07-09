@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // AGP 9.x 内建 Kotlin 支持，无需 kotlin-android 插件
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
@@ -11,12 +11,21 @@ android {
         version = release(37)
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(project.properties["RELEASE_STORE_FILE"] as String)
+            storePassword = project.properties["RELEASE_STORE_PASSWORD"] as String
+            keyAlias = project.properties["RELEASE_KEY_ALIAS"] as String
+            keyPassword = project.properties["RELEASE_KEY_PASSWORD"] as String
+        }
+    }
+
     defaultConfig {
         applicationId = "app.smartisanmusic.revived"
         minSdk = 31
         targetSdk = 36
         versionCode = 301
-        versionName = "3.0.1"
+        versionName = "3.0.1 Fork"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -25,6 +34,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

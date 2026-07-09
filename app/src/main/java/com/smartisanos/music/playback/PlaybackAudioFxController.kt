@@ -12,12 +12,13 @@ import kotlin.math.ln
 private val AudioFxControlFrequenciesHz = floatArrayOf(60f, 230f, 910f, 4_000f, 14_000f)
 
 internal class PlaybackAudioFxController {
+    private val lock = Any()
     private var audioSessionId: Int = C.AUDIO_SESSION_ID_UNSET
     private var settings: PlaybackSettings = PlaybackSettings()
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
 
-    fun setAudioSessionId(sessionId: Int) {
+    fun setAudioSessionId(sessionId: Int) = synchronized(lock) {
         if (audioSessionId == sessionId) {
             return
         }
@@ -27,16 +28,20 @@ internal class PlaybackAudioFxController {
     }
 
     fun setSettings(settings: PlaybackSettings) {
-        if (this.settings == settings) {
-            return
+        synchronized(lock) {
+            if (this.settings == settings) {
+                return
+            }
+            this.settings = settings
+            applySettings()
         }
-        this.settings = settings
-        applySettings()
     }
 
     fun release() {
-        releaseEffects()
-        audioSessionId = C.AUDIO_SESSION_ID_UNSET
+        synchronized(lock) {
+            releaseEffects()
+            audioSessionId = C.AUDIO_SESSION_ID_UNSET
+        }
     }
 
     private fun applySettings() {

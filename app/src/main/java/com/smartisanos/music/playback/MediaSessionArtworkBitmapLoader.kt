@@ -22,8 +22,8 @@ internal class MediaSessionArtworkBitmapLoader(
 ) : BitmapLoader {
     private val appContext = context.applicationContext
     private val executor: ListeningExecutorService = MoreExecutors.listeningDecorator(
-        Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "MediaSessionArtworkBitmapLoader")
+        Executors.newCachedThreadPool { runnable ->
+            Thread(runnable, "MediaSessionArtworkBitmapLoader").apply { isDaemon = true }
         },
     )
 

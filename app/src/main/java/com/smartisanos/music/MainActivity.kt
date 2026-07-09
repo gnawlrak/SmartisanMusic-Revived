@@ -125,7 +125,6 @@ class MainActivity : ComponentActivity() {
         private const val ExtraOpenPlaybackConsumed = "com.smartisanos.music.extra.OPEN_PLAYBACK_CONSUMED"
         private const val ExtraExternalAudioConsumed = "com.smartisanos.music.extra.EXTERNAL_AUDIO_CONSUMED"
         private const val ContentScheme = "content"
-        private const val FileScheme = "file"
         fun createOpenPlaybackIntent(context: Context): Intent {
             return Intent(context, MainActivity::class.java).apply {
                 action = ActionOpenPlayback
@@ -147,7 +146,7 @@ class MainActivity : ComponentActivity() {
             val uri = intent?.data ?: return false
             val normalizedMimeType = mimeType?.lowercase() ?: return false
             return intent.action == Intent.ACTION_VIEW &&
-                uri.scheme in setOf(ContentScheme, FileScheme) &&
+                uri.scheme == ContentScheme &&
                 (
                     normalizedMimeType.startsWith("audio/") ||
                         normalizedMimeType == "application/ogg" ||

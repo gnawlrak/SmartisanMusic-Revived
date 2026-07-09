@@ -1,21 +1,32 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# SmartisanMusic Revived — ProGuard/R8 rules
+# Keep Room entities used via DAO reflection
+-keep class com.smartisanos.music.data.** { *; }
+-dontwarn com.smartisanos.music.data.**
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep WebView JS interface classes (if needed)
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep resource classes
+-keep class **.R
+-keep class **.R$* { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep enum classes (used in serialization/DataStore)
+-keepclassmembers enum * { *; }
+
+# Keep Kotlin coroutines internals
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+
+# Preserve line numbers for crash reporting
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# NetEase crypto/data classes (reflection by JSON parsing)
+-keep class com.smartisanos.music.data.online.** { *; }
+
+# Keep custom View classes
+-keep class com.smartisanos.music.ui.widgets.** { *; }
+-keep class com.smartisanos.widget.** { *; }
+-keep class smartisanos.widget.** { *; }

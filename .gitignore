@@ -20,3 +20,6 @@ AGENTS.md
 
 # Reverse engineering workspace
 /reverse/*
+
+# Local properties (contains signing credentials)
+gradle.properties

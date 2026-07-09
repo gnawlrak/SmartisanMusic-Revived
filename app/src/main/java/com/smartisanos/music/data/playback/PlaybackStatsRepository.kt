@@ -53,7 +53,7 @@ class PlaybackStatsRepository private constructor(
                     ),
                 )
                 if (inserted == -1L) {
-                    playbackStatsDao.incrementExisting(normalizedMediaId, updatedAt)
+                    // 冲突：另一线程已插入，当前值由下方 getPlayCount 返回
                 }
             }
             playbackStatsDao.getPlayCount(normalizedMediaId)

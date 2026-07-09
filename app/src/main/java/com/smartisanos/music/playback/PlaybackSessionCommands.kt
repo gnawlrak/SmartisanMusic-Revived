@@ -97,7 +97,12 @@ internal fun Bundle.decodeReplaceQueueAndPlayMediaItems(): List<MediaItem> {
         Bundle::class.java,
     )
         ?: return emptyList()
-    return itemBundles.map { itemBundle ->
-        MediaItem.fromBundle(itemBundle, MediaLibraryInfo.INTERFACE_VERSION)
+    // 不要信任外部传入的 Bundle 直接构造 MediaItem
+    return itemBundles.mapNotNull { bundle ->
+        runCatching {
+            val item = MediaItem.fromBundle(bundle, MediaLibraryInfo.INTERFACE_VERSION)
+            // 验证必要字段
+            item.mediaId.takeIf(String::isNotBlank)?.let { item }
+        }.getOrNull()
     }
 }

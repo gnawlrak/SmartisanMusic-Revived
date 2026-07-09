@@ -25,6 +25,7 @@ import com.smartisanos.music.playback.EmbeddedLyricsToken
 import com.smartisanos.music.playback.NowPlayingArtworkRepository
 import com.smartisanos.music.playback.NowPlayingLyricsRepository
 import com.smartisanos.music.playback.extractEmbeddedLyrics
+import com.smartisanos.music.hook.LyricContract
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -205,7 +206,7 @@ internal class LyricsLiveUpdateManager(
         runCatching {
             val palette = androidx.palette.graphics.Palette.from(bitmap).generate()
             LyricStateHolder.primaryColor = palette.getVibrantColor(0xFFFFFFFF.toInt())
-            LyricStateHolder.secondaryColor = palette.getMutedColor(0x60FFFFFF)
+            LyricStateHolder.secondaryColor = palette.getMutedColor(0xFF999999.toInt())
         }.onFailure {
             LyricStateHolder.primaryColor = 0
             LyricStateHolder.secondaryColor = 0
@@ -256,6 +257,7 @@ internal class LyricsLiveUpdateManager(
             hasLyrics = tsLyrics != null
             packageName = context.packageName
         }
+        context.contentResolver.notifyChange(LyricContract.SNAPSHOT_URI, null)
     }
 
     /** 把逐字 token 列表序列化为 JSON 数组字符串，供 hook 侧解析。 */

@@ -79,6 +79,8 @@ internal object NeteaseOnlineMemoryCache {
     private val entries = ConcurrentHashMap<String, CacheEntry>()
     private val inFlightLoads = ConcurrentHashMap<String, Deferred<Any?>>()
     private val loadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private const val MaxCacheEntriesBeforeCleanup = 500
+    private const val MaxTtlBeforeEvictionMs = 30 * 60 * 1000L
 
     @Suppress("UNCHECKED_CAST")
     fun <T> getFreshValue(
@@ -108,6 +110,13 @@ internal object NeteaseOnlineMemoryCache {
             value = value ?: NullValue,
             loadedAtMs = loadedAtMs,
         )
+        if (entries.size > MaxCacheEntriesBeforeCleanup) {
+            val now = System.currentTimeMillis()
+            entries.keys.removeIf { key ->
+                val entry = entries[key]
+                entry != null && now - entry.loadedAtMs > MaxTtlBeforeEvictionMs
+            }
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -2144,6 +2153,10 @@ internal class NeteaseCloudMusicClient(
             }
             val location = getHeaderField("Location")?.takeIf(String::isNotBlank)
                 ?: return@useResponse null
+            val redirectHost = runCatching { URL(location).host?.lowercase() }.getOrNull()
+            if (redirectHost == null || !isTrustedRedirectTarget(redirectHost)) {
+                return@useResponse null
+            }
             OnlinePlaybackUrl(
                 url = location.normalizedPlayableUrl(),
                 mimeType = "audio/mpeg",
@@ -2151,15 +2164,39 @@ internal class NeteaseCloudMusicClient(
         }
     }
 
+    // 使用 Set 精确匹配，不允许子域名绕过
+    private val TrustedPlaybackHosts = setOf(
+        "music.126.net",
+        "m701.music.126.net",
+        "m8.music.126.net",
+        "m10.music.126.net",
+    )
+    private fun isTrustedRedirectTarget(host: String): Boolean {
+        return host in TrustedPlaybackHosts
+    }
+
+    // 安全的重定向循环：使用 openConnection 确保 HTTP 头一致，手动验证每跳域名
     private fun readText(url: String): String {
-        val connection = openConnection(url, followRedirects = true)
-        return connection.useResponse {
-            val code = responseCode
-            if (code !in 200..299) {
-                throw IOException("NetEase request failed: HTTP $code")
+        var currentUrl = url
+        // Kotlin repeat 是 lambda 不支持 break/continue，使用 for 循环
+        for (hop in 1..5) {
+            val conn = openConnection(currentUrl, followRedirects = false)
+            val responseCode = conn.responseCode
+            if (responseCode in 300..399) {
+                val location = conn.getHeaderField("Location") ?: break
+                val redirectUrl = java.net.URI(currentUrl).resolve(location).toURL()
+                val redirectHost = redirectUrl.host?.lowercase() ?: break
+                if (!isTrustedRedirectTarget(redirectHost)) {
+                    conn.disconnect()
+                    throw SecurityException("Untrusted redirect target: $redirectHost")
+                }
+                currentUrl = redirectUrl.toString()
+                conn.disconnect()
+                continue
             }
-            inputStream.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
+            return conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
         }
+        throw SecurityException("Too many redirects or untrusted redirect")
     }
 
     private fun ensureWeapiSession() {
@@ -2230,7 +2267,7 @@ internal class NeteaseCloudMusicClient(
             separator = ",",
             prefix = "[",
             postfix = "]",
-        ) { id -> """{"id":$id}""" }
+        ) { id -> JSONObject().apply { put("id", id) }.toString() }
         return callWeApi(
             path = "/v3/song/detail",
             params = mapOf(
@@ -2420,6 +2457,14 @@ internal class NeteaseCloudMusicClient(
     }
 
     private fun HttpURLConnection.storeResponseCookies() {
+        // Set-Cookie 域名白名单过滤：只信任 music.163.com 和 126.net 域名下的 cookie
+        val responseHost = runCatching { url.host?.lowercase() }.getOrNull()
+        if (responseHost == null ||
+            (responseHost != "music.163.com" && !responseHost.endsWith(".music.163.com") &&
+             responseHost != "126.net" && !responseHost.endsWith(".126.net"))
+        ) {
+            return
+        }
         val setCookieHeaders = headerFields
             ?.filterKeys { key -> key.equals("Set-Cookie", ignoreCase = true) }
             ?.values
@@ -3251,7 +3296,24 @@ private fun parseSetCookieHeader(header: String): Pair<String, String>? {
     if (key.isBlank() || value.isBlank() || value.any(Char::isISOControl)) {
         return null
     }
+    // 检查 Domain 属性：如果服务端设置了 Domain，必须指向可信任的网易云域名，
+    // 防止恶意子域名/中间人设置跨域 Cookie 覆盖 MUSIC_U / __csrf。
+    for (attr in header.split(';').drop(1)) {
+        val trimmed = attr.trim()
+        if (trimmed.startsWith("Domain=", ignoreCase = true)) {
+            val domain = trimmed.substringAfter("Domain=", "").trim().trimStart('.')
+            if (domain.isNotEmpty() && !domain.isTrustedCookieDomain()) {
+                return null
+            }
+        }
+    }
     return key to value
+}
+
+/** 判断 cookie Domain 是否属于可信任的网易云域名。 */
+private fun String.isTrustedCookieDomain(): Boolean {
+    return this == "163.com" || this.endsWith(".163.com") ||
+           this == "126.net" || this.endsWith(".126.net")
 }
 
 private fun JSONArray.toJsonObjects(): List<JSONObject> {

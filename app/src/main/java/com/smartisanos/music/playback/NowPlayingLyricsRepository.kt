@@ -24,11 +24,14 @@ internal object NowPlayingLyricsRepository {
         }
     }
     private val missingKeys = LruCache<LyricsRequestKey, Long>(MissingLyricsCacheSize)
+    private val cacheLock = Any()
     private val inFlightLoads = ConcurrentHashMap<LyricsRequestKey, Deferred<EmbeddedLyrics?>>()
     private val loadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun peek(mediaItem: MediaItem): EmbeddedLyrics? {
-        return cache.get(mediaItem.lyricsRequestKey())
+        synchronized(cacheLock) {
+            return cache.get(mediaItem.lyricsRequestKey())
+        }
     }
 
     suspend fun load(
@@ -38,7 +41,7 @@ internal object NowPlayingLyricsRepository {
     ): EmbeddedLyrics? {
         val appContext = context.applicationContext
         val key = mediaItem.lyricsRequestKey()
-        cache.get(key)?.let { return it }
+        synchronized(cacheLock) { cache.get(key) }?.let { return it }
         if (isRecentlyMissing(key)) {
             return null
         }
@@ -47,7 +50,7 @@ internal object NowPlayingLyricsRepository {
             loadEmbeddedLyrics(appContext, mediaItem)
         }
         if (lyrics != null) {
-            cache.put(key, lyrics)
+            synchronized(cacheLock) { cache.put(key, lyrics) }
             missingKeys.remove(key)
         } else if (rememberMissing) {
             missingKeys.put(key, SystemClock.elapsedRealtime())
@@ -65,7 +68,7 @@ internal object NowPlayingLyricsRepository {
         loader: suspend () -> EmbeddedLyrics?,
     ): EmbeddedLyrics? {
         val newLoad = loadScope.async(start = CoroutineStart.LAZY) {
-            cache.get(key) ?: loader()
+            synchronized(cacheLock) { cache.get(key) } ?: loader()
         }
         val activeLoad = inFlightLoads.putIfAbsent(key, newLoad)
         val load = activeLoad ?: newLoad.also { pendingLoad ->

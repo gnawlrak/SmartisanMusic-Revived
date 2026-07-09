@@ -10,10 +10,15 @@ import java.security.MessageDigest
 private const val LyricsCacheDirectoryName = "lyrics_cache"
 private const val LyricsCacheTtlMs = 7L * 24L * 60L * 60L * 1000L
 private const val MaxLyricsCacheFiles = 1_000
+private const val DefaultMaxLyricsFileBytes = 2L * 1024L * 1024L
+private const val DefaultMaxLyricsCacheTotalBytes = 64L * 1024L * 1024L
+internal const val LYRICS_CACHE_FILE_EXTENSION = "json"
 
 internal class OnlineLyricsDiskCache(
     private val directory: File,
     private val ttlMs: Long = LyricsCacheTtlMs,
+    private val maxFileBytes: Long = DefaultMaxLyricsFileBytes,
+    private val maxTotalBytes: Long = DefaultMaxLyricsCacheTotalBytes,
 ) {
     private val lock = Any()
 
@@ -29,6 +34,10 @@ internal class OnlineLyricsDiskCache(
         synchronized(lock) {
             val file = identity.cacheFile()
             if (!file.isFile) {
+                return@synchronized null
+            }
+            if (file.length() > maxFileBytes) {
+                file.delete()
                 return@synchronized null
             }
             val root = runCatching { JSONObject(file.readText()) }.getOrNull()
@@ -69,8 +78,13 @@ internal class OnlineLyricsDiskCache(
                     .putNullable(TranslatedLyricKey, lyrics.translatedLyric)
                     .putNullable(WordLyricKey, lyrics.wordLyric)
                     .putNullable(TranslatedWordLyricKey, lyrics.translatedWordLyric)
+                val payload = root.toString()
+                if (payload.toByteArray(Charsets.UTF_8).size > maxFileBytes) {
+                    file.delete()
+                    return@synchronized
+                }
                 runCatching {
-                    tempFile.writeText(root.toString())
+                    tempFile.writeText(payload)
                     if (!tempFile.renameTo(file)) {
                         file.delete()
                         tempFile.renameTo(file)
@@ -83,7 +97,7 @@ internal class OnlineLyricsDiskCache(
     }
 
     private fun OnlineTrackIdentity.cacheFile(): File {
-        return File(directory, "${stableLyricsCacheKey()}.json")
+        return File(directory, "${stableLyricsCacheKey()}.$LYRICS_CACHE_FILE_EXTENSION")
     }
 
     private fun OnlineTrackIdentity.stableLyricsCacheKey(): String {
@@ -97,16 +111,34 @@ internal class OnlineLyricsDiskCache(
 
     private fun trimLocked() {
         val files = directory
-            .listFiles { file -> file.isFile && file.extension == "json" }
+            .listFiles { file -> file.isFile && file.extension == LYRICS_CACHE_FILE_EXTENSION }
             .orEmpty()
+        // 按文件数量淘汰
         val overflow = files.size - MaxLyricsCacheFiles
-        if (overflow <= 0) {
+        if (overflow > 0) {
+            files
+                .sortedBy(File::lastModified)
+                .take(overflow)
+                .forEach { file -> file.delete() }
+        }
+        // 按总字节数淘汰
+        var totalBytes = directory
+            .listFiles { file -> file.isFile && file.extension == LYRICS_CACHE_FILE_EXTENSION }
+            .orEmpty()
+            .sumOf(File::length)
+        if (totalBytes <= maxTotalBytes) {
             return
         }
-        files
+        directory
+            .listFiles { file -> file.isFile && file.extension == LYRICS_CACHE_FILE_EXTENSION }
+            .orEmpty()
             .sortedBy(File::lastModified)
-            .take(overflow)
-            .forEach { file -> file.delete() }
+            .forEach { file ->
+                if (totalBytes > maxTotalBytes) {
+                    totalBytes -= file.length()
+                    file.delete()
+                }
+            }
     }
 
     private companion object {

@@ -31,6 +31,7 @@ internal object NowPlayingArtworkRepository {
         }
     }
     private val missingIdentities = LruCache<ArtworkRequestKey, Long>(MissingArtworkIdentityCacheSize)
+    private val cacheLock = Any()
     private val inFlightLoads = ConcurrentHashMap<ArtworkCacheKey, Deferred<Bitmap?>>()
     private val loadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -41,11 +42,11 @@ internal object NowPlayingArtworkRepository {
     ): Bitmap? {
         val identity = mediaItem.artworkRequestKey()
         val exactKey = ArtworkCacheKey(identity, size.width, size.height)
-        cache.get(exactKey)?.let { return it }
+        synchronized(cacheLock) { cache.get(exactKey) }?.let { return it }
         if (!allowAnySize) {
             return null
         }
-        return cache.snapshot()
+        return synchronized(cacheLock) { cache.snapshot() }
             .asSequence()
             .filter { (key, _) -> key.identity == identity }
             .map { (_, bitmap) -> bitmap }
@@ -61,7 +62,7 @@ internal object NowPlayingArtworkRepository {
         val appContext = context.applicationContext
         val identity = mediaItem.artworkRequestKey()
         val cacheKey = ArtworkCacheKey(identity, size.width, size.height)
-        cache.get(cacheKey)?.let { return it }
+        synchronized(cacheLock) { cache.get(cacheKey) }?.let { return it }
         val reusableBitmap = peek(mediaItem, size)
         if (isRecentlyMissing(identity)) {
             return reusableBitmap
@@ -71,7 +72,7 @@ internal object NowPlayingArtworkRepository {
             loadBitmap(appContext, mediaItem, size)
         }?.also { loaded ->
             loaded.prepareToDraw()
-            cache.put(cacheKey, loaded)
+            synchronized(cacheLock) { cache.put(cacheKey, loaded) }
             missingIdentities.remove(identity)
         }
         if (bitmap == null && rememberMissing) {
@@ -144,7 +145,7 @@ internal object NowPlayingArtworkRepository {
         loader: suspend () -> Bitmap?,
     ): Bitmap? {
         val newLoad = loadScope.async(start = CoroutineStart.LAZY) {
-            cache.get(cacheKey) ?: loader()
+            synchronized(cacheLock) { cache.get(cacheKey) } ?: loader()
         }
         val activeLoad = inFlightLoads.putIfAbsent(cacheKey, newLoad)
         val load = activeLoad ?: newLoad.also { pendingLoad ->

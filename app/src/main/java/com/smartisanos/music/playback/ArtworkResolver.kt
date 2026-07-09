@@ -11,6 +11,8 @@ import android.provider.MediaStore
 import android.util.Size
 import androidx.media3.common.MediaItem
 import com.smartisanos.music.data.online.onlineIdentityOrNull
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -158,7 +160,21 @@ private fun loadNetworkArtworkBitmap(
             if (connection.responseCode !in 200..299) {
                 return@runCatching null
             }
-            val bytes = connection.inputStream.use { stream -> stream.readBytes() }
+            val bytes = connection.inputStream.use { stream ->
+                val buffered = BufferedInputStream(stream)
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0L
+                var n: Int
+                while (buffered.read(buffer).also { n = it } != -1) {
+                    val remaining = MAX_ARTWORK_BYTES - total
+                    if (remaining <= 0) break
+                    val toWrite = minOf(n.toLong(), remaining).toInt()
+                    output.write(buffer, 0, toWrite)
+                    total += toWrite
+                }
+                output.toByteArray()
+            }
             decodeByteArraySampled(bytes, size)?.scaledToFit(size)
         } finally {
             connection.disconnect()
@@ -207,9 +223,21 @@ private fun decodeStreamSampled(
     uri: Uri,
     size: Size,
 ): Bitmap? {
-    // 一次读取到字节数组，避免 ContentResolver 两次 IPC
+    // 一次读取到字节数组，避免 ContentResolver 两次 IPC；限制最大 10MB
     val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
-        input.readBytes()
+        val buffered = BufferedInputStream(input)
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0L
+        var n: Int
+        while (buffered.read(buffer).also { n = it } != -1) {
+            val remaining = MAX_ARTWORK_BYTES - total
+            if (remaining <= 0) break
+            val toWrite = minOf(n.toLong(), remaining).toInt()
+            output.write(buffer, 0, toWrite)
+            total += toWrite
+        }
+        output.toByteArray()
     } ?: return null
     val boundsOptions = BitmapFactory.Options().apply {
         inJustDecodeBounds = true
@@ -275,6 +303,7 @@ private fun Bitmap.scaledToFit(size: Size): Bitmap {
     return Bitmap.createScaledBitmap(this, scaledWidth, scaledHeight, true)
 }
 
+private const val MAX_ARTWORK_BYTES = 10L * 1024 * 1024
 private const val NetworkArtworkTimeoutMs = 12_000
 private const val NetworkArtworkUserAgent =
     "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +

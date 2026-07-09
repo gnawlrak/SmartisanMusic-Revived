@@ -18,6 +18,13 @@
 
 ---
 
+## 下载
+
+- 音乐 App Release：[https://github.com/gnawlrak/SmartisanMusic-Revived/releases/tag/v3.0.1-revived-3](https://github.com/gnawlrak/SmartisanMusic-Revived/releases/tag/v3.0.1-revived-3)
+- LSPosed 模块 Release：[https://github.com/gnawlrak/LyricsIsland-LSPosed-For-SmartisanMusic-Revived/releases/tag/v0.1.0](https://github.com/gnawlrak/LyricsIsland-LSPosed-For-SmartisanMusic-Revived/releases/tag/v0.1.0)
+
+---
+
 ## 编译产物
 
 目前已发布第一版3.0.1Fork release版
@@ -25,8 +32,16 @@
 ```bash
 # 音乐 App
 cd SmartisanMusic-Revived
-./gradlew :app:assembleRelease
+./gradlew :app:assembleDebug
+
+# LSPosed 模块
+cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
+./gradlew :app:assembleDebug
 ```
+
+产物路径：
+- 音乐 App：`SmartisanMusic-Revived/app/build/outputs/apk/debug/app-debug.apk`
+- LSPosed 模块：`LyricsIsland-LSPosed-For-SmartisanMusic-Revived/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 

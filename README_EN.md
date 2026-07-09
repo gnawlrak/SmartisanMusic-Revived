@@ -1,8 +1,10 @@
 # Smartisan Music Revived
 
 > An unofficial recreation of Smartisan Music 8.1.0, rebuilt with modern Android technology while preserving the original visual assets.
-
-Build artifact for this project: `SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
+>
+> Original author: [Mangi-11](https://github.com/Mangi-11/)
+>
+> This fork keeps the original UI and interaction, rewrites the playback/storage layer with modern Android tech, adds NetEase Cloud Music online support, and adds Xiaomi/HyperOS Super Island lyrics integration.
 
 ---
 
@@ -62,20 +64,24 @@ Works with the LSPosed module [`LyricsIsland-LSPosed-For-SmartisanMusic-Revived`
 
 ## Build artifacts
 
-- **Music App Release APK**: `SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
-- **LSPosed Module Release APK**: `LyricsIsland-LSPosed-For-SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
+- **Music App Release**: https://github.com/gnawlrak/SmartisanMusic-Revived/releases/tag/v3.0.1-revived-3
+- **LSPosed Module Release**: https://github.com/gnawlrak/LyricsIsland-LSPosed-For-SmartisanMusic-Revived/releases/tag/v0.1.0
 
-The two subprojects do not share source code and can be compiled independently. The release build currently has no release signing configuration, so the output is `*-unsigned.apk`. To install, sign it with your own release key.
+The two subprojects do not share source code and can be compiled independently. To build debug APKs locally:
 
 ```bash
 # Music App
 cd SmartisanMusic-Revived
-./gradlew :app:assembleRelease
+./gradlew :app:assembleDebug
 
 # LSPosed Module
 cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
-./gradlew :app:assembleRelease
+./gradlew :app:assembleDebug
 ```
+
+Debug APK output paths:
+- Music App: `SmartisanMusic-Revived/app/build/outputs/apk/debug/app-debug.apk`
+- LSPosed Module: `LyricsIsland-LSPosed-For-SmartisanMusic-Revived/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
@@ -96,8 +102,9 @@ cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
 
 ## Acknowledgments
 
+- Thanks to [Mangi-11](https://github.com/Mangi-11/) for [SmartisanMusic Revived](https://github.com/Mangi-11/SmartisanMusic-Revived), which continued the porting and reverse-engineering work based on [People-11](https://github.com/People-11/)'s [SmartisanOS_APP_Port](https://github.com/People-11/SmartisanOS_APP_Port/).
 - Thanks to [People-11](https://github.com/People-11/) for the [SmartisanOS_APP_Port](https://github.com/People-11/SmartisanOS_APP_Port/) project; its `Music_8.1.0.apk` provided the visual and interaction baseline for this recreation.
-- Thanks to [limczhh](https://github.com/limczhh/) for [HyperLyric](https://github.com/limczhh/HyperLyric), which inspired the LSPosed module implementation.
+- Thanks to [limczhh](https://github.com/limczhh/) for [HyperLyric](https://github.com/limczhh/HyperLyric), which inspired the LSPosed module, Live Update, and Super Island implementations.
 - Thanks to [LSPosed](https://github.com/LSPosed/LSPosed) for the Xposed framework.
 
 ---

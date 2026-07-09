@@ -20,11 +20,6 @@
 
 ## 编译产物
 
-- **音乐 App Release APK**：`SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
-- **LSPosed 模块 Release APK**：`LyricsIsland-LSPosed-For-SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
-
-两个子项目互不共享源码，各自独立编译。Release 构建当前未配置发布签名，产物为 `*-unsigned.apk`，如需安装请使用自己的签名密钥进行签名（前两天开发的时候忘了去弄正式版签名了，后续补上）。
-
 ```bash
 # 音乐 App
 cd SmartisanMusic-Revived
@@ -41,7 +36,7 @@ cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
 
 | 类别 | 技术 |
 | ---- | ---- |
-| 构建 | Android Gradle Plugin `8.12.0`（我开发的时候网络环境一直无法快速拿到9.2.1，只能降级为本地已有的8.12.0） |
+| 构建 | Android Gradle Plugin `9.2.1` |
 | 语言 | Kotlin `2.4.0` |
 | UI | legacy View 壳 + Jetpack Compose 桥接 |
 | 播放 | Media3 `1.10.1` |

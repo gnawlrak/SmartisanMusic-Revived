@@ -1,5 +1,6 @@
 # 锤子音乐复刻版 (Smartisan Music Revived)
 
+## 原作者 [Mangi-11](https://github.com/Mangi-11/) 第一次复刻优化内容概括：
 > 一个基于 Smartisan Music 8.1.0 资源与现代 Android 技术栈重写的非官方复刻播放器。
 
 本仓库对应产物：`SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
@@ -46,6 +47,7 @@
 - 黑胶唱盘、唱针拖拽、搓碟
 - 歌词 / 控制区、播放队列展开和队列拖拽排序
 
+## 本仓库二次开发增加的功能：
 ### 歌词通知与跨进程歌词共享
 
 - **HyperOS 超级岛焦点通知**：在小米 / HyperOS 设备的超级岛中实时显示歌词，支持专辑封面、歌名、艺人信息和逐行歌词
@@ -65,7 +67,7 @@
 - **音乐 App Release APK**：`SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
 - **LSPosed 模块 Release APK**：`LyricsIsland-LSPosed-For-SmartisanMusic-Revived/app/build/outputs/apk/release/app-release-unsigned.apk`
 
-两个子项目互不共享源码，各自独立编译。Release 构建当前未配置发布签名，产物为 `*-unsigned.apk`，如需安装请使用自己的签名密钥进行签名。
+两个子项目互不共享源码，各自独立编译。Release 构建当前未配置发布签名，产物为 `*-unsigned.apk`，如需安装请使用自己的签名密钥进行签名（前两天开发的时候忘了去弄正式版签名了，后续补上）。
 
 ```bash
 # 音乐 App
@@ -83,7 +85,7 @@ cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
 
 | 类别 | 技术 |
 | ---- | ---- |
-| 构建 | Android Gradle Plugin `9.2.1` |
+| 构建 | Android Gradle Plugin `8.12.0`（我开发的时候网络环境一直无法快速拿到9.2.1，只能降级为本地已有的8.12.0） |
 | 语言 | Kotlin `2.4.0` |
 | UI | legacy View 壳 + Jetpack Compose 桥接 |
 | 播放 | Media3 `1.10.1` |
@@ -96,9 +98,8 @@ cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
 
 ## 致谢
 
-- 感谢 [People-11](https://github.com/People-11/) 的 [SmartisanOS_APP_Port](https://github.com/People-11/SmartisanOS_APP_Port/) 移植工作，其 `Music_8.1.0.apk` 为本项目提供了视觉与交互基准。
-- 感谢 [limczhh](https://github.com/limczhh/) 的 [HyperLyric](https://github.com/limczhh/HyperLyric) 为 LSPosed 模块提供实现思路参考。
-- 感谢 [LSPosed](https://github.com/LSPosed/LSPosed) Xposed 框架。
+- 感谢 [Mangi-11](https://github.com/Mangi-11/) 的 [SmartisanMusic Revived](https://github.com/Mangi-11/SmartisanMusic-Revived) 对 [People-11](https://github.com/People-11/) 的 [SmartisanOS_APP_Port](https://github.com/People-11/SmartisanOS_APP_Port) 移植和逆向复活工作。
+- 感谢 [limczhh](https://github.com/limczhh/) 的 [HyperLyric](https://github.com/limczhh/HyperLyric) 为 LSPosed 模块和无root下的实况通知、超级岛提供实现思路参考。
 
 ---
 
@@ -111,7 +112,8 @@ cd LyricsIsland-LSPosed-For-SmartisanMusic-Revived
 - 云音乐能力依赖用户自己的网易云音乐账号授权，本项目不提供公共曲库、媒体分发服务或第三方平台会员权益。
 - 原创代码仅限非商业用途。
 - 本项目按「原样」（AS IS）提供，作者不对因使用本项目而产生的任何直接或间接损失承担责任。
+- 本项目为本人初次尝试制作公开为目的的安卓软件，出现问题为正常现象，如发现bug，各位大佬请多多指教。
 
 ## 许可证
 
-本项目原创代码采用自定义非商业许可证（Custom NonCommercial License）。详见 [LICENSE](./LICENSE)。
+本项目原创代码采用和原项目相同的自定义非商业许可证（Custom NonCommercial License）。详见 [LICENSE](./LICENSE)。

@@ -1,0 +1,42 @@
+Initialized native services in: C:\Users\²âÊÔÕË»§\.gradle\native
+Initialized jansi services in: C:\Users\²âÊÔÕË»§\.gradle\native
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.4.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Received JVM installation metadata from 'C:\Program Files\Microsoft\jdk-17.0.8.7-hotspot': {JAVA_HOME=C:\Program Files\Microsoft\jdk-17.0.8.7-hotspot, JAVA_VERSION=17.0.8, JAVA_VENDOR=Microsoft, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=17.0.8+7-LTS, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=17.0.8+7-LTS, VM_VENDOR=Microsoft, OS_ARCH=amd64}
+Starting process 'Gradle build daemon'. Working directory: C:\Users\²âÊÔÕË»§\.gradle\daemon\9.4.1 Command: C:\Users\²âÊÔÕË»§\.gradle\jdks\jetbrains_s_r_o_-21-amd64-windows.2\bin\java.exe --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED -Xmx2048m -Dfile.encoding=UTF-8 -Duser.country=CN -Duser.language=zh -Duser.variant -cp C:\Users\²âÊÔÕË»§\.gradle\wrapper\dists\gradle-9.4.1-bin\arn2x92ynaizyzdaamcbpbhtj\gradle-9.4.1\lib\gradle-daemon-main-9.4.1.jar -javaagent:C:\Users\²âÊÔÕË»§\.gradle\wrapper\dists\gradle-9.4.1-bin\arn2x92ynaizyzdaamcbpbhtj\gradle-9.4.1\lib\agents\gradle-instrumentation-agent-9.4.1.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 9.4.1
+Successfully started process 'Gradle build daemon'
+An attempt to start the daemon took 7.243 secs.
+The client will now receive all logging from the daemon (pid: 17392). The daemon log file: C:\Users\²âÊÔÕË»§\.gradle\daemon\9.4.1\daemon-17392.out.log
+Daemon will be stopped at the end of the build 
+Using 8 worker leases.
+Operational build model parameters: {cachingModelBuilding=false, configurationCache=false, configurationCacheDisabledReason=null, configurationCacheParallelLoad=false, configurationCacheParallelStore=false, configureOnDemand=false, invalidateCoupledProjects=false, isolatedProjects=false, modelAsProjectDependency=false, modelBuilding=false, parallelModelBuilding=false, parallelProjectConfiguration=false, parallelProjectExecution=false, resilientModelBuilding=false}
+Received JVM installation metadata from 'C:\Users\²âÊÔÕË»§\.gradle\jdks\jetbrains_s_r_o_-21-amd64-windows.2': {JAVA_HOME=C:\Users\²âÊÔÕË»§\.gradle\jdks\jetbrains_s_r_o_-21-amd64-windows.2, JAVA_VERSION=21.0.11, JAVA_VENDOR=JetBrains s.r.o., RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=21.0.11+1-b1163.116, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=21.0.11+1-b1163.116, VM_VENDOR=JetBrains s.r.o., OS_ARCH=amd64}
+Watching the file system is configured to be enabled if available
+Now considering [D:\´¸×ÓÒôÀÖÖØÖÆ°æ\SmartisanMusic-Revived] as hierarchies to watch
+File system watching is active
+Starting Build
+Resolved plugin [id: 'org.gradle.toolchains.foojay-resolver-convention', version: '1.0.0']
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Settings file 'D:\´¸×ÓÒôÀÖÖØÖÆ°æ\SmartisanMusic-Revived\settings.gradle.kts' line: 14
+
+* What went wrong:
+Plugin [id: 'org.gradle.toolchains.foojay-resolver-convention', version: '1.0.0'] was not found in any of the following sources:
+
+- Gradle Core Plugins (plugin is not in 'org.gradle' namespace)
+- Included Builds (No included builds contain this plugin)
+- Plugin Repositories (could not resolve plugin artifact 'org.gradle.toolchains.foojay-resolver-convention:org.gradle.toolchains.foojay-resolver-convention.gradle.plugin:1.0.0')
+  Searched in the following repositories:
+    Google
+    MavenRepo
+    Gradle Central Plugin Repository
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 19s
+Watched directory hierarchies: []
